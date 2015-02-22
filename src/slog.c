@@ -38,7 +38,7 @@ static int s_send (void *socket, char *string)
 {
     int size;
 
-    size = zmq_send (socket, string, strlen (string), 0);
+    size = zmq_send(socket, string, strlen(string), 0);
     return size;
 }
 
@@ -61,6 +61,8 @@ bool init_slog(
         {
             return true;
         }
+
+        fprintf(stderr, "No zmq context. Create new.\n");
 
         g_slog_zctx = zmq_ctx_new();
         if(g_slog_zctx == NULL)
@@ -94,7 +96,7 @@ bool init_slog(
     ret = zmq_connect(g_slog_zsock, addr);
     if(ret != 0)
     {
-        fprintf(stderr, "Could not bind socket. err[%d:%s]\n", errno, strerror(errno));
+        fprintf(stderr, "Could not connect to logstash socket. addr[%s], err[%d:%s]\n", addr, errno, strerror(errno));
         return false;
     }
 
@@ -129,6 +131,12 @@ void _slog(const char *_FILE, int _LINE, const char *_func, uint64_t level, cons
     len = strlen(g_logbuf);
     vsnprintf(g_logbuf + len, MAX_LOGBUFFER_SIZE - len, fmt, ap);
     va_end(ap);
+
+    if(g_slog_zsock == NULL)
+    {
+        fprintf(stderr, "[ERR] Log socket error. msg[%s]\n", g_logbuf);
+        return;
+    }
 
     s_send(g_slog_zsock, g_logbuf);
 }

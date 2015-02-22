@@ -43,18 +43,12 @@ static int init_database(void);
 static int init_ast_int(void);
 static int init_service(void);
 
-
-
 static void sigterm_cb(unused__ int fd, unused__ short event, unused__ void *arg);
 static void sigusr_cb(unused__ int fd, unused__ short event, unused__ void *arg);
 static void siginfo_cb(unused__ int fd, unused__ short event, unused__ void *arg);
 
 int main(int argc, char** argv)
 {
-//    evhtp_t *evhtp, *evhtp_ssl;
-//    char* ip_bind;
-//    int   port_http, port_https;
-
     char*   conf;
     json_error_t j_err;
     int ret;
@@ -356,13 +350,13 @@ static int init_ast_int(void)
 
     j_tmp = json_object_get(g_app->j_conf, "addr_cmd");
     tmp = json_string_value(j_tmp);
-    slog(LOG_INFO, "Creating zmq command socket. addr[%s]\n", tmp);
+    slog(LOG_INFO, "Connect zmq command socket. addr[%s]\n", tmp);
 
-    ret = zmq_connect(g_app->zctx, tmp);
+    ret = zmq_connect(g_app->zcmd, tmp);
     json_decref(j_tmp);
     if(ret != 0)
     {
-        slog(LOG_ERR, "Could not connect zmq_command socket. err[%d:%s]\n", errno, strerror(errno));
+        slog(LOG_ERR, "Could not connect zmq_command socket. addr[%s], err[%d:%s]\n", errno, tmp, strerror(errno));
         return false;
     }
 
@@ -376,13 +370,20 @@ static int init_ast_int(void)
 
     j_tmp = json_object_get(g_app->j_conf, "addr_evt");
     tmp = json_string_value(j_tmp);
-    slog(LOG_INFO, "Creating zmq event socket. addr[%s]\n", tmp);
+    slog(LOG_INFO, "Connect zmq event socket. addr[%s]\n", tmp);
 
-    ret = zmq_bind(g_app->zevt, tmp);
+    ret = zmq_connect(g_app->zevt, tmp);
     json_decref(j_tmp);
     if(ret != 0)
     {
-        slog(LOG_ERR, "Could not bind zmq_command socket. err[%d:%s]\n", errno, strerror(errno));
+        slog(LOG_ERR, "Could not connect zmq_event socket. err[%d:%s]\n", errno, strerror(errno));
+        return false;
+    }
+
+    ret = zmq_setsockopt(g_app->zevt, ZMQ_SUBSCRIBE, "{", strlen("{"));
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Could not set subscribe option. err[%d:%s]", errno, strerror(errno));
         return false;
     }
 
@@ -398,7 +399,6 @@ static int init_ast_int(void)
     event_add(ev_ast_evt, NULL);
 
     return true;
-
 
 //
 //    int ret;
@@ -514,10 +514,10 @@ void testcb(evhtp_request_t *req, __attribute__((unused)) void *arg)
 */
 static void sigterm_cb(unused__ int fd, unused__ short event, unused__ void *arg)
 {
-    struct event_base * evbase = (struct event_base *)arg;
-    struct timeval tv = { .tv_usec = 100000, .tv_sec = 0 }; /* 100 ms */
+    struct timeval tv = { .tv_usec = 0, .tv_sec = 1 }; /* 1 second */
 
-    event_base_loopexit(evbase, &tv);
+    slog(LOG_INFO, "Detected SIGTERM.");
+    event_base_loopexit(g_app->ev_base, &tv);
 }
 
 /*!

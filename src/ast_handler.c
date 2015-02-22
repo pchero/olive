@@ -18,6 +18,7 @@
 #include <jansson.h>
 #include <event2/event.h>
 #include <event2/util.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "ast_handler.h"
@@ -28,14 +29,14 @@
 #define MAX_ZMQ_RCV_BUF 8192
 
 
-struct ast_t_
-{
-    void* zmq_ctx;
-    void* sock_cmd;
-    void* sock_evt;
-};
+//struct ast_t_
+//{
+//    void* zmq_ctx;
+//    void* sock_cmd;
+//    void* sock_evt;
+//};
 
-static struct ast_t_* g_ast;
+//static struct ast_t_* g_ast;
 
 static void ast_recv_handler(json_t* j_evt);
 static int ast_get_evt_type(const char* type);
@@ -44,14 +45,13 @@ static void process_peerstatus(json_t* j_recv);
 
 int ast_send_cmd(char* cmd, char** res)
 {
-    int ret;
-    char* tmp;
-//    unsigned int   rcv_evts;
-//    size_t rcv_size;
-//    char* rcv_buf;
+    int     ret;
+    char*   tmp;
+    zmq_msg_t   msg;
+    char*   recv_buf;
 
     // send command
-    ret = zmq_send(g_ast->sock_cmd, cmd, strlen(cmd), 0);
+    ret = zmq_send(g_app->zcmd, cmd, strlen(cmd), 0);
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not send command. cmd[%s], err[%s]", cmd, strerror(errno));
@@ -78,19 +78,18 @@ int ast_send_cmd(char* cmd, char** res)
 //        continue;
 //    }
 
-    ret = zmq_recv(g_ast->sock_cmd, tmp, MAX_ZMQ_RCV_BUF - 1, 0);
-    if(ret == -1)
-    {
-        // Todo: zmq_recv error control
-        slog(LOG_ERR, "Could not get the cmd result. err[%d:%s]", errno, strerror(errno));
-        return false;
-    }
-    tmp[ret] = '\0';
-    slog(LOG_DEBUG, "get cmd result. ret[%d], size[%d], res[%s]", ret, MAX_ZMQ_RCV_BUF, tmp);
+    ret = zmq_msg_init(&msg);
+    ret = zmq_msg_recv(&msg, g_app->zcmd, 0);
 
-    *res = tmp;
+    ret = zmq_msg_size(&msg);
+    recv_buf = calloc(ret + 1, sizeof(char));
+    memcpy(recv_buf, zmq_msg_data(&msg), sizeof(ret));
+    zmq_msg_close(&msg);
 
-    return ret;
+    *res = recv_buf;
+    slog(LOG_DEBUG, "Recv result. size[%d], msg[%s]", strlen(*res), *res);
+
+    return strlen(*res);
 }
 
 /**
@@ -99,63 +98,52 @@ int ast_send_cmd(char* cmd, char** res)
  * @param what
  * @param arg
  */
-void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, void *arg)
+void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
     int ret;
-    void* rcv;
+    zmq_msg_t   msg;
+    char*   recv_buf;
+
     unsigned int   rcv_evts;
     size_t rcv_size;
     json_t* j_recv;
     json_error_t j_err;
-    char  rcv_buf[MAX_ZMQ_RCV_BUF];
 
-    rcv = arg;
     rcv_size = sizeof(rcv_evts);
 
-    if(rcv == NULL)
-    {
-        slog(LOG_ERR, "rcv in NULL.");
-        return;
-    }
-    ret = zmq_getsockopt(rcv, ZMQ_EVENTS, &rcv_evts, &rcv_size);
+    ret = zmq_getsockopt(g_app->zevt, ZMQ_EVENTS, &rcv_evts, &rcv_size);
     if(ret != 0)
     {
         slog(LOG_ERR, "Could not get the sockopt. ret[%d], err[%d:%s]", ret, errno, strerror(errno));
         return;
     }
 
-    while(rcv_evts & ZMQ_POLLIN)
+    ret = rcv_evts & ZMQ_POLLIN;
+    if(ret != 1)
     {
-        memset(rcv_buf, 0x00, sizeof(rcv_buf));
-        ret = zmq_recv(rcv, rcv_buf, sizeof(rcv_buf) - 1, ZMQ_DONTWAIT);
-        if(ret == -1)
-        {
-            break;
-        }
-        rcv_buf[ret] = 0;
-        fprintf(stderr, "Recv. msg[%s]\n", rcv_buf);
-        slog(LOG_DEBUG, "Recv. msg[%s]", rcv_buf);
-
-        j_recv = json_loads(rcv_buf, 0, &j_err);
-        if(j_recv == NULL)
-        {
-            slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",
-                    j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
-                    );
-        }
-        else
-        {
-            ast_recv_handler(j_recv);
-            json_decref(j_recv);
-        }
-
-        ret = zmq_getsockopt(rcv, ZMQ_EVENTS, &rcv_evts, &rcv_size);
-        if(ret != 0)
-        {
-            slog(LOG_ERR, "Could not get the sockopt. ret[%d], err[%d:%s]", ret, errno, strerror(errno));
-            return;
-        }
+        usleep(100);
+        return;
     }
+
+    ret = zmq_msg_init(&msg);
+    ret = zmq_msg_recv(&msg, g_app->zevt, 0);
+
+    ret = zmq_msg_size(&msg);
+    recv_buf = calloc(ret + 1, sizeof(char));
+    memcpy(recv_buf, zmq_msg_data(&msg), ret);
+    zmq_msg_close(&msg);
+    slog(LOG_DEBUG, "Recv. msg[%s]", recv_buf);
+
+    j_recv = json_loads(recv_buf, 0, &j_err);
+    if(j_recv == NULL)
+    {
+        slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                );
+    }
+
+    ast_recv_handler(j_recv);
+    json_decref(j_recv);
 
     return;
 }
@@ -164,13 +152,12 @@ static void ast_recv_handler(json_t* j_evt)
 {
     int type;
     const char* tmp;
-//    json_t* j_tmp;
+    json_t*     j_tmp;
 
-//    j_tmp = json_object_get(j_evt, "Event");
-    tmp = json_string_value(json_object_get(j_evt, "Event"));
+    j_tmp = json_object_get(j_evt, "Event");
+    tmp = json_string_value(j_tmp);
     slog(LOG_DEBUG, "Event string. str[%s]", tmp);
     type = ast_get_evt_type(tmp);
-//    json_decref(j_tmp);
 
     switch(type)
     {
@@ -188,7 +175,7 @@ static void ast_recv_handler(json_t* j_evt)
         break;
     }
 
-    json_decref(j_evt);
+    json_decref(j_tmp);
 
     return;
 }
@@ -206,124 +193,478 @@ static int ast_get_evt_type(const char* type)
         return -1;
     }
 
-    if(strcmp(type, "Agentcallbacklogin") == 0)
-        return Agentcallbacklogin;
-
-    if(strcmp(type, "Agentcallbacklogoff") == 0)
-        return Agentcallbacklogoff;
-
     if(strcmp(type, "AgentCalled") == 0)
-        return AgentCalled;
+        return AgentCalled;                // Raised when an queue member is notified of a caller in the queue.
 
     if(strcmp(type, "AgentComplete") == 0)
-        return AgentComplete;
+        return AgentComplete;              // Raised when a queue member has finished servicing a caller in the queue.
 
     if(strcmp(type, "AgentConnect") == 0)
-        return AgentConnect;
+        return AgentConnect;               // Raised when a queue member answers and is bridged to a caller in the queue.
 
     if(strcmp(type, "AgentDump") == 0)
-        return AgentDump;
+        return AgentDump;                  // Raised when a queue member hangs up on a caller in the queue.
 
     if(strcmp(type, "Agentlogin") == 0)
-        return Agentlogin;
+        return Agentlogin;                 // Raised when an Agent has logged in.
 
     if(strcmp(type, "Agentlogoff") == 0)
-        return Agentlogoff;
+        return Agentlogoff;                // Raised when an Agent has logged off.
 
-    if(strcmp(type, "QueueMemberAdded") == 0)
-        return QueueMemberAdded;
+    if(strcmp(type, "AgentRingNoAnswer") == 0)
+        return AgentRingNoAnswer;          // Raised when a queue member is notified of a caller in the queue and fails to answer.
 
-    if(strcmp(type, "QueueMemberPaused") == 0)
-        return QueueMemberPaused;
+    if(strcmp(type, "Agents") == 0)
+        return Agents;                     // Response event in a series to the Agents AMI action containing information about a defined agent.
 
-    if(strcmp(type, "QueueMemberStatus") == 0)
-        return QueueMemberStatus;
+    if(strcmp(type, "AgentsComplete") == 0)
+        return AgentsComplete;             // Final response event in a series of events to the Agents AMI action.
 
-    // Call Status Events
-    if(strcmp(type, "Cdr") == 0)
-        return Cdr;
+    if(strcmp(type, "AGIExecEnd") == 0)
+        return AGIExecEnd;                 // Raised when a received AGI command completes processing.
 
-    if(strcmp(type, "Dial") == 0)
-        return Dial;
+    if(strcmp(type, "AGIExecStart") == 0)
+        return AGIExecStart;               // Raised when a received AGI command starts processing.
 
-    if(strcmp(type, "ExtensionStatus") == 0)
-        return ExtensionStatus;
-
-    if(strcmp(type, "Hangup") == 0)
-        return Hangup;
-
-    if(strcmp(type, "MusicOnHold") == 0)
-        return MusicOnHold;
-
-    if(strcmp(type, "Join") == 0)
-        return Join;
-
-    if(strcmp(type, "Leave") == 0)
-        return Leave;
-
-    if(strcmp(type, "Link") == 0)
-        return Link;
-
-    if(strcmp(type, "MeetmeJoin") == 0)
-        return MeetmeJoin;
-
-    if(strcmp(type, "MeetmeLeave") == 0)
-        return MeetmeLeave;
-
-    if(strcmp(type, "MeetmeStopTalking") == 0)
-        return MeetmeStopTalking;
-
-    if(strcmp(type, "MeetmeTalking") == 0)
-        return MeetmeTalking;
-
-    if(strcmp(type, "MessageWaiting") == 0)
-        return MessageWaiting;
-
-    if(strcmp(type, "Newcallerid") == 0)
-        return Newcallerid;
-
-    if(strcmp(type, "Newchannel") == 0)
-        return Newchannel;
-
-    if(strcmp(type, "Newexten") == 0)
-        return Newexten;
-
-    if(strcmp(type, "ParkedCall") == 0)
-        return ParkedCall;
-
-    if(strcmp(type, "Rename") == 0)
-        return Rename;
-
-    if(strcmp(type, "SetCDRUserField") == 0)
-        return SetCDRUserField;
-
-    if(strcmp(type, "UnParkedCall") == 0)
-        return UnParkedCall;
-
-    // Log Status Events
     if(strcmp(type, "Alarm") == 0)
-        return Alarm;
+        return Alarm;                      // Raised when an alarm is set on a DAHDI channel.
 
     if(strcmp(type, "AlarmClear") == 0)
-        return AlarmClear;
+        return AlarmClear;                 // Raised when an alarm is cleared on a DAHDI channel.
+
+    if(strcmp(type, "AOC-D") == 0)
+        return AOC_D;                      // Raised when an Advice of Charge message is sent during a call.
+
+    if(strcmp(type, "AOC-E") == 0)
+        return AOC_E;                      // Raised when an Advice of Charge message is sent at the end of a call.
+
+    if(strcmp(type, "AOC-S") == 0)
+        return AOC_S;                      // Raised when an Advice of Charge message is sent at the beginning of a call.
+
+    if(strcmp(type, "AorDetail") == 0)
+        return AorDetail;                  // Provide details about an Address of Record (AoR) section.
+
+    if(strcmp(type, "AsyncAGIEnd") == 0)
+        return AsyncAGIEnd;                // Raised when a channel stops AsyncAGI command processing.
+
+    if(strcmp(type, "AsyncAGIExec") == 0)
+        return AsyncAGIExec;               // Raised when AsyncAGI completes an AGI command.
+
+    if(strcmp(type, "AsyncAGIStart") == 0)
+        return AsyncAGIStart;              // Raised when a channel starts AsyncAGI command processing.
+
+    if(strcmp(type, "AttendedTransfer") == 0)
+        return AttendedTransfer;           // Raised when an attended transfer is complete.
+
+    if(strcmp(type, "AuthDetail") == 0)
+        return AuthDetail;                 // Provide details about an authentication section.
+
+    if(strcmp(type, "AuthMethodNotAllowed") == 0)
+        return AuthMethodNotAllowed;       // Raised when a request used an authentication method not allowed by the service.
+
+
+    if(strcmp(type, "BlindTransfer") == 0)
+        return BlindTransfer;              // Raised when a blind transfer is complete.
+
+    if(strcmp(type, "BridgeCreate") == 0)
+        return BridgeCreate;               // Raised when a bridge is created.
+
+    if(strcmp(type, "BridgeDestroy") == 0)
+        return BridgeDestroy;              // Raised when a bridge is destroyed.
+
+    if(strcmp(type, "BridgeEnter") == 0)
+        return BridgeEnter;                // Raised when a channel enters a bridge.
+
+    if(strcmp(type, "BridgeInfoChannel") == 0)
+        return BridgeInfoChannel;          // Information about a channel in a bridge.
+
+    if(strcmp(type, "BridgeInfoComplete") == 0)
+        return BridgeInfoComplete;         // Information about a bridge.
+
+    if(strcmp(type, "BridgeLeave") == 0)
+        return BridgeLeave;                // Raised when a channel leaves a bridge.
+
+    if(strcmp(type, "BridgeMerge") == 0)
+        return BridgeMerge;                // Raised when two bridges are merged.
+
+
+    if(strcmp(type, "Cdr") == 0)
+        return Cdr;                        // Raised when a CDR is generated.
+
+    if(strcmp(type, "CEL") == 0)
+        return CEL;                        // Raised when a Channel Event Log is generated for a channel.
+
+    if(strcmp(type, "ChallengeResponseFailed") == 0)
+        return ChallengeResponseFailed;    // Raised when a request's attempt to authenticate has been challenged; and the request failed the authentication challenge.
+
+    if(strcmp(type, "ChallengeSent") == 0)
+        return ChallengeSent;              // Raised when an Asterisk service sends an authentication challenge to a request.
+
+    if(strcmp(type, "ChannelTalkingStart") == 0)
+        return ChannelTalkingStart;        // Raised when talking is detected on a channel.
+
+    if(strcmp(type, "ChannelTalkingStop") == 0)
+        return ChannelTalkingStop;         // Raised when talking is no longer detected on a channel.
+
+    if(strcmp(type, "ChanSpyStart") == 0)
+        return ChanSpyStart;               // Raised when one channel begins spying on another channel.
+
+    if(strcmp(type, "ChanSpyStop") == 0)
+        return ChanSpyStop;                // Raised when a channel has stopped spying.
+
+    if(strcmp(type, "ConfbridgeEnd") == 0)
+        return ConfbridgeEnd;              // Raised when a conference ends.
+
+    if(strcmp(type, "ConfbridgeJoin") == 0)
+        return ConfbridgeJoin;             // Raised when a channel joins a Confbridge conference.
+
+    if(strcmp(type, "ConfbridgeLeave") == 0)
+        return ConfbridgeLeave;            // Raised when a channel leaves a Confbridge conference.
+
+    if(strcmp(type, "ConfbridgeMute") == 0)
+        return ConfbridgeMute;             // Raised when a Confbridge participant mutes.
+
+    if(strcmp(type, "ConfbridgeRecord") == 0)
+        return ConfbridgeRecord;           // Raised when a conference starts recording.
+
+    if(strcmp(type, "ConfbridgeStart") == 0)
+        return ConfbridgeStart;            // Raised when a conference starts.
+
+    if(strcmp(type, "ConfbridgeStopRecord") == 0)
+        return ConfbridgeStopRecord;       // Raised when a conference that was recording stops recording.
+
+    if(strcmp(type, "ConfbridgeTalking") == 0)
+        return ConfbridgeTalking;          // Raised when a confbridge participant unmutes.
+
+    if(strcmp(type, "ConfbridgeUnmute") == 0)
+        return ConfbridgeUnmute;           // Raised when a confbridge participant unmutes.
+
+    if(strcmp(type, "ContactStatusDetail") == 0)
+        return ContactStatusDetail;        // Provide details about a contact's status.
+
+    if(strcmp(type, "CoreShowChannel") == 0)
+        return CoreShowChannel;            // Raised in response to a CoreShowChannels command.
+
+    if(strcmp(type, "CoreShowChannelsComplete") == 0)
+        return CoreShowChannelsComplete;   // Raised at the end of the CoreShowChannel list produced by the CoreShowChannels command.
+
+
+    if(strcmp(type, "DAHDIChannel") == 0)
+        return DAHDIChannel;               // Raised when a DAHDI channel is created or an underlying technology is associated with a DAHDI channel.
+
+    if(strcmp(type, "DeviceStateChange") == 0)
+        return DeviceStateChange;          // Raised when a device state changes
+
+    if(strcmp(type, "DeviceStateListComplete") == 0)
+        return DeviceStateListComplete;    // Indicates the end of the list the current known extension states.
+
+    if(strcmp(type, "DialBegin") == 0)
+        return DialBegin;                  // Raised when a dial action has started.
+
+    if(strcmp(type, "DialEnd") == 0)
+        return DialEnd;                    // Raised when a dial action has completed.
 
     if(strcmp(type, "DNDState") == 0)
-        return DNDState;
+        return DNDState;                   // Raised when the Do Not Disturb state is changed on a DAHDI channel.
+
+    if(strcmp(type, "DTMFBegin") == 0)
+        return DTMFBegin;                  // Raised when a DTMF digit has started on a channel.
+
+    if(strcmp(type, "DTMFEnd") == 0)
+        return DTMFEnd;                    // Raised when a DTMF digit has ended on a channel.
+
+
+    if(strcmp(type, "EndpointDetail") == 0)
+        return EndpointDetail;             // Provide details about an endpoint section.
+
+    if(strcmp(type, "EndpointDetailComplete") == 0)
+        return EndpointDetailComplete;     // Provide final information about endpoint details.
+
+    if(strcmp(type, "EndpointList") == 0)
+        return EndpointList;               // Provide details about a contact's status.
+
+    if(strcmp(type, "EndpointListComplete") == 0)
+        return EndpointListComplete;       // Provide final information about an endpoint list.
+
+    if(strcmp(type, "ExtensionStateListComplete") == 0)
+        return ExtensionStateListComplete; // Indicates the end of the list the current known extension states.
+
+    if(strcmp(type, "ExtensionStatus") == 0)
+        return ExtensionStatus;            // Raised when a hint changes due to a device state change.
+
+
+    if(strcmp(type, "FailedACL") == 0)
+        return FailedACL;                  // Raised when a request violates an ACL check.
+
+    if(strcmp(type, "FAXSession") == 0)
+        return FAXSession;                 // Raised in response to FAXSession manager command
+
+    if(strcmp(type, "FAXSessionsComplete") == 0)
+        return FAXSessionsComplete;        // Raised when all FAXSession events are completed for a FAXSessions command
+
+    if(strcmp(type, "FAXSessionsEntry") == 0)
+        return FAXSessionsEntry;           // A single list item for the FAXSessions AMI command
+
+    if(strcmp(type, "FAXStats") == 0)
+        return FAXStats;                   // Raised in response to FAXStats manager command
+
+    if(strcmp(type, "FAXStatus") == 0)
+        return FAXStatus;                  // Raised periodically during a fax transmission.
+
+    if(strcmp(type, "FullyBooted") == 0)
+        return FullyBooted;                // Raised when all Asterisk initialization procedures have finished.
+
+
+    if(strcmp(type, "Hangup") == 0)
+        return Hangup;                     // Raised when a channel is hung up.
+
+    if(strcmp(type, "HangupHandlerPop") == 0)
+        return HangupHandlerPop;           // Raised when a hangup handler is removed from the handler stack by the CHANNEL() function.
+
+    if(strcmp(type, "HangupHandlerPush") == 0)
+        return HangupHandlerPush;          // Raised when a hangup handler is added to the handler stack by the CHANNEL() function.
+
+    if(strcmp(type, "HangupHandlerRun") == 0)
+        return HangupHandlerRun;           // Raised when a hangup handler is about to be called.
+
+    if(strcmp(type, "HangupRequest") == 0)
+        return HangupRequest;              // Raised when a hangup is requested.
+
+    if(strcmp(type, "Hold") == 0)
+        return Hold;                       // Raised when a channel goes on hold.
+
+
+    if(strcmp(type, "IdentifyDetail") == 0)
+        return IdentifyDetail;             // Provide details about an identify section.
+
+    if(strcmp(type, "InvalidAccountID") == 0)
+        return InvalidAccountID;           // Raised when a request fails an authentication check due to an invalid account ID.
+
+    if(strcmp(type, "InvalidPassword") == 0)
+        return InvalidPassword;            // Raised when a request provides an invalid password during an authentication attempt.
+
+    if(strcmp(type, "InvalidTransport") == 0)
+        return InvalidTransport;           // Raised when a request attempts to use a transport not allowed by the Asterisk service.
+
+
+    if(strcmp(type, "LoadAverageLimit") == 0)
+        return LoadAverageLimit;           // Raised when a request fails because a configured load average limit has been reached.
+
+    if(strcmp(type, "LocalBridge") == 0)
+        return LocalBridge;                // Raised when two halves of a Local Channel form a bridge.
+
+    if(strcmp(type, "LocalOptimizationBegin") == 0)
+        return LocalOptimizationBegin;     // Raised when two halves of a Local Channel begin to optimize themselves out of the media path.
+
+    if(strcmp(type, "LocalOptimizationEnd") == 0)
+        return LocalOptimizationEnd;       // Raised when two halves of a Local Channel have finished optimizing themselves out of the media path.
 
     if(strcmp(type, "LogChannel") == 0)
-        return LogChannel;
+        return LogChannel;                 // Raised when a logging channel is re-enabled after a reload operation.
+
+
+    if(strcmp(type, "MCID") == 0)
+        return MCID;                       // Published when a malicious call ID request arrives.
+
+    if(strcmp(type, "MeetmeEnd") == 0)
+        return MeetmeEnd;                  // Raised when a MeetMe conference ends.
+
+    if(strcmp(type, "MeetmeJoin") == 0)
+        return MeetmeJoin;                 // Raised when a user joins a MeetMe conference.
+
+    if(strcmp(type, "MeetmeLeave") == 0)
+        return MeetmeLeave;                // Raised when a user leaves a MeetMe conference.
+
+    if(strcmp(type, "MeetmeMute") == 0)
+        return MeetmeMute;                 // Raised when a MeetMe user is muted or unmuted.
+
+    if(strcmp(type, "MeetmeTalking") == 0)
+        return MeetmeTalking;              // Raised when a MeetMe user begins or ends talking.
+
+    if(strcmp(type, "MeetmeTalkRequest") == 0)
+        return MeetmeTalkRequest;          // Raised when a MeetMe user has started talking.
+
+    if(strcmp(type, "MemoryLimit") == 0)
+        return MemoryLimit;                // Raised when a request fails due to an internal memory allocation failure.
+
+    if(strcmp(type, "MessageWaiting") == 0)
+        return MessageWaiting;             // Raised when the state of messages in a voicemail mailbox has changed or when a channel has finished interacting with a mailbox.
+
+    if(strcmp(type, "MiniVoiceMail") == 0)
+        return MiniVoiceMail;              // Raised when a notification is sent out by a MiniVoiceMail application
+
+    if(strcmp(type, "MonitorStart") == 0)
+        return MonitorStart;               // Raised when monitoring has started on a channel.
+
+    if(strcmp(type, "MonitorStop") == 0)
+        return MonitorStop;                // Raised when monitoring has stopped on a channel.
+
+    if(strcmp(type, "MusicOnHoldStart") == 0)
+        return MusicOnHoldStart;           // Raised when music on hold has started on a channel.
+
+    if(strcmp(type, "MusicOnHoldStop") == 0)
+        return MusicOnHoldStop;            // Raised when music on hold has stopped on a channel.
+
+    if(strcmp(type, "MWIGet") == 0)
+        return MWIGet;                     // Raised in response to a MWIGet command.
+
+    if(strcmp(type, "MWIGetComplete") == 0)
+        return MWIGetComplete;             // Raised in response to a MWIGet command.
+
+
+    if(strcmp(type, "NewAccountCode") == 0)
+        return NewAccountCode;             // Raised when a Channel's AccountCode is changed.
+
+    if(strcmp(type, "NewCallerid") == 0)
+        return NewCallerid;                // Raised when a channel receives new Caller ID information.
+
+    if(strcmp(type, "Newchannel") == 0)
+        return Newchannel;                 // Raised when a new channel is created.
+
+    if(strcmp(type, "NewExten") == 0)
+        return NewExten;                   // Raised when a channel enters a new context; extension; priority.
+
+    if(strcmp(type, "Newstate") == 0)
+        return Newstate;                   // Raised when a channel's state changes.
+
+
+    if(strcmp(type, "OriginateResponse") == 0)
+        return OriginateResponse;          // Raised in response to an Originate command.
+
+
+    if(strcmp(type, "ParkedCall") == 0)
+        return ParkedCall;                 // Raised when a channel is parked.
+
+    if(strcmp(type, "ParkedCallGiveUp") == 0)
+        return ParkedCallGiveUp;           // Raised when a channel leaves a parking lot because it hung up without being answered.
+
+    if(strcmp(type, "ParkedCallTimeOut") == 0)
+        return ParkedCallTimeOut;          // Raised when a channel leaves a parking lot due to reaching the time limit of being parked.
 
     if(strcmp(type, "PeerStatus") == 0)
-        return PeerStatus;
+        return PeerStatus;                 // Raised when the state of a peer changes.
+
+    if(strcmp(type, "Pickup") == 0)
+        return Pickup;                     // Raised when a call pickup occurs.
+
+    if(strcmp(type, "PresenceStateChange") == 0)
+        return PresenceStateChange;        // Raised when a presence state changes
+
+    if(strcmp(type, "PresenceStateListComplete") == 0)
+        return PresenceStateListComplete;  // Indicates the end of the list the current known extension states.
+
+    if(strcmp(type, "PresenceStatus") == 0)
+        return PresenceStatus;             // Raised when a hint changes due to a presence state change.
+
+
+    if(strcmp(type, "QueueCallerAbandon") == 0)
+        return QueueCallerAbandon;         // Raised when a caller abandons the queue.
+
+    if(strcmp(type, "QueueCallerJoin") == 0)
+        return QueueCallerJoin;            // Raised when a caller joins a Queue.
+
+    if(strcmp(type, "QueueCallerLeave") == 0)
+        return QueueCallerLeave;           // Raised when a caller leaves a Queue.
+
+    if(strcmp(type, "QueueMemberAdded") == 0)
+        return QueueMemberAdded;           // Raised when a member is added to the queue.
+
+    if(strcmp(type, "QueueMemberPause") == 0)
+        return QueueMemberPause;           // Raised when a member is paused/unpaused in the queue.
+
+    if(strcmp(type, "QueueMemberPenalty") == 0)
+        return QueueMemberPenalty;         // Raised when a member's penalty is changed.
+
+    if(strcmp(type, "QueueMemberRemoved") == 0)
+        return QueueMemberRemoved;         // Raised when a member is removed from the queue.
+
+    if(strcmp(type, "QueueMemberRinginuse") == 0)
+        return QueueMemberRinginuse;       // Raised when a member's ringinuse setting is changed.
+
+    if(strcmp(type, "QueueMemberStatus") == 0)
+        return QueueMemberStatus;          // Raised when a Queue member's status has changed.
+
+
+    if(strcmp(type, "ReceiveFAX") == 0)
+        return ReceiveFAX;                 // Raised when a receive fax operation has completed.
 
     if(strcmp(type, "Registry") == 0)
-        return Registry;
+        return Registry;                   // Raised when an outbound registration completes.
 
     if(strcmp(type, "Reload") == 0)
-        return Reload;
+        return Reload;                     // Raised when a module has been reloaded in Asterisk.
+
+    if(strcmp(type, "Rename") == 0)
+        return Rename;                     // Raised when the name of a channel is changed.
+
+    if(strcmp(type, "RequestBadFormat") == 0)
+        return RequestBadFormat;           // Raised when a request is received with bad formatting.
+
+    if(strcmp(type, "RequestNotAllowed") == 0)
+        return RequestNotAllowed;          // Raised when a request is not allowed by the service.
+
+    if(strcmp(type, "RequestNotSupported") == 0)
+        return RequestNotSupported;        // Raised when a request fails due to some aspect of the requested item not being supported by the service.
+
+    if(strcmp(type, "RTCPReceived") == 0)
+        return RTCPReceived;               // Raised when an RTCP packet is received.
+
+    if(strcmp(type, "RTCPSent") == 0)
+        return RTCPSent;                   // Raised when an RTCP packet is sent.
+
+
+    if(strcmp(type, "SendFAX") == 0)
+        return SendFAX;                    // Raised when a send fax operation has completed.
+
+    if(strcmp(type, "SessionLimit") == 0)
+        return SessionLimit;               // Raised when a request fails due to exceeding the number of allowed concurrent sessions for that service.
+
+    if(strcmp(type, "SessionTimeout") == 0)
+        return SessionTimeout;             // Raised when a SIP session times out.
 
     if(strcmp(type, "Shutdown") == 0)
-        return Shutdown;
+        return Shutdown;                   // Raised when Asterisk is shutdown or restarted.
+
+    if(strcmp(type, "SIPQualifyPeerDone") == 0)
+        return SIPQualifyPeerDone;         // Raised when SIPQualifyPeer has finished qualifying the specified peer.
+
+    if(strcmp(type, "SoftHangupRequest") == 0)
+        return SoftHangupRequest;          // Raised when a soft hangup is requested with a specific cause code.
+
+    if(strcmp(type, "SpanAlarm") == 0)
+        return SpanAlarm;                  // Raised when an alarm is set on a DAHDI span.
+
+    if(strcmp(type, "SpanAlarmClear") == 0)
+        return SpanAlarmClear;             // Raised when an alarm is cleared on a DAHDI span.
+
+    if(strcmp(type, "Status") == 0)
+        return Status;                     // Raised in response to a Status command.
+
+    if(strcmp(type, "StatusComplete") == 0)
+        return StatusComplete;             // Raised in response to a Status command.
+
+    if(strcmp(type, "SuccessfulAuth") == 0)
+        return SuccessfulAuth;             // Raised when a request successfully authenticates with a service.
+
+
+    if(strcmp(type, "TransportDetail") == 0)
+        return TransportDetail;            // Provide details about an authentication section.
+
+
+    if(strcmp(type, "UnexpectedAddress") == 0)
+        return UnexpectedAddress;          // Raised when a request has a different source address then what is expected for a session already in progress with a service.
+
+    if(strcmp(type, "Unhold") == 0)
+        return Unhold;                     // Raised when a channel goes off hold.
+
+    if(strcmp(type, "UnParkedCall") == 0)
+        return UnParkedCall;               // Raised when a channel leaves a parking lot because it was retrieved from the parking lot and reconnected.
+
+    if(strcmp(type, "UserEvent") == 0)
+        return UserEvent;                  // A user defined event raised from the dialplan.
+
+    if(strcmp(type, "VarSet") == 0)
+        return VarSet;                     // Raised when a variable local to the gosub stack frame is set due to a subroutine call.
 
     return -1;
 

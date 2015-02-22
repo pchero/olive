@@ -9,11 +9,14 @@ INFO:
 
 
 DEPENDENCIES:
+- asterisk-zmq
 - zmq
 - jansson
 - libevent
 - bmake
 - logstash
+- libevhtp
+- mysql
 
 BUILDING:
 - bmake
