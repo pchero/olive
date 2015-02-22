@@ -1,2 +1,0 @@
-# olive
-Asterisk outbout solution
