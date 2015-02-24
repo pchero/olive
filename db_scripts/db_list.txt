@@ -1,0 +1,84 @@
+DB 이름은 단수표시. 전부 소문자
+
+campagin
+-- Campaign list
+
+-- seq      : sequence uniq. asc
+-- uuid     : uniq. 내부 키
+-- number   : 사용자가 설정 가능
+-- name     : name
+-- desc     : 캠페인 설명
+-- strategy : 사용 전략
+-- agent_group    : 사용 agent group number
+
+
+
+strategy
+-- 전략 리스트
+
+-- seq      : sequence uniq. asc
+-- uuid     : uniq. 내부 키
+-- number   : 사용자가 설정 가능
+-- name     : name
+-- desc     : 전략 설명
+
+간이 테이블을 만들 수 있을까? 
+그때 그때 마다?
+
+agent_group:
+-- list of agent groups
+
+-- uuid     : use when search table(agent_group_uuid)
+-- name     : group name
+-- desc     : description
+
+
+agent_group_102983_12039821_123091283
+-- agent group
+
+-- list of agents.
+-- uuid     : uuid of agent(table agent)
+
+agent
+-- list of all agents
+
+-- seq
+-- uuid
+-- name
+-- number
+
+
+dial_list
+-- list of dial list
+-- seq      : sequence
+-- uuid     : table name. dial_list_12321-123213-12313
+-- name     :
+-- desc
+
+
+dial_list_12309-123123-12313
+-- dial list
+
+-- seq
+-- uuid
+-- name
+-- desc
+-- number_1 : telephone number 1
+-- try_cnt_1 : try count of number 1
+-- number_2 : telephone number 2
+-- try_cnt_2 : try count of number 2
+-- number_3 : telephone number 3
+-- try_cnt_3 : try count of number 3
+-- number_4 : telephone number 4
+-- try_cnt_4 : try count of number 4
+-- number_5 : telephone number 5
+-- try_cnt_5 : try count of number 5
+-- number_6 : telephone number 6
+-- try_cnt_6 : try count of number 6
+-- number_7 : telephone number 7
+-- try_cnt_7 : try count of number 7
+-- email    : email address
+-- mailbox  : voicemail
+-- call_result  : call result
+
+
