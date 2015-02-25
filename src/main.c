@@ -19,6 +19,7 @@
 #include <event2/event.h>
 #include <evhtp.h>
 #include <zmq.h>
+#include <sqlite3.h>
 
 #include "common.h"
 #include "slog.h"
@@ -42,6 +43,7 @@ static int init_evhtp(void);
 static int init_database(void);
 static int init_ast_int(void);
 static int init_service(void);
+static int init_sqlite(void);
 
 static void sigterm_cb(unused__ int fd, unused__ short event, unused__ void *arg);
 static void sigusr_cb(unused__ int fd, unused__ short event, unused__ void *arg);
@@ -101,6 +103,7 @@ int main(int argc, char** argv)
         fprintf(stderr, "Could not initiate libevent.\n");
         exit(0);
     }
+    slog(LOG_INFO, "Initiated libevent");
 
     // init evhtp
     ret = init_evhtp();
@@ -109,6 +112,7 @@ int main(int argc, char** argv)
         fprintf(stderr, "Could not initiate evhtp.\n");
         exit(0);
     }
+    slog(LOG_INFO, "Initiated evhtp");
 
     // init database
     ret = init_database();
@@ -118,6 +122,15 @@ int main(int argc, char** argv)
         exit(0);
     }
     slog(LOG_INFO, "Initiated database");
+
+    // init memory db
+    ret = init_sqlite();
+    if(ret != true)
+    {
+        fprintf(stderr, "Could not initiate memory db. ret[%d]\n", ret);
+        exit(0);
+    }
+    slog(LOG_INFO, "Initiate memory db");
 
     // asterisk initiate
     ret = init_ast_int();
@@ -344,19 +357,19 @@ static int init_ast_int(void)
     g_app->zcmd = zmq_socket(g_app->zctx, ZMQ_REQ);
     if(g_app->zctx == NULL)
     {
-        slog(LOG_ERR, "Could not initate zmq_command socket. err[%d:%s]\n", errno, strerror(errno));
+        slog(LOG_ERR, "Could not initate zmq_command socket. err[%d:%s]", errno, strerror(errno));
         return false;
     }
 
     j_tmp = json_object_get(g_app->j_conf, "addr_cmd");
     tmp = json_string_value(j_tmp);
-    slog(LOG_INFO, "Connect zmq command socket. addr[%s]\n", tmp);
+    slog(LOG_INFO, "Connect zmq command socket. addr[%s]", tmp);
 
     ret = zmq_connect(g_app->zcmd, tmp);
     json_decref(j_tmp);
     if(ret != 0)
     {
-        slog(LOG_ERR, "Could not connect zmq_command socket. addr[%s], err[%d:%s]\n", errno, tmp, strerror(errno));
+        slog(LOG_ERR, "Could not connect zmq_command socket. addr[%s], err[%d:%s]", errno, tmp, strerror(errno));
         return false;
     }
 
@@ -364,19 +377,19 @@ static int init_ast_int(void)
     g_app->zevt = zmq_socket(g_app->zctx, ZMQ_SUB);
     if(g_app->zevt == NULL)
     {
-        slog(LOG_ERR, "Could not initate zmq_event socket. err[%d:%s]\n", errno, strerror(errno));
+        slog(LOG_ERR, "Could not initate zmq_event socket. err[%d:%s]", errno, strerror(errno));
         return false;
     }
 
     j_tmp = json_object_get(g_app->j_conf, "addr_evt");
     tmp = json_string_value(j_tmp);
-    slog(LOG_INFO, "Connect zmq event socket. addr[%s]\n", tmp);
+    slog(LOG_INFO, "Connect zmq event socket. addr[%s]", tmp);
 
     ret = zmq_connect(g_app->zevt, tmp);
     json_decref(j_tmp);
     if(ret != 0)
     {
-        slog(LOG_ERR, "Could not connect zmq_event socket. err[%d:%s]\n", errno, strerror(errno));
+        slog(LOG_ERR, "Could not connect zmq_event socket. err[%d:%s]", errno, strerror(errno));
         return false;
     }
 
@@ -480,6 +493,106 @@ static int init_service(void)
     // campaign runs
 //    camp_init(evbase);
 
+
+    return true;
+}
+
+/**
+ * initiate memdb.
+ * @return  succes:true, fail:false
+ */
+static int init_sqlite(void)
+{
+    int ret;
+    char* sql;
+    char* err;
+
+    ret = sqlite3_open(":memory:", &g_app->db);
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Could not open memory database. err[%d:%s]", errno, strerror(errno));
+        return false;
+    }
+
+    // create peer table.
+    ret = asprintf(&sql, "create table peer(\n"
+            "-- peers table\n"
+            "-- AMI sip show peer <peer_id>\n"
+            "seq int primary key asc, \n"
+            "name text,          -- Name         : 200-ipvstk-softphone-1\n"
+            "secret text,        -- Secret       : <Set>\n"
+            "md5secret text,     -- MD5Secret    : <Not set>\n"
+            "remote_secret text, -- Remote Secret: <Not set>\n"
+            "context text,       -- Context      : CallFromSipDevice\n"
+            "subsc_cont text,    -- Subscr.Cont. : Hints-user1\n"
+            "language text,      -- Language     : da\n"
+            "ama_flags text,     -- AMA flags    : Unknown\n"
+            "transfer_mode text, -- Transfer mode: open\n"
+            "calling_pres text,  -- CallingPres  : Presentation Allowed, Not Screened\n"
+            "call_group text,    -- Callgroup    :\n"
+            "pickup_group text,  -- Pickupgroup  :\n"
+            "moh_suggest text,   -- MOH Suggest  :\n"
+            "mailbox text,       -- Mailbox      : user1\n"
+            "vm_extension text,  -- VM Extension : +4550609999\n"
+            "last_msg_sent text, -- LastMsgsSent : 32767/65535\n"
+            "call_limit int,     -- Call limit   : 100\n"
+            "max_forwards int,   -- Max forwards : 0\n"
+            "dynamic text,       -- Dynamic      : Yes\n"
+            "caller_id text,     -- Callerid     : \"user 1\" <200>\n"
+            "max_call_br text,   -- MaxCallBR    : 384 kbps\n"
+            "expire int,         -- Expire       : -1\n"
+            "insecure text,      -- Insecure     : invite\n"
+            "force_rport text,   -- Force rport  : No\n"
+            "acl text,           -- ACL          : No\n"
+            "direct_med_acl text,    --  DirectMedACL : No\n"
+            "t_38_support text,  -- T.38 support : Yes\n"
+            "t_38_ec_mode text,  -- T.38 EC mode : FEC\n"
+            "t_38_max_dtgram int,    -- T.38 MaxDtgrm: 400\n"
+            "direct_media text,  -- DirectMedia  : Yes\n"
+            "promisc_redir text, -- PromiscRedir : No\n"
+            "user_phone text,    -- User=Phone   : No\n"
+            "video_support text, -- Video Support: No\n"
+            "text_support text,  -- Text Support : No\n"
+            "ign_sdp_ver text,   -- Ign SDP ver  : No\n"
+            "trust_rpid text,    -- Trust RPID   : No\n"
+            "send_rpid text,     -- Send RPID    : No\n"
+            "subscriptions text, -- Subscriptions: Yes\n"
+            "overlap_dial text,  -- Overlap dial : Yes\n"
+            "dtmp_mode text,     -- DTMFmode     : rfc2833\n"
+            "timer_t1 int,       -- Timer T1     : 500\n"
+            "timer_b int,        -- Timer B      : 32000\n"
+            "to_host text,       -- ToHost       :\n"
+            "addr_ip text,       -- Addr->IP     : (null)\n"
+            "defaddr_ip text,    -- Defaddr->IP  : (null)\n"
+            "prim_transp text,   -- Prim.Transp. : UDP\n"
+            "allowed_trsp text,  -- Allowed.Trsp : UDP\n"
+            "def_username text,  -- Def. Username:\n"
+            "sip_options text,   -- SIP Options  : (none)\n"
+            "codecs text,        -- Codecs       : 0xc (ulaw|alaw)\n"
+            "codec_order text,   -- Codec Order  : (alaw:20,ulaw:20)\n"
+            "auto_framing text,  -- Auto-Framing :  No\n"
+            "status text,        -- Status       : UNKNOWN\n"
+            "useragent text,     -- Useragent    :\n"
+            "reg_contact text,   -- Reg. Contact :\n"
+            "qualify_freq text,  -- Qualify Freq : 60000 ms\n"
+            "sess_timers text,   -- Sess-Timers  : Refuse\n"
+            "sess_refresh text,  -- Sess-Refresh : uas\n"
+            "sess_expires text,  -- Sess-Expires : 1800 secs\n"
+            "min_sess text,      -- Min-Sess     : 90 secs\n"
+            "rtp_engine text,    -- RTP Engine   : asterisk\n"
+            "parkinglot text,    -- Parkinglot   :\n"
+            "use_reason text,    -- Use Reason   : Yes\n"
+            "encryption text     -- Encryption   : No\n"
+            ");"
+            );
+
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not create table peer. err[%s]\n", err);
+        sqlite3_free(err);
+        return false;
+    }
 
     return true;
 }

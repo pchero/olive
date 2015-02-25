@@ -40,7 +40,7 @@
 
 static void ast_recv_handler(json_t* j_evt);
 static int ast_get_evt_type(const char* type);
-static void process_peerstatus(json_t* j_recv);
+static void evt_peerstatus(json_t* j_recv);
 
 
 int ast_send_cmd(char* cmd, char** res)
@@ -143,11 +143,17 @@ void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, unused__ 
     }
 
     ast_recv_handler(j_recv);
+
     json_decref(j_recv);
+    free(recv_buf);
 
     return;
 }
 
+/**
+ * @brief   Received message handler.
+ * @param j_evt
+ */
 static void ast_recv_handler(json_t* j_evt)
 {
     int type;
@@ -164,7 +170,7 @@ static void ast_recv_handler(json_t* j_evt)
         case PeerStatus:
         {
             // Update peer information
-            process_peerstatus(j_evt);
+            evt_peerstatus(j_evt);
         }
         break;
 
@@ -193,6 +199,7 @@ static int ast_get_evt_type(const char* type)
         return -1;
     }
 
+    // A
     if(strcmp(type, "AgentCalled") == 0)
         return AgentCalled;                // Raised when an queue member is notified of a caller in the queue.
 
@@ -263,6 +270,7 @@ static int ast_get_evt_type(const char* type)
         return AuthMethodNotAllowed;       // Raised when a request used an authentication method not allowed by the service.
 
 
+    // B
     if(strcmp(type, "BlindTransfer") == 0)
         return BlindTransfer;              // Raised when a blind transfer is complete.
 
@@ -288,6 +296,7 @@ static int ast_get_evt_type(const char* type)
         return BridgeMerge;                // Raised when two bridges are merged.
 
 
+    // C
     if(strcmp(type, "Cdr") == 0)
         return Cdr;                        // Raised when a CDR is generated.
 
@@ -349,6 +358,7 @@ static int ast_get_evt_type(const char* type)
         return CoreShowChannelsComplete;   // Raised at the end of the CoreShowChannel list produced by the CoreShowChannels command.
 
 
+    // D
     if(strcmp(type, "DAHDIChannel") == 0)
         return DAHDIChannel;               // Raised when a DAHDI channel is created or an underlying technology is associated with a DAHDI channel.
 
@@ -374,6 +384,7 @@ static int ast_get_evt_type(const char* type)
         return DTMFEnd;                    // Raised when a DTMF digit has ended on a channel.
 
 
+    // E
     if(strcmp(type, "EndpointDetail") == 0)
         return EndpointDetail;             // Provide details about an endpoint section.
 
@@ -393,6 +404,7 @@ static int ast_get_evt_type(const char* type)
         return ExtensionStatus;            // Raised when a hint changes due to a device state change.
 
 
+    // F
     if(strcmp(type, "FailedACL") == 0)
         return FailedACL;                  // Raised when a request violates an ACL check.
 
@@ -415,6 +427,7 @@ static int ast_get_evt_type(const char* type)
         return FullyBooted;                // Raised when all Asterisk initialization procedures have finished.
 
 
+    // H
     if(strcmp(type, "Hangup") == 0)
         return Hangup;                     // Raised when a channel is hung up.
 
@@ -434,6 +447,7 @@ static int ast_get_evt_type(const char* type)
         return Hold;                       // Raised when a channel goes on hold.
 
 
+    // I
     if(strcmp(type, "IdentifyDetail") == 0)
         return IdentifyDetail;             // Provide details about an identify section.
 
@@ -447,6 +461,7 @@ static int ast_get_evt_type(const char* type)
         return InvalidTransport;           // Raised when a request attempts to use a transport not allowed by the Asterisk service.
 
 
+    // L
     if(strcmp(type, "LoadAverageLimit") == 0)
         return LoadAverageLimit;           // Raised when a request fails because a configured load average limit has been reached.
 
@@ -463,6 +478,7 @@ static int ast_get_evt_type(const char* type)
         return LogChannel;                 // Raised when a logging channel is re-enabled after a reload operation.
 
 
+    // M
     if(strcmp(type, "MCID") == 0)
         return MCID;                       // Published when a malicious call ID request arrives.
 
@@ -512,6 +528,7 @@ static int ast_get_evt_type(const char* type)
         return MWIGetComplete;             // Raised in response to a MWIGet command.
 
 
+    // N
     if(strcmp(type, "NewAccountCode") == 0)
         return NewAccountCode;             // Raised when a Channel's AccountCode is changed.
 
@@ -528,10 +545,12 @@ static int ast_get_evt_type(const char* type)
         return Newstate;                   // Raised when a channel's state changes.
 
 
+    // O
     if(strcmp(type, "OriginateResponse") == 0)
         return OriginateResponse;          // Raised in response to an Originate command.
 
 
+    // P
     if(strcmp(type, "ParkedCall") == 0)
         return ParkedCall;                 // Raised when a channel is parked.
 
@@ -557,6 +576,7 @@ static int ast_get_evt_type(const char* type)
         return PresenceStatus;             // Raised when a hint changes due to a presence state change.
 
 
+    // Q
     if(strcmp(type, "QueueCallerAbandon") == 0)
         return QueueCallerAbandon;         // Raised when a caller abandons the queue.
 
@@ -585,6 +605,7 @@ static int ast_get_evt_type(const char* type)
         return QueueMemberStatus;          // Raised when a Queue member's status has changed.
 
 
+    // R
     if(strcmp(type, "ReceiveFAX") == 0)
         return ReceiveFAX;                 // Raised when a receive fax operation has completed.
 
@@ -613,6 +634,7 @@ static int ast_get_evt_type(const char* type)
         return RTCPSent;                   // Raised when an RTCP packet is sent.
 
 
+    // S
     if(strcmp(type, "SendFAX") == 0)
         return SendFAX;                    // Raised when a send fax operation has completed.
 
@@ -647,10 +669,12 @@ static int ast_get_evt_type(const char* type)
         return SuccessfulAuth;             // Raised when a request successfully authenticates with a service.
 
 
+    // T
     if(strcmp(type, "TransportDetail") == 0)
         return TransportDetail;            // Provide details about an authentication section.
 
 
+    // U
     if(strcmp(type, "UnexpectedAddress") == 0)
         return UnexpectedAddress;          // Raised when a request has a different source address then what is expected for a session already in progress with a service.
 
@@ -663,17 +687,48 @@ static int ast_get_evt_type(const char* type)
     if(strcmp(type, "UserEvent") == 0)
         return UserEvent;                  // A user defined event raised from the dialplan.
 
+
+    // V
     if(strcmp(type, "VarSet") == 0)
         return VarSet;                     // Raised when a variable local to the gosub stack frame is set due to a subroutine call.
+
 
     return -1;
 
 }
 
-static void process_peerstatus(json_t* j_recv)
+/**
+ * @brief PeerStatus
+ * @param j_recv
+ */
+static void evt_peerstatus(json_t* j_recv)
 {
     char* query;
     int ret;
+
+//    ChannelType - The channel technology of the peer.
+//    Peer - The name of the peer (including channel technology).
+//    PeerStatus - New status of the peer.
+//        Unknown
+//        Registered
+//        Unregistered
+//        Rejected
+//        Lagged
+//    Cause - The reason the status has changed.
+//    Address - New address of the peer.
+//    Port - New port for the peer.
+//    Time - Time it takes to reach the peer and receive a response.
+
+    ret = asprintf(&query, "update channel set chan_type = \"%s\", privilege = \"%s\", status = \"%s\", chan_time = \"%s\", address = \"%s\", cause = \"%s\" where peer = \"%s\"",
+            json_string_value(json_object_get(j_recv, "ChannelType")),
+            json_string_value(json_object_get(j_recv, "Privilege")),
+            json_string_value(json_object_get(j_recv, "PeerStatus")),
+            json_string_value(json_object_get(j_recv, "Time")),
+            json_string_value(json_object_get(j_recv, "Address")),
+            json_string_value(json_object_get(j_recv, "Cause")),
+            json_string_value(json_object_get(j_recv, "Peer"))
+            );
+
 
     ret = asprintf(&query, "update channel set chan_type = \"%s\", privilege = \"%s\", status = \"%s\", chan_time = \"%s\", address = \"%s\", cause = \"%s\" where peer = \"%s\"",
             json_string_value(json_object_get(j_recv, "ChannelType")),
@@ -697,3 +752,20 @@ static void process_peerstatus(json_t* j_recv)
     return;
 }
 
+/**
+ *
+ * @return  success:true, fail:false
+ */
+int cmd_sippeers(void)
+{
+    char* cmd;
+    char* res;
+    int ret;
+    json_t* j_res;
+
+    cmd = "{\"Action\": \"SIPpeers\"}";
+    ret = ast_send_cmd(cmd, &res);
+
+
+    return true;
+}

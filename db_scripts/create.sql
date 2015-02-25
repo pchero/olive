@@ -56,12 +56,13 @@ create table diallist(
     primary key(seq, id)
 );
 
+-- channel. 
+-- Asterisk's peers.
 drop table if exists channel;
 create table channel(
     seq             int(10)         unsigned auto_increment,
     peer            varchar(255)    unique,
     chan_type       varchar(255),
-    privilege       varchar(255),
     status          varchar(255),
     chan_time       varchar(255),
     address         varchar(255),
