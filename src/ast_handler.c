@@ -796,6 +796,8 @@ int cmd_sippeers(void)
 
     json_array_foreach(j_res, index, j_val)
     {
+    	printf("hihi\n");
+
     	if(index == 0)
     	{
     		continue;
@@ -814,13 +816,23 @@ int cmd_sippeers(void)
     	j_tmp = json_object_get(j_val, "ObjectName");
     	ret = asprintf(&sql, "insert into peer(name) values (\"%s\");", json_string_value(j_tmp));
 
-    	sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    	ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    	if(ret != SQLITE_OK)
+    	{
+    		slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+
+    		free(sql);
+    		json_decref(j_tmp);
+    		return false;
+    	}
 
     	free(sql);
     	json_decref(j_tmp);
     }
 
-    json_decref(j_res);
+    printf("bye\n");
+
+//    json_decref(j_res);
 
     return true;
 }
@@ -840,11 +852,14 @@ int cmd_sipshowpeer(char* peer)
     json_t* j_res;
     json_t* j_tmp;
 
-    ret = asprintf(&cmd, "{\"Action\": \"SIPShowPeer\", \"%s\"}", peer);
+	slog(LOG_DEBUG, "cmd_sipshowpeer");
+	printf("hihihi\n");
+
+    ret = asprintf(&cmd, "{\"Action\": \"SIPShowPeer\", \"Peer\":\"%s\"}", peer);
     ret = ast_send_cmd(cmd, &res);
     if(ret == false)
     {
-    	slog(LOG_ERR, "Could not send Action:SIPpeers\n");
+    	slog(LOG_ERR, "Could not send Action:SIPpeers");
     	return false;
     }
 
@@ -863,7 +878,7 @@ int cmd_sipshowpeer(char* peer)
     }
 //    json_decref(j_tmp);
 
-    ret = asprintf(&sql, "insert into peer("
+    ret = asprintf(&sql, "insert or replace into peer("
     		"name, secret, md5secret, remote_secret, context, "
     		"language, ama_flags, transfer_mode, calling_pres, "
     		"call_group, pickup_group, moh_suggest, mailbox, "

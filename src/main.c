@@ -496,6 +496,8 @@ static int init_service(void)
 		slog(LOG_ERR, "Failed cmd_sippeers.");
 		return false;
 	}
+	slog(LOG_DEBUG, "Finished cmd_sippeers.");
+	printf("gogogogo\bn");
 
 	//
 	cmd_sipshowpeer("test-01");
@@ -529,9 +531,9 @@ static int init_sqlite(void)
     ret = asprintf(&sql, "create table peer(\n"
             "-- peers table\n"
             "-- AMI sip show peer <peer_id>\n"
-            "seq integer primary key autoincrement, \n"
+//            "seq integer primary key autoincrement, \n"
 
-            "name text,          -- Name         : 200-ipvstk-softphone-1\n"
+            "name text primary key,	-- Name         : 200-ipvstk-softphone-1\n"
             "secret text,        -- Secret       : <Set>\n"
             "md5secret text,     -- MD5Secret    : <Not set>\n"
             "remote_secret text, -- Remote Secret: <Not set>\n"
