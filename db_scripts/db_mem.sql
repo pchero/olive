@@ -2,7 +2,7 @@
 create table peer(
 -- peers table
 -- AMI sip show peer <peer_id>
-seq int primary key asc,
+seq integer primary key autoincrement,
 name text,          -- Name         : 200-ipvstk-softphone-1
 secret text,        -- Secret       : <Set>
 md5secret text,     -- MD5Secret    : <Not set>

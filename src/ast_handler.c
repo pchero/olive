@@ -42,7 +42,10 @@ static void ast_recv_handler(json_t* j_evt);
 static int ast_get_evt_type(const char* type);
 static void evt_peerstatus(json_t* j_recv);
 
-
+/**
+ @brief
+ @return success:true, fail:false
+ */
 int ast_send_cmd(char* cmd, char** res)
 {
     int     ret;
@@ -83,7 +86,7 @@ int ast_send_cmd(char* cmd, char** res)
 
     ret = zmq_msg_size(&msg);
     recv_buf = calloc(ret + 1, sizeof(char));
-    memcpy(recv_buf, zmq_msg_data(&msg), sizeof(ret));
+    strcpy(recv_buf, zmq_msg_data(&msg));
     zmq_msg_close(&msg);
 
     *res = recv_buf;
@@ -761,11 +764,228 @@ int cmd_sippeers(void)
     char* cmd;
     char* res;
     int ret;
+    char* sql;
+    size_t index;
+    json_t *j_val;
+
     json_t* j_res;
+    json_t* j_tmp;
 
     cmd = "{\"Action\": \"SIPpeers\"}";
     ret = ast_send_cmd(cmd, &res);
+    if(ret == false)
+    {
+    	slog(LOG_ERR, "Could not send Action:SIPpeers\n");
+    	return false;
+    }
 
+    j_res = json_loadb(res, strlen(res), 0, 0);
+    free(res);
+
+    // response check
+    j_tmp = json_array_get(j_res, 0);
+    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
+    if(ret != 0)
+    {
+    	slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
+    	json_decref(j_tmp);
+    	json_decref(j_res);
+    	return false;
+    }
+    json_decref(j_tmp);
+
+    json_array_foreach(j_res, index, j_val)
+    {
+    	if(index == 0)
+    	{
+    		continue;
+    	}
+
+    	// check end of list
+    	j_tmp = json_object_get(j_val, "Event");
+    	ret = strcmp(json_string_value(j_tmp), "PeerlistComplete");
+    	json_decref(j_tmp);
+    	if(ret == 0)
+    	{
+    		break;
+    	}
+
+    	// insert name only
+    	j_tmp = json_object_get(j_val, "ObjectName");
+    	ret = asprintf(&sql, "insert into peer(name) values (\"%s\");", json_string_value(j_tmp));
+
+    	sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+
+    	free(sql);
+    	json_decref(j_tmp);
+    }
+
+    json_decref(j_res);
+
+    return true;
+}
+
+
+/**
+ *
+ * @return  success:true, fail:false
+ */
+int cmd_sipshowpeer(char* peer)
+{
+    char* cmd;
+    char* res;
+    int ret;
+    char* sql;
+
+    json_t* j_res;
+    json_t* j_tmp;
+
+    ret = asprintf(&cmd, "{\"Action\": \"SIPShowPeer\", \"%s\"}", peer);
+    ret = ast_send_cmd(cmd, &res);
+    if(ret == false)
+    {
+    	slog(LOG_ERR, "Could not send Action:SIPpeers\n");
+    	return false;
+    }
+
+    j_res = json_loadb(res, strlen(res), 0, 0);
+    free(res);
+
+    // response check
+    j_tmp = json_array_get(j_res, 0);
+    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
+    if(ret != 0)
+    {
+    	slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
+    	json_decref(j_tmp);
+    	json_decref(j_res);
+    	return false;
+    }
+//    json_decref(j_tmp);
+
+    ret = asprintf(&sql, "insert into peer("
+    		"name, secret, md5secret, remote_secret, context, "
+    		"language, ama_flags, transfer_mode, calling_pres, "
+    		"call_group, pickup_group, moh_suggest, mailbox, "
+    		"last_msg_sent, call_limit, max_forwards, dynamic, caller_id, "
+    		"max_call_br, reg_expire, auth_insecure, force_rport, acl, "
+
+    		"t_38_support, t_38_ec_mode, t_38_max_dtgram, direct_media, "
+    		"promisc_redir, user_phone, video_support, text_support, "
+    		"dtmp_mode, "
+    		"to_host, addr_ip, defaddr_ip, "
+    		"def_username, codecs, "
+
+    		"status, useragent, reg_contact, "
+    		"qualify_freq, sess_timers, sess_refresh, sess_expires, min_sess, "
+    		"rtp_engine, parkinglot, use_reason, encryption, "
+    		"chan_type, chan_obj_type, tone_zone, named_pickup_group, busy_level, "
+    		"named_call_group, def_addr_port, comedia, description, addr_port, "
+    		"can_reinvite, "
+    		") values ("
+    		"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+    		"\"%s\", \"%s\", \"%s\", \"%s\", "
+    		"\"%s\", \"%s\", \"%s\", \"%s\", "
+    		"%d, %d, %d, \"%s\", \"%s\", "
+    		"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+
+    		"\"%s\", \"%s\", %d, \"%s\", "
+    		"\"%s\", \"%s\", \"%s\", \"%s\", "
+    		"\"%s\", "
+    		"\"%s\", \"%s\", \"%s\", "
+			"\"%s\", \"%s\", "
+
+			"\"%s\", \"%s\", \"%s\", "
+			"\"%s\", \"%s\", \"%s\", %d, %d, "
+    		"\"%s\", \"%s\", \"%s\", \"%s\", "
+    		"\"%s\", \"%s\", \"%s\", \"%s\", %d, "
+    		"\"%s\", %d, \"%s\", \"%s\", %d, "
+
+    		"\"%s\""
+    		");",
+			json_string_value(json_object_get(j_tmp, "ObjectName")),
+			json_string_value(json_object_get(j_tmp, "SecretExist")),
+			json_string_value(json_object_get(j_tmp, "MD5SecretExist")),
+			json_string_value(json_object_get(j_tmp, "RemoteSecretExist")),
+			json_string_value(json_object_get(j_tmp, "Context")),
+
+			json_string_value(json_object_get(j_tmp, "Language")),
+			json_string_value(json_object_get(j_tmp, "AMAflags")),
+			json_string_value(json_object_get(j_tmp, "TransferMode")),
+			json_string_value(json_object_get(j_tmp, "CallingPres")),
+
+			json_string_value(json_object_get(j_tmp, "Callgroup")),
+			json_string_value(json_object_get(j_tmp, "Pickupgroup")),
+			json_string_value(json_object_get(j_tmp, "MOHSuggest")),
+			json_string_value(json_object_get(j_tmp, "VoiceMailbox")),
+
+			(int)json_integer_value(json_object_get(j_tmp, "LastMsgsSent")),
+			(int)json_integer_value(json_object_get(j_tmp, "Call-limit")),
+			(int)json_integer_value(json_object_get(j_tmp, "Maxforwards")),
+			json_string_value(json_object_get(j_tmp, "Dynamic")),
+			json_string_value(json_object_get(j_tmp, "Callerid")),
+
+			json_string_value(json_object_get(j_tmp, "MaxCallBR")),
+			json_string_value(json_object_get(j_tmp, "RegExpire")),
+			json_string_value(json_object_get(j_tmp, "SIP-AuthInsecure")),
+			json_string_value(json_object_get(j_tmp, "SIP-Forcerport")),
+			json_string_value(json_object_get(j_tmp, "ACL")),
+
+
+			json_string_value(json_object_get(j_tmp, "SIP-T.38Support")),
+			json_string_value(json_object_get(j_tmp, "SIP-T.38EC")),
+			(int)json_integer_value(json_object_get(j_tmp, "SIP-T.38MaxDtgrm")),
+			json_string_value(json_object_get(j_tmp, "SIP-DirectMedia")),
+
+			json_string_value(json_object_get(j_tmp, "SIP-PromiscRedir")),
+			json_string_value(json_object_get(j_tmp, "SIP-UserPhone")),
+			json_string_value(json_object_get(j_tmp, "SIP-VideoSupport")),
+			json_string_value(json_object_get(j_tmp, "SIP-TextSupport")),
+
+			json_string_value(json_object_get(j_tmp, "SIP-DTMFmode")),
+
+			json_string_value(json_object_get(j_tmp, "ToHost")),
+			json_string_value(json_object_get(j_tmp, "Address-IP")),
+			json_string_value(json_object_get(j_tmp, "Default-addr-IP")),
+
+			json_string_value(json_object_get(j_tmp, "Default-Username")),
+			json_string_value(json_object_get(j_tmp, "Codecs")),
+
+
+			json_string_value(json_object_get(j_tmp, "Status")),
+			json_string_value(json_object_get(j_tmp, "SIP-Useragent")),
+			json_string_value(json_object_get(j_tmp, "Reg-Contact")),
+
+			json_string_value(json_object_get(j_tmp, "QualifyFreq")),
+			json_string_value(json_object_get(j_tmp, "SIP-Sess-Timers")),
+			json_string_value(json_object_get(j_tmp, "SIP-Sess-Refresh")),
+			(int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Expires")),
+			(int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Min")),
+
+			json_string_value(json_object_get(j_tmp, "SIP-RTP-Engine")),
+			json_string_value(json_object_get(j_tmp, "Parkinglot")),
+			json_string_value(json_object_get(j_tmp, "SIP-Use-Reason-Header")),
+			json_string_value(json_object_get(j_tmp, "SIP-Encryption")),
+
+			json_string_value(json_object_get(j_tmp, "Channeltype")),
+			json_string_value(json_object_get(j_tmp, "ChanObjectType")),
+			json_string_value(json_object_get(j_tmp, "ToneZone")),
+			json_string_value(json_object_get(j_tmp, "Named Pickupgroup")),
+			(int)json_integer_value(json_object_get(j_tmp, "Busy-level")),
+
+			json_string_value(json_object_get(j_tmp, "Named Callgroup")),
+			(int)json_integer_value(json_object_get(j_tmp, "Default-addr-port")),
+			json_string_value(json_object_get(j_tmp, "SIP-Comedia")),
+			json_string_value(json_object_get(j_tmp, "Description")),
+			(int)json_integer_value(json_object_get(j_tmp, "Address-Port")),
+
+			json_string_value(json_object_get(j_tmp, "SIP-CanReinvite"))
+			);
+
+	sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+
+    json_decref(j_tmp);
+    json_decref(j_res);
 
     return true;
 }

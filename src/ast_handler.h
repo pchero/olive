@@ -187,7 +187,8 @@ typedef enum {
 
 int ast_send_cmd(char* cmd, char** res);
 void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, void *arg);
-
+int	cmd_sippeers();
+int cmd_sipshowpeer(char* peer);
 
 
 

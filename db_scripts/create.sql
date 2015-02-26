@@ -3,23 +3,25 @@
 --    Author: pchero
 
 drop table if exists campaign;
-create table campaign (
+create table campaign(
     seq         int(10)         unsigned auto_increment,
-    id          int(10)         unsigned unique,
-    name        varchar(255),
-    status      varchar(10)     default 'stop',             -- status(start/starting/stop/stopping/pause/pausing..)
-    agent_set   int(10)         default '-1',               -- agent set id(agent_set)
-    plan        int(10)         default '-1',               -- plan id(plan)
-    diallist    int(10)         default '-1',               -- diallist id(diallist)
+    uuid        varchar(255)    unique,
     detail      varchar(1023),                              -- description
-    primary key(seq, id)
+--    name        varchar(255),
+--    status      varchar(10)     default 'stop',             -- status(start/starting/stop/stopping/pause/pausing..)
+--    agent_set   int(10)         default '-1',               -- agent set id(agent_set)
+--    plan        int(10)         default '-1',               -- plan id(plan)
+--    diallist    int(10)         default '-1',               -- diallist id(diallist)
+--
+    primary key(seq, uuid)
 );
 
 drop table if exists agent;
 create table agent(
     seq         int(10)         unsigned auto_increment,
-    id          varchar(700)    not null unique,
-    password    varchar(1023)   not null,
+    uuid        varchar(255)    not null unique,
+    id			varchar(255)	not null unique,	-- login id
+    password    varchar(1023)   not null,			-- login passwd
     name        varchar(255),
     detail      varchar(1023),                              -- description
     
@@ -59,7 +61,7 @@ create table diallist(
 -- dial list
 -- manage all of dial list tables
 --drop table if exists dial_list;
-create table dial_list(
+create table dial_list_ma(
     seq         int(10)         unsigned auto_increment,    -- sequence
     uuid        varchar(255)    unique,                     -- dial_list_#### reference uuid.
     name        varchar(255),                               -- dial list name
