@@ -33,7 +33,10 @@ static int ast_get_evt_type(const char* type);
 static void evt_peerstatus(json_t* j_recv);
 static void evt_devicestatechange(json_t* j_recv);
 static void evt_successfulauth(json_t* j_recv);
-
+static void evt_shutdown(json_t* j_recv);
+static void evt_fullybooted(json_t* j_recv);
+static void evt_reload(json_t* j_recv);
+static void evt_registry(json_t* j_recv);
 
 
 /**
@@ -87,43 +90,43 @@ void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, unused__ 
 
     while(1)
     {
-		ret = zmq_getsockopt(g_app->zevt, ZMQ_EVENTS, &rcv_evts, &rcv_size);
-		if(ret != 0)
-		{
-			slog(LOG_ERR, "Could not get the sockopt. ret[%d], err[%d:%s]", ret, errno, strerror(errno));
-			return;
-		}
+        ret = zmq_getsockopt(g_app->zevt, ZMQ_EVENTS, &rcv_evts, &rcv_size);
+        if(ret != 0)
+        {
+            slog(LOG_ERR, "Could not get the sockopt. ret[%d], err[%d:%s]", ret, errno, strerror(errno));
+            return;
+        }
 
-		ret = rcv_evts & ZMQ_POLLIN;
-		if(ret != 1)
-		{
-			usleep(100);
-			return;
-		}
-		slog(LOG_DEBUG, "Recv event.");
+        ret = rcv_evts & ZMQ_POLLIN;
+        if(ret != 1)
+        {
+            usleep(100);
+            return;
+        }
+        slog(LOG_DEBUG, "Recv event.");
 
-		ret = zmq_msg_init(&msg);
-		ret = zmq_msg_recv(&msg, g_app->zevt, 0);
+        ret = zmq_msg_init(&msg);
+        ret = zmq_msg_recv(&msg, g_app->zevt, 0);
 
-		ret = zmq_msg_size(&msg);
-		recv_buf = calloc(ret + 1, sizeof(char));
-		memcpy(recv_buf, zmq_msg_data(&msg), ret);
-		zmq_msg_close(&msg);
-		slog(LOG_DEBUG, "Recv. msg[%s]", recv_buf);
+        ret = zmq_msg_size(&msg);
+        recv_buf = calloc(ret + 1, sizeof(char));
+        memcpy(recv_buf, zmq_msg_data(&msg), ret);
+        zmq_msg_close(&msg);
+        slog(LOG_DEBUG, "Recv. msg[%s]", recv_buf);
 
-		j_recv = json_loads(recv_buf, 0, &j_err);
-		free(recv_buf);
-		if(j_recv == NULL)
-		{
-			slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",
-					j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
-					);
-			continue;
-		}
+        j_recv = json_loads(recv_buf, 0, &j_err);
+        free(recv_buf);
+        if(j_recv == NULL)
+        {
+            slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                    j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                    );
+            continue;
+        }
 
-		ast_recv_handler(j_recv);
+        ast_recv_handler(j_recv);
 
-		json_decref(j_recv);
+        json_decref(j_recv);
     }
 
     return;
@@ -149,22 +152,50 @@ static void ast_recv_handler(json_t* j_evt)
         case PeerStatus:
         {
             // Update peer information
-        	slog(LOG_DEBUG, "PeerStatus.");
+            slog(LOG_DEBUG, "PeerStatus.");
             evt_peerstatus(j_evt);
         }
         break;
 
         case DeviceStateChange:
-		{
-			slog(LOG_DEBUG, "DeviceStateChange.");
-        	evt_devicestatechange(j_evt);
-		}
-		break;
+        {
+            slog(LOG_DEBUG, "DeviceStateChange.");
+            evt_devicestatechange(j_evt);
+        }
+        break;
+
+        case FullyBooted:
+        {
+            slog(LOG_DEBUG, "FullyBooted.");
+            evt_fullybooted(j_evt);
+        }
+        break;
+
+        case Registry:
+        {
+            slog(LOG_DEBUG, "Registry.");
+            evt_registry(j_evt);
+        }
+        break;
+
+        case Reload:
+        {
+            slog(LOG_DEBUG, "Reload.");
+            evt_reload(j_evt);
+        }
+        break;
+
+        case Shutdown:
+        {
+            slog(LOG_DEBUG, "Shutdown.");
+            evt_shutdown(j_evt);
+        }
+        break;
 
         case SuccessfulAuth:
         {
-        	slog(LOG_DEBUG, "SuccessfulAuth");
-        	evt_successfulauth(j_evt);
+            slog(LOG_DEBUG, "SuccessfulAuth");
+            evt_successfulauth(j_evt);
         }
         break;
 
@@ -179,6 +210,691 @@ static void ast_recv_handler(json_t* j_evt)
 
     return;
 }
+
+/**
+ * @brief    Load peers info from Asterisk.
+ * @return
+ */
+int ast_load_peers(void)
+{
+    int ret;
+    sqlite3_stmt* res;
+    char**    peers;
+    int    i;
+    int    peer_cnt;
+
+    // get sip peers
+    ret = cmd_sippeers();
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Failed cmd_sippeers.");
+        return false;
+    }
+    slog(LOG_DEBUG, "Finished cmd_sippeers.");
+
+    ret = sqlite3_prepare_v2(g_app->db, "select (select count() from peer) as count, name from peer;", -1, &res, NULL);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not get peer names. err[%d:%s]", errno, strerror(errno));
+        exit(0);
+    }
+
+    i = 0;
+    peers = NULL;
+    while(sqlite3_step(res) == SQLITE_ROW)
+    {
+        if(i == 0)
+        {
+
+            peers = calloc(sqlite3_column_int(res, 0), sizeof(char*));
+        }
+        ret = asprintf(&peers[i], "%s", sqlite3_column_text(res, 1));
+
+        i++;
+    }
+    peer_cnt = i;
+    sqlite3_finalize(res);
+    slog(LOG_DEBUG, "Peer count. peers[%d]", peer_cnt);
+
+    for(i = 0; i < peer_cnt; i++)
+    {
+        cmd_sipshowpeer(peers[i]);
+    }
+
+    return true;
+}
+
+/**
+ * @brief    Load registry info from Asterisk.
+ * @return
+ */
+int ast_load_registry(void)
+{
+    int ret;
+
+    ret = cmd_sipshowregistry();
+
+    return ret;
+}
+
+/**
+ * @brief PeerStatus
+ * @param j_recv
+ */
+static void evt_peerstatus(json_t* j_recv)
+{
+    char* sql;
+//    char* sql_tmp;
+    char* peer;
+    char* org;
+    int ret;
+
+//    ChannelType - The channel technology of the peer.
+//    Peer - The name of the peer (including channel technology).
+//    PeerStatus - New status of the peer.
+//        Unknown
+//        Registered
+//        Unregistered
+//        Rejected
+//        Lagged
+//    Cause - The reason the status has changed.
+//    Address - New address of the peer.
+//    Port - New port for the peer.
+//    Time - Time it takes to reach the peer and receive a response.
+
+//    {
+//        "Event":"PeerStatus",
+//        "ChannelType":"SIP",
+//        "Privilege":"system,all",
+//        "PeerStatus":"Registered",
+//        "Peer":"SIP/test-01",
+//        "Address":"127.0.0.1"
+//    }
+
+    // Peer - The name of the peer (including channel technology).
+    peer = strdup(json_string_value(json_object_get(j_recv, "Peer")));
+    org = peer;
+    strsep(&peer, "/");
+
+    // We use only "ChannelType", "PeerStatus", "Address"
+    ret = asprintf(&sql, "update peer set chan_type=\"%s\", status=\"%s\", addr_ip=\"%s\" where name=\"%s\";",
+            json_string_value(json_object_get(j_recv, "ChannelType")),
+            json_string_value(json_object_get(j_recv, "PeerStatus")),
+            json_string_value(json_object_get(j_recv, "Address")),
+            peer
+            );
+    free(org);
+
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+        return;
+    }
+
+    free(sql);
+
+    return;
+}
+
+/**
+ * @brief DeviceStateChange
+ * @param j_recv
+ */
+static void evt_devicestatechange(json_t* j_recv)
+{
+//      <sample>
+//      {
+//      Event: DeviceStateChange
+//      Privilege: call,all
+//      Device: SIP/test-01
+//      State: NOT_INUSE
+//    }
+
+    char* sql;
+    char* peer;
+    char* org;
+    int ret;
+
+    // Peer - The name of the peer (including channel technology).
+    peer = strdup(json_string_value(json_object_get(j_recv, "Device")));
+    org = peer;
+    strsep(&peer, "/");
+
+    // We use only "Device"
+    ret = asprintf(&sql, "update peer set device_state=\"%s\" where name=\"%s\";",
+            json_string_value(json_object_get(j_recv, "State")),
+            peer
+            );
+    free(org);
+
+
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+        return;
+    }
+
+    free(sql);
+    return;
+}
+
+
+/**
+ * @brief SuccessfulAuth
+ * @param j_recv
+ */
+static void evt_successfulauth(json_t* j_recv)
+{
+//    EventTV - The time the event was detected.
+//    Severity - A relative severity of the security event.
+//        Informational
+//        Error
+//    Service - The Asterisk service that raised the security event.
+//    EventVersion - The version of this event.
+//    AccountID - The Service account associated with the security event notification.
+//    SessionID - A unique identifier for the session in the service that raised the event.
+//    LocalAddress - The address of the Asterisk service that raised the security event.
+//    RemoteAddress - The remote address of the entity that caused the security event to be raised.
+//    UsingPassword - Whether or not the authentication attempt included a password.
+//    Module - If available, the name of the module that raised the event.
+//    SessionTV - The timestamp reported by the session.
+
+
+//    Event: SuccessfulAuth
+//    Privilege: security,all
+//    EventTV: 2015-02-28T01:11:39.041+0100
+//    Severity: Informational
+//    Service: SIP
+//    EventVersion: 1
+//    AccountID: test-01
+//    SessionID: 0x7fb980034158
+//    LocalAddress: IPV4/UDP/127.0.0.1/5060
+//    RemoteAddress: IPV4/UDP/127.0.0.1/59684
+//    UsingPassword: 1
+
+
+    return;
+}
+
+/**
+ * @brief Shutdown
+ * @param j_recv
+ */
+static void evt_shutdown(json_t* j_recv)
+{
+
+//    Shutdown - Whether the shutdown is proceeding cleanly (all channels were hungup successfully) or uncleanly (channels will be terminated)
+//        Uncleanly
+//        Cleanly
+//    Restart - Whether or not a restart will occur.
+//        True
+//        False
+
+//    <sample>
+//    Event: Shutdown
+//    Privilege: system,all
+//    Restart: False
+//    Shutdown: Cleanly
+
+    slog(LOG_INFO, "Shutdown. Asterisk will be shutdown. restart[%s], shutdown[%s]",
+            json_string_value(json_object_get(j_recv, "Restart")),
+            json_string_value(json_object_get(j_recv, "Shutdown"))
+            );
+
+    return;
+}
+
+/**
+ * @brief FullyBooted
+ * @param j_recv
+ */
+static void evt_fullybooted(json_t* j_recv)
+{
+
+//    Raised when all Asterisk initialization procedures have finished.
+//    Status - Informational message
+
+//    <sample>
+//    Event: FullyBooted
+//    Privilege: system,all
+//    Status: Fully Booted
+
+    int ret;
+
+    slog(LOG_INFO, "Asterisk started. Reload info. status[%s]",
+            json_string_value(json_object_get(j_recv, "Status"))
+            );
+
+    ret = ast_load_peers();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not load peer information.");
+    }
+    slog(LOG_DEBUG, "Complete load peer information");
+
+    ret = ast_load_registry();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not load registry information");
+    }
+
+    return;
+}
+
+/**
+ * @brief FullyBooted
+ * @param j_recv
+ */
+static void evt_reload(json_t* j_recv)
+{
+
+//    Raised when a module has been reloaded in Asterisk.
+
+//    Module - The name of the module that was reloaded, or All if all modules were reloaded
+//    Status - The numeric status code denoting the success or failure of the reload request.
+//        0 - Success
+//        1 - Request queued
+//        2 - Module not found
+//        3 - Error
+//        4 - Reload already in progress
+//        5 - Module uninitialized
+//        6 - Reload not supported
+
+
+//    <sample>
+//    Event: Reload
+//    Privilege: system,all
+//    Module: chan_sip.so
+//    Status: 2
+
+    return;
+}
+
+/**
+ * @brief FullyBooted
+ * @param j_recv
+ */
+static void evt_registry(json_t* j_recv)
+{
+
+//    Raised when an outbound registration completes.
+
+//    ChannelType - The type of channel that was registered (or not).
+//    Username - The username portion of the registration.
+//    Domain - The address portion of the registration.
+//    Status - The status of the registration request.
+//        Registered
+//        Unregistered
+//        Rejected
+//        Failed
+//    Cause - What caused the rejection of the request, if available.
+
+
+//    <sample>
+//    Event: Registry
+//    Privilege: system,all
+//    ChannelType: SIP
+//    Username: 1236
+//    Domain: example.com
+//    Status: Request Sent
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "insert or replace into registry(user_name, domain_name, state) values ("
+            "\"%s\", \"%s\", \"%s\""
+            ");",
+            json_string_value(json_object_get(j_recv, "Username")),
+            json_string_value(json_object_get(j_recv, "Domain")),
+            json_string_value(json_object_get(j_recv, "Status"))
+            );
+
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    free(sql);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+
+        return;
+    }
+
+    return;
+}
+
+/**
+ * @brief    Action: SIPpeers
+ * @return  success:true, fail:false
+ */
+int cmd_sippeers(void)
+{
+    char* cmd;
+    char* res;
+    int ret;
+    char* sql;
+    size_t index;
+    json_t *j_val;
+
+    json_t* j_res;
+    json_t* j_tmp;
+
+    cmd = "{\"Action\": \"SIPpeers\"}";
+    res = ast_send_cmd(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action:SIPpeers\n");
+        return false;
+    }
+
+    j_res = json_loadb(res, strlen(res), 0, 0);
+    free(res);
+
+    // response check
+    j_tmp = json_array_get(j_res, 0);
+    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
+        json_decref(j_res);
+        return false;
+    }
+
+    json_array_foreach(j_res, index, j_val)
+    {
+        if(index == 0)
+        {
+            continue;
+        }
+
+        // check end of list
+        j_tmp = json_object_get(j_val, "Event");
+        ret = strcmp(json_string_value(j_tmp), "PeerlistComplete");
+        if(ret == 0)
+        {
+            break;
+        }
+
+        // insert name only
+        j_tmp = json_object_get(j_val, "ObjectName");
+        ret = asprintf(&sql, "insert or replace into peer(name) values (\"%s\");", json_string_value(j_tmp));
+
+        ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+        if(ret != SQLITE_OK)
+        {
+            slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+
+            free(sql);
+            json_decref(j_res);
+            return false;
+        }
+
+        free(sql);
+    }
+
+    json_decref(j_res);
+
+    return true;
+}
+
+
+/**
+ * @brief   Action: SIPShowPeer
+ * @return  success:true, fail:false
+ */
+int cmd_sipshowpeer(char* peer)
+{
+    char* cmd;
+    char* res;
+    int ret;
+    char* sql;
+
+    json_t* j_res;
+    json_t* j_tmp;
+
+    slog(LOG_DEBUG, "cmd_sipshowpeer. peer[%s]", peer);
+
+    ret = asprintf(&cmd, "{\"Action\": \"SIPShowPeer\", \"Peer\":\"%s\"}", peer);
+    res = ast_send_cmd(cmd);
+    free(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action:SIPpeers");
+        return false;
+    }
+//    slog(LOG_DEBUG, "Received msg. msg[%s]", res);
+
+    j_res = json_loadb(res, strlen(res), 0, 0);
+    free(res);
+
+    // response check
+    j_tmp = json_array_get(j_res, 0);
+    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
+        json_decref(j_res);
+        return false;
+    }
+
+    ret = asprintf(&sql, "insert or replace into peer("
+            "name, secret, md5secret, remote_secret, context, "
+            "language, ama_flags, transfer_mode, calling_pres, "
+            "call_group, pickup_group, moh_suggest, mailbox, "
+            "last_msg_sent, call_limit, max_forwards, dynamic, caller_id, "
+            "max_call_br, reg_expire, auth_insecure, force_rport, acl, "
+
+            "t_38_support, t_38_ec_mode, t_38_max_dtgram, direct_media, "
+            "promisc_redir, user_phone, video_support, text_support, "
+            "dtmp_mode, "
+            "to_host, addr_ip, defaddr_ip, "
+            "def_username, codecs, "
+
+            "status, user_agent, reg_contact, "
+            "qualify_freq, sess_timers, sess_refresh, sess_expires, min_sess, "
+            "rtp_engine, parking_lot, use_reason, encryption, "
+            "chan_type, chan_obj_type, tone_zone, named_pickup_group, busy_level, "
+            "named_call_group, def_addr_port, comedia, description, addr_port, "
+            "can_reinvite "
+            ") values ("
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", "
+            "%d, %d, %d, \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+
+            "\"%s\", \"%s\", %d, \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", "
+            "\"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", "
+
+            "\"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", %d, %d, "
+            "\"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", %d, "
+            "\"%s\", %d, \"%s\", \"%s\", %d, "
+
+            "\"%s\""
+            ");",
+            json_string_value(json_object_get(j_tmp, "ObjectName")),
+            json_string_value(json_object_get(j_tmp, "SecretExist")),
+            json_string_value(json_object_get(j_tmp, "MD5SecretExist")),
+            json_string_value(json_object_get(j_tmp, "RemoteSecretExist")),
+            json_string_value(json_object_get(j_tmp, "Context")),
+
+            json_string_value(json_object_get(j_tmp, "Language")),
+            json_string_value(json_object_get(j_tmp, "AMAflags")),
+            json_string_value(json_object_get(j_tmp, "TransferMode")),
+            json_string_value(json_object_get(j_tmp, "CallingPres")),
+
+            json_string_value(json_object_get(j_tmp, "Callgroup")),
+            json_string_value(json_object_get(j_tmp, "Pickupgroup")),
+            json_string_value(json_object_get(j_tmp, "MOHSuggest")),
+            json_string_value(json_object_get(j_tmp, "VoiceMailbox")),
+
+            (int)json_integer_value(json_object_get(j_tmp, "LastMsgsSent")),
+            (int)json_integer_value(json_object_get(j_tmp, "Call-limit")),
+            (int)json_integer_value(json_object_get(j_tmp, "Maxforwards")),
+            json_string_value(json_object_get(j_tmp, "Dynamic")),
+            json_string_value(json_object_get(j_tmp, "Callerid")),
+
+            json_string_value(json_object_get(j_tmp, "MaxCallBR")),
+            json_string_value(json_object_get(j_tmp, "RegExpire")),
+            json_string_value(json_object_get(j_tmp, "SIP-AuthInsecure")),
+            json_string_value(json_object_get(j_tmp, "SIP-Forcerport")),
+            json_string_value(json_object_get(j_tmp, "ACL")),
+
+
+            json_string_value(json_object_get(j_tmp, "SIP-T.38Support")),
+            json_string_value(json_object_get(j_tmp, "SIP-T.38EC")),
+            (int)json_integer_value(json_object_get(j_tmp, "SIP-T.38MaxDtgrm")),
+            json_string_value(json_object_get(j_tmp, "SIP-DirectMedia")),
+
+            json_string_value(json_object_get(j_tmp, "SIP-PromiscRedir")),
+            json_string_value(json_object_get(j_tmp, "SIP-UserPhone")),
+            json_string_value(json_object_get(j_tmp, "SIP-VideoSupport")),
+            json_string_value(json_object_get(j_tmp, "SIP-TextSupport")),
+
+            json_string_value(json_object_get(j_tmp, "SIP-DTMFmode")),
+
+            json_string_value(json_object_get(j_tmp, "ToHost")),
+            json_string_value(json_object_get(j_tmp, "Address-IP")),
+            json_string_value(json_object_get(j_tmp, "Default-addr-IP")),
+
+            json_string_value(json_object_get(j_tmp, "Default-Username")),
+            json_string_value(json_object_get(j_tmp, "Codecs")),
+
+
+            json_string_value(json_object_get(j_tmp, "Status")),
+            json_string_value(json_object_get(j_tmp, "SIP-Useragent")),
+            json_string_value(json_object_get(j_tmp, "Reg-Contact")),
+
+            json_string_value(json_object_get(j_tmp, "QualifyFreq")),
+            json_string_value(json_object_get(j_tmp, "SIP-Sess-Timers")),
+            json_string_value(json_object_get(j_tmp, "SIP-Sess-Refresh")),
+            (int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Expires")),
+            (int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Min")),
+
+            json_string_value(json_object_get(j_tmp, "SIP-RTP-Engine")),
+            json_string_value(json_object_get(j_tmp, "Parkinglot")),
+            json_string_value(json_object_get(j_tmp, "SIP-Use-Reason-Header")),
+            json_string_value(json_object_get(j_tmp, "SIP-Encryption")),
+
+            json_string_value(json_object_get(j_tmp, "Channeltype")),
+            json_string_value(json_object_get(j_tmp, "ChanObjectType")),
+            json_string_value(json_object_get(j_tmp, "ToneZone")),
+            json_string_value(json_object_get(j_tmp, "Named Pickupgroup")),
+            (int)json_integer_value(json_object_get(j_tmp, "Busy-level")),
+
+            json_string_value(json_object_get(j_tmp, "Named Callgroup")),
+            (int)json_integer_value(json_object_get(j_tmp, "Default-addr-port")),
+            json_string_value(json_object_get(j_tmp, "SIP-Comedia")),
+            json_string_value(json_object_get(j_tmp, "Description")),
+            (int)json_integer_value(json_object_get(j_tmp, "Address-Port")),
+
+            json_string_value(json_object_get(j_tmp, "SIP-CanReinvite"))
+            );
+
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not update peer info. ret[%d], err[%d:%s], sql[%s]", ret, errno, strerror(errno), sql);
+    }
+
+    json_decref(j_res);
+    free(sql);
+
+    return true;
+}
+
+/**
+ * @brief    Action: SIPshowregistry
+ * @return  success:true, fail:false
+ */
+int cmd_sipshowregistry(void)
+{
+    char* cmd;
+    char* res;
+    int ret;
+    char* sql;
+    size_t index;
+    json_t *j_val;
+
+    json_t* j_res;
+    json_t* j_tmp;
+
+    cmd = "{\"Action\": \"SIPshowregistry\"}";
+    slog(LOG_DEBUG, "cmd_sipshowregistry.");
+    res = ast_send_cmd(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action:SIPpeers\n");
+        return false;
+    }
+//    slog(LOG_DEBUG, "Received msg. msg[%s]", res);
+
+    j_res = json_loadb(res, strlen(res), 0, 0);
+    free(res);
+
+    // response check
+    j_tmp = json_array_get(j_res, 0);
+    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
+        json_decref(j_res);
+        return false;
+    }
+
+    json_array_foreach(j_res, index, j_val)
+    {
+        if(index == 0)
+        {
+            continue;
+        }
+
+        // check end of list
+        j_tmp = json_object_get(j_val, "Event");
+        ret = strcmp(json_string_value(j_tmp), "RegistrationsComplete");
+        if(ret == 0)
+        {
+            break;
+        }
+
+        ret = asprintf(&sql, "insert or replace into registry(host, port, user_name, domain_name, domain_port, refresh, state, registration_time)"
+                "values ("
+                "\"%s\", %d, \"%s\", \"%s\", %d, "
+                "%d, \"%s\", %d"
+                ");",
+                json_string_value(json_object_get(j_val, "Host")),
+                atoi(json_string_value(json_object_get(j_val, "Port"))),
+                json_string_value(json_object_get(j_val, "Username")),
+                json_string_value(json_object_get(j_val, "Domain")),
+                atoi(json_string_value(json_object_get(j_val, "DomainPort"))),
+                atoi(json_string_value(json_object_get(j_val, "Refresh"))),
+                json_string_value(json_object_get(j_val, "State")),
+                atoi(json_string_value(json_object_get(j_val, "RegistrationTime")))
+                );
+
+        ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+        if(ret != SQLITE_OK)
+        {
+            slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+
+            free(sql);
+            json_decref(j_res);
+            return false;
+        }
+        free(sql);
+    }
+
+    json_decref(j_res);
+
+    return true;
+}
+
+
 
 /**
  * Return event type.
@@ -689,447 +1405,4 @@ static int ast_get_evt_type(const char* type)
 
     return -1;
 
-}
-
-/**
- * @brief PeerStatus
- * @param j_recv
- */
-static void evt_peerstatus(json_t* j_recv)
-{
-    char* sql;
-//    char* sql_tmp;
-    char* peer;
-    char* org;
-    int ret;
-
-//    ChannelType - The channel technology of the peer.
-//    Peer - The name of the peer (including channel technology).
-//    PeerStatus - New status of the peer.
-//        Unknown
-//        Registered
-//        Unregistered
-//        Rejected
-//        Lagged
-//    Cause - The reason the status has changed.
-//    Address - New address of the peer.
-//    Port - New port for the peer.
-//    Time - Time it takes to reach the peer and receive a response.
-
-//    {
-//    	"Event":"PeerStatus",
-//		"ChannelType":"SIP",
-//		"Privilege":"system,all",
-//		"PeerStatus":"Registered",
-//		"Peer":"SIP/test-01",
-//		"Address":"127.0.0.1"
-//    }
-
-    // Peer - The name of the peer (including channel technology).
-    peer = strdup(json_string_value(json_object_get(j_recv, "Peer")));
-    org = peer;
-    strsep(&peer, "/");
-
-    // We use only "ChannelType", "PeerStatus", "Address"
-    ret = asprintf(&sql, "update peer set chan_type=\"%s\", status=\"%s\", addr_ip=\"%s\" where name=\"%s\";",
-    		json_string_value(json_object_get(j_recv, "ChannelType")),
-			json_string_value(json_object_get(j_recv, "PeerStatus")),
-			json_string_value(json_object_get(j_recv, "Address")),
-    		peer
-    		);
-    free(org);
-
-    // make query.
-//    ret = asprintf(&sql, "update peer set");
-//
-//    // ChannelType - The channel technology of the peer.
-//    if(json_object_get(j_recv, "ChannelType") != NULL)
-//    {
-//    	ret = asprintf(&sql_tmp, "%s chan_type=\"%s\" ", sql, json_string_value(json_object_get(j_recv, "ChannelType")));
-//    	free(sql);
-//    	ret = asprintf(&sql, "%s", sql_tmp);
-//    	free(sql_tmp);
-//    }
-//
-//    // PeerStatus - New status of the peer.
-//    if(json_object_get(j_recv, "PeerStatus") != NULL)
-//    {
-//    	ret = asprintf(&sql_tmp, "%s, status=\"%s\" ", sql, json_string_value(json_object_get(j_recv, "PeerStatus")));
-//    	free(sql);
-//    	ret = asprintf(&sql, "%s", sql_tmp);
-//    	free(sql_tmp);
-//    }
-//
-//    // Cause - The reason the status has changed.
-//    if(json_object_get(j_recv, "Cause") != NULL)
-//    {
-//    	ret = asprintf(&sql_tmp, "%s, status_cause=\"%s\" ", sql, json_string_value(json_object_get(j_recv, "Cause")));
-//    	free(sql);
-//    	ret = asprintf(&sql, "%s", sql_tmp);
-//    	free(sql_tmp);
-//    }
-//
-//    // Address - New address of the peer.
-//    if(json_object_get(j_recv, "Address") != NULL)
-//    {
-//    	ret = asprintf(&sql_tmp, "%s, addr_ip=\"%s\" ", sql, json_string_value(json_object_get(j_recv, "Address")));
-//    	free(sql);
-//    	ret = asprintf(&sql, "%s", sql_tmp);
-//    	free(sql_tmp);
-//    }
-//
-//    // Port - New port for the peer.
-//    if(json_object_get(j_recv, "Port") != NULL)
-//    {
-//    	ret = asprintf(&sql_tmp, "%s, addr_port=%lld ", sql, json_integer_value(json_object_get(j_recv, "Port")));
-//    	free(sql);
-//    	ret = asprintf(&sql, "%s", sql_tmp);
-//    	free(sql_tmp);
-//    }
-//
-//    // We don't care of this.
-//    //    Time - Time it takes to reach the peer and receive a response.
-//
-//    //
-//    ret = asprintf(&sql_tmp, "%s where name=\"%s\";", sql, peer);
-//    free(org);
-//    free(sql);
-//    ret = asprintf(&sql, "%s", sql_tmp);
-//    free(sql_tmp);
-//    slog(LOG_DEBUG, "evt_peerstatus update query. sql[%s]", sql);
-
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
-    if(ret != SQLITE_OK)
-    {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
-        return;
-    }
-
-    free(sql);
-
-    return;
-}
-
-/**
- * @brief DeviceStateChange
- * @param j_recv
- */
-static void evt_devicestatechange(json_t* j_recv)
-{
-    char* sql;
-    char* peer;
-    char* org;
-    int ret;
-
-//	  {
-//      Event: DeviceStateChange
-//      Privilege: call,all
-//      Device: SIP/test-01
-//      State: NOT_INUSE
-//    }
-
-    // Peer - The name of the peer (including channel technology).
-    peer = strdup(json_string_value(json_object_get(j_recv, "Device")));
-    org = peer;
-    strsep(&peer, "/");
-
-    // We use only "Device"
-    ret = asprintf(&sql, "update peer set device_state=\"%s\" where name=\"%s\";",
-    		json_string_value(json_object_get(j_recv, "State")),
-    		peer
-    		);
-    free(org);
-
-
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
-    if(ret != SQLITE_OK)
-    {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
-        return;
-    }
-
-    free(sql);
-    return;
-}
-
-
-/**
- * @brief SuccessfulAuth
- * @param j_recv
- */
-static void evt_successfulauth(json_t* j_recv)
-{
-//    EventTV - The time the event was detected.
-//    Severity - A relative severity of the security event.
-//        Informational
-//        Error
-//    Service - The Asterisk service that raised the security event.
-//    EventVersion - The version of this event.
-//    AccountID - The Service account associated with the security event notification.
-//    SessionID - A unique identifier for the session in the service that raised the event.
-//    LocalAddress - The address of the Asterisk service that raised the security event.
-//    RemoteAddress - The remote address of the entity that caused the security event to be raised.
-//    UsingPassword - Whether or not the authentication attempt included a password.
-//    Module - If available, the name of the module that raised the event.
-//    SessionTV - The timestamp reported by the session.
-
-
-//    Event: SuccessfulAuth
-//    Privilege: security,all
-//    EventTV: 2015-02-28T01:11:39.041+0100
-//    Severity: Informational
-//    Service: SIP
-//    EventVersion: 1
-//    AccountID: test-01
-//    SessionID: 0x7fb980034158
-//    LocalAddress: IPV4/UDP/127.0.0.1/5060
-//    RemoteAddress: IPV4/UDP/127.0.0.1/59684
-//    UsingPassword: 1
-
-
-    return;
-}
-
-/**
- *
- * @return  success:true, fail:false
- */
-int cmd_sippeers(void)
-{
-    char* cmd;
-    char* res;
-    int ret;
-    char* sql;
-    size_t index;
-    json_t *j_val;
-
-    json_t* j_res;
-    json_t* j_tmp;
-
-    cmd = "{\"Action\": \"SIPpeers\"}";
-    res = ast_send_cmd(cmd);
-    if(res == NULL)
-    {
-    	slog(LOG_ERR, "Could not send Action:SIPpeers\n");
-    	return false;
-    }
-
-    j_res = json_loadb(res, strlen(res), 0, 0);
-    free(res);
-
-    // response check
-    j_tmp = json_array_get(j_res, 0);
-    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
-    if(ret != 0)
-    {
-    	slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
-    	json_decref(j_res);
-    	return false;
-    }
-
-    json_array_foreach(j_res, index, j_val)
-    {
-    	if(index == 0)
-    	{
-    		continue;
-    	}
-
-    	// check end of list
-    	j_tmp = json_object_get(j_val, "Event");
-    	ret = strcmp(json_string_value(j_tmp), "PeerlistComplete");
-    	if(ret == 0)
-    	{
-    		break;
-    	}
-
-    	// insert name only
-    	j_tmp = json_object_get(j_val, "ObjectName");
-    	ret = asprintf(&sql, "insert into peer(name) values (\"%s\");", json_string_value(j_tmp));
-
-    	ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
-    	if(ret != SQLITE_OK)
-    	{
-    		slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
-
-    		free(sql);
-    	    json_decref(j_res);
-    		return false;
-    	}
-
-    	free(sql);
-    }
-
-    json_decref(j_res);
-
-    return true;
-}
-
-
-/**
- *
- * @return  success:true, fail:false
- */
-int cmd_sipshowpeer(char* peer)
-{
-    char* cmd;
-    char* res;
-    int ret;
-    char* sql;
-
-    json_t* j_res;
-    json_t* j_tmp;
-
-	slog(LOG_DEBUG, "cmd_sipshowpeer");
-
-    ret = asprintf(&cmd, "{\"Action\": \"SIPShowPeer\", \"Peer\":\"%s\"}", peer);
-    res = ast_send_cmd(cmd);
-    free(cmd);
-    if(res == NULL)
-    {
-    	slog(LOG_ERR, "Could not send Action:SIPpeers");
-    	return false;
-    }
-
-    j_res = json_loadb(res, strlen(res), 0, 0);
-    free(res);
-
-    // response check
-    j_tmp = json_array_get(j_res, 0);
-    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
-    if(ret != 0)
-    {
-    	slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
-    	json_decref(j_res);
-    	return false;
-    }
-
-    ret = asprintf(&sql, "insert or replace into peer("
-    		"name, secret, md5secret, remote_secret, context, "
-    		"language, ama_flags, transfer_mode, calling_pres, "
-    		"call_group, pickup_group, moh_suggest, mailbox, "
-    		"last_msg_sent, call_limit, max_forwards, dynamic, caller_id, "
-    		"max_call_br, reg_expire, auth_insecure, force_rport, acl, "
-
-    		"t_38_support, t_38_ec_mode, t_38_max_dtgram, direct_media, "
-    		"promisc_redir, user_phone, video_support, text_support, "
-    		"dtmp_mode, "
-    		"to_host, addr_ip, defaddr_ip, "
-    		"def_username, codecs, "
-
-    		"status, user_agent, reg_contact, "
-    		"qualify_freq, sess_timers, sess_refresh, sess_expires, min_sess, "
-    		"rtp_engine, parking_lot, use_reason, encryption, "
-    		"chan_type, chan_obj_type, tone_zone, named_pickup_group, busy_level, "
-    		"named_call_group, def_addr_port, comedia, description, addr_port, "
-    		"can_reinvite "
-    		") values ("
-    		"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-    		"\"%s\", \"%s\", \"%s\", \"%s\", "
-    		"\"%s\", \"%s\", \"%s\", \"%s\", "
-    		"%d, %d, %d, \"%s\", \"%s\", "
-    		"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-
-    		"\"%s\", \"%s\", %d, \"%s\", "
-    		"\"%s\", \"%s\", \"%s\", \"%s\", "
-    		"\"%s\", "
-    		"\"%s\", \"%s\", \"%s\", "
-			"\"%s\", \"%s\", "
-
-			"\"%s\", \"%s\", \"%s\", "
-			"\"%s\", \"%s\", \"%s\", %d, %d, "
-    		"\"%s\", \"%s\", \"%s\", \"%s\", "
-    		"\"%s\", \"%s\", \"%s\", \"%s\", %d, "
-    		"\"%s\", %d, \"%s\", \"%s\", %d, "
-
-    		"\"%s\""
-    		");",
-			json_string_value(json_object_get(j_tmp, "ObjectName")),
-			json_string_value(json_object_get(j_tmp, "SecretExist")),
-			json_string_value(json_object_get(j_tmp, "MD5SecretExist")),
-			json_string_value(json_object_get(j_tmp, "RemoteSecretExist")),
-			json_string_value(json_object_get(j_tmp, "Context")),
-
-			json_string_value(json_object_get(j_tmp, "Language")),
-			json_string_value(json_object_get(j_tmp, "AMAflags")),
-			json_string_value(json_object_get(j_tmp, "TransferMode")),
-			json_string_value(json_object_get(j_tmp, "CallingPres")),
-
-			json_string_value(json_object_get(j_tmp, "Callgroup")),
-			json_string_value(json_object_get(j_tmp, "Pickupgroup")),
-			json_string_value(json_object_get(j_tmp, "MOHSuggest")),
-			json_string_value(json_object_get(j_tmp, "VoiceMailbox")),
-
-			(int)json_integer_value(json_object_get(j_tmp, "LastMsgsSent")),
-			(int)json_integer_value(json_object_get(j_tmp, "Call-limit")),
-			(int)json_integer_value(json_object_get(j_tmp, "Maxforwards")),
-			json_string_value(json_object_get(j_tmp, "Dynamic")),
-			json_string_value(json_object_get(j_tmp, "Callerid")),
-
-			json_string_value(json_object_get(j_tmp, "MaxCallBR")),
-			json_string_value(json_object_get(j_tmp, "RegExpire")),
-			json_string_value(json_object_get(j_tmp, "SIP-AuthInsecure")),
-			json_string_value(json_object_get(j_tmp, "SIP-Forcerport")),
-			json_string_value(json_object_get(j_tmp, "ACL")),
-
-
-			json_string_value(json_object_get(j_tmp, "SIP-T.38Support")),
-			json_string_value(json_object_get(j_tmp, "SIP-T.38EC")),
-			(int)json_integer_value(json_object_get(j_tmp, "SIP-T.38MaxDtgrm")),
-			json_string_value(json_object_get(j_tmp, "SIP-DirectMedia")),
-
-			json_string_value(json_object_get(j_tmp, "SIP-PromiscRedir")),
-			json_string_value(json_object_get(j_tmp, "SIP-UserPhone")),
-			json_string_value(json_object_get(j_tmp, "SIP-VideoSupport")),
-			json_string_value(json_object_get(j_tmp, "SIP-TextSupport")),
-
-			json_string_value(json_object_get(j_tmp, "SIP-DTMFmode")),
-
-			json_string_value(json_object_get(j_tmp, "ToHost")),
-			json_string_value(json_object_get(j_tmp, "Address-IP")),
-			json_string_value(json_object_get(j_tmp, "Default-addr-IP")),
-
-			json_string_value(json_object_get(j_tmp, "Default-Username")),
-			json_string_value(json_object_get(j_tmp, "Codecs")),
-
-
-			json_string_value(json_object_get(j_tmp, "Status")),
-			json_string_value(json_object_get(j_tmp, "SIP-Useragent")),
-			json_string_value(json_object_get(j_tmp, "Reg-Contact")),
-
-			json_string_value(json_object_get(j_tmp, "QualifyFreq")),
-			json_string_value(json_object_get(j_tmp, "SIP-Sess-Timers")),
-			json_string_value(json_object_get(j_tmp, "SIP-Sess-Refresh")),
-			(int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Expires")),
-			(int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Min")),
-
-			json_string_value(json_object_get(j_tmp, "SIP-RTP-Engine")),
-			json_string_value(json_object_get(j_tmp, "Parkinglot")),
-			json_string_value(json_object_get(j_tmp, "SIP-Use-Reason-Header")),
-			json_string_value(json_object_get(j_tmp, "SIP-Encryption")),
-
-			json_string_value(json_object_get(j_tmp, "Channeltype")),
-			json_string_value(json_object_get(j_tmp, "ChanObjectType")),
-			json_string_value(json_object_get(j_tmp, "ToneZone")),
-			json_string_value(json_object_get(j_tmp, "Named Pickupgroup")),
-			(int)json_integer_value(json_object_get(j_tmp, "Busy-level")),
-
-			json_string_value(json_object_get(j_tmp, "Named Callgroup")),
-			(int)json_integer_value(json_object_get(j_tmp, "Default-addr-port")),
-			json_string_value(json_object_get(j_tmp, "SIP-Comedia")),
-			json_string_value(json_object_get(j_tmp, "Description")),
-			(int)json_integer_value(json_object_get(j_tmp, "Address-Port")),
-
-			json_string_value(json_object_get(j_tmp, "SIP-CanReinvite"))
-			);
-
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
-    if(ret != SQLITE_OK)
-    {
-    	slog(LOG_ERR, "Could not update peer info. ret[%d], err[%d:%s], sql[%s]", ret, errno, strerror(errno), sql);
-    }
-
-    json_decref(j_res);
-    free(sql);
-
-    return true;
 }

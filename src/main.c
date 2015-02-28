@@ -423,51 +423,25 @@ static int init_ast_int(void)
 static int init_service(void)
 {
     int ret;
-    sqlite3_stmt    *res;
-    char**	peers;
-    int	i;
-    int	peer_cnt;
 
-    // get sip peers
-    ret = cmd_sippeers();
-    if(ret == false)
+    // load peer
+    ret = ast_load_peers();
+    if(ret != true)
     {
-        slog(LOG_ERR, "Failed cmd_sippeers.");
+        slog(LOG_ERR, "Could not load peer information.");
         return false;
     }
-    slog(LOG_DEBUG, "Finished cmd_sippeers.");
 
-
-    ret = sqlite3_prepare_v2(g_app->db, "select (select count() from peer) as count, name from peer;", -1, &res, NULL);
-    if(ret != SQLITE_OK)
+    // load registry
+    ret = ast_load_registry();
+    if(ret != true)
     {
-        slog(LOG_ERR, "Could not get peer names. err[%d:%s]", errno, strerror(errno));
-        exit(0);
-    }
-
-    i = 0;
-    peers = NULL;
-    while(sqlite3_step(res) == SQLITE_ROW)
-    {
-    	if(i == 0)
-    	{
-
-    		peers = calloc(sqlite3_column_int(res, 0), sizeof(char*));
-    	}
-    	ret = asprintf(&peers[i], "%s", sqlite3_column_text(res, 1));
-
-        i++;
-    }
-    peer_cnt = i;
-    sqlite3_finalize(res);
-    slog(LOG_DEBUG, "Peer count. peers[%d]", peer_cnt);
-
-    for(i = 0; i < peer_cnt; i++)
-    {
-    	cmd_sipshowpeer(peers[i]);
+        slog(LOG_ERR, "Could not load registry information.");
+        return false;
     }
 
     return true;
+
 }
 
 /**
@@ -568,8 +542,8 @@ static int init_sqlite(void)
             "addr_port int, \n"
 
             "can_reinvite text, \n"
-    		"device_state test, \n"
-//    		"status_cause text		-- why status changed \n"
+            "device_state test \n"
+//            "status_cause text        -- why status changed \n"
 
             ");"
             );
@@ -581,6 +555,34 @@ static int init_sqlite(void)
         sqlite3_free(err);
         return false;
     }
+    free(sql);
+
+    // create registry table
+    ret = asprintf(&sql, "create table registry(\n"
+            "-- registry table\n"
+            "-- AMI sip show peer <peer_id>\n"
+            "host text,        -- host name(ip address).\n"
+            "port int,        -- port number.\n"
+            "user_name text,    -- login user name(for register)\n"
+            "domain_name text,        -- domain name(ip address)\n"
+            "domain_port int,        -- domain port\n"
+            "refresh int,            -- refresh interval\n"
+            "state text,            -- registry state\n"
+            "registration_time int, -- registration time\n"
+
+            "primary key(user_name, domain_name)"
+            ");"
+            );
+
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not create table peer. err[%s]\n", err);
+        sqlite3_free(err);
+        return false;
+    }
+    free(sql);
+
 
     return true;
 }
