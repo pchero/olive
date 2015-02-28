@@ -73,6 +73,7 @@ int main(int argc, char** argv)
         fprintf(stderr, "Could not load configure file. err[%d:%s]\n", j_err.line, j_err.text);
         exit(0);
     }
+    free(conf);
 
     // init zmq
     ret = init_zmq();
@@ -400,7 +401,7 @@ static int init_ast_int(void)
         return false;
     }
 
-    // register evetn callback
+    // register event callback
     fd_len = sizeof(evt_fd);
     zmq_getsockopt((void*)g_app->zevt, ZMQ_FD, (void*)&evt_fd, &fd_len);
     ev_ast_evt = event_new(g_app->ev_base, evt_fd, EV_READ | EV_PERSIST, cb_ast_recv_evt, NULL);
@@ -412,99 +413,59 @@ static int init_ast_int(void)
     event_add(ev_ast_evt, NULL);
 
     return true;
-
-//
-//    int ret;
-//    int evt_fd;
-//    size_t fd_len;
-//    struct event* evt_cb_ast_evt;
-//
-//    g_ast = calloc(1, sizeof(struct ast_t_));
-//
-//    g_ast->zmq_ctx = zmq_ctx_new();
-//
-//    // connect to cmd scok
-//    g_ast->sock_cmd = zmq_socket(g_ast->zmq_ctx, ZMQ_REQ);
-//    if(g_ast->sock_cmd == NULL)
-//    {
-//        slog(LOG_ERR, "Could not make cmd socket. err[%s]", strerror(errno));
-//        return false;
-//    }
-//
-//    ret = zmq_connect(g_ast->sock_cmd, g_app.addr_cmd);
-//    if(ret != 0)
-//    {
-//        slog(LOG_ERR, "Could not bind cmd socket. addr[%s], err[%s]", g_app.addr_cmd, strerror(errno));
-//        return false;
-//    }
-//    slog(LOG_DEBUG, "Complete making cmd sock. addr[%s]", g_app.addr_cmd);
-//
-//    // connect to evt sock
-//    g_ast->sock_evt = zmq_socket(g_ast->zmq_ctx, ZMQ_SUB);
-//    if(g_ast->sock_evt == NULL)
-//    {
-//        slog(LOG_ERR, "Could not make evt socket. err[%s]", strerror(errno));
-//        return false;
-//    }
-//
-//    ret = zmq_connect(g_ast->sock_evt, g_app.addr_evt);
-//    if(ret != 0)
-//    {
-//        slog(LOG_ERR, "Could not connect to evt server. addr[%s], err[%s]", g_app.addr_evt, strerror(errno));
-//        return false;
-//    }
-//
-//    ret = zmq_setsockopt (g_ast->sock_evt, ZMQ_SUBSCRIBE, "{", strlen("{"));
-//    if(ret != 0)
-//    {
-//        slog(LOG_ERR, "Could not set filter. addr[%s], err[%s]", g_app.addr_evt, strerror(errno));
-//        return false;
-//    }
-//    slog(LOG_DEBUG, "Complete making evt sock. addr[%s]", g_app.addr_evt);
-//
-//    // add evt
-//    fd_len = sizeof(evt_fd);
-//    zmq_getsockopt((void*)g_ast->sock_evt, ZMQ_FD, (void*)&evt_fd, &fd_len);
-//    evt_cb_ast_evt = event_new(evbase, evt_fd, EV_READ | EV_PERSIST, ast_recv_evt, g_ast->sock_evt);
-//    if(evt_cb_ast_evt == NULL)
-//    {
-//        slog(LOG_ERR, "Could not create evt read event.");
-//        return false;
-//    }
-//    event_add(evt_cb_ast_evt, NULL);
-//
-//
-////    // Initiate sip peers
-////    ret = sip_peers_get();
-////    if(ret == false)
-////    {
-////        slog(LOG_ERR, "Could not initiate sip peers info. ret[%d]", ret);
-////        return false;
-////    }
-//
-//    return true;
 }
 
 
+/**
+ * Initiate services
+ * @return
+ */
 static int init_service(void)
 {
-	int ret;
+    int ret;
+    sqlite3_stmt    *res;
+    char**	peers;
+    int	i;
+    int	peer_cnt;
+
     // get sip peers
-	ret = cmd_sippeers();
-	if(ret == false)
-	{
-		slog(LOG_ERR, "Failed cmd_sippeers.");
-		return false;
-	}
-	slog(LOG_DEBUG, "Finished cmd_sippeers.");
-	printf("gogogogo\bn");
+    ret = cmd_sippeers();
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Failed cmd_sippeers.");
+        return false;
+    }
+    slog(LOG_DEBUG, "Finished cmd_sippeers.");
 
-	//
-	cmd_sipshowpeer("test-01");
 
-    // campaign runs
-//    camp_init(evbase);
+    ret = sqlite3_prepare_v2(g_app->db, "select (select count() from peer) as count, name from peer;", -1, &res, NULL);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not get peer names. err[%d:%s]", errno, strerror(errno));
+        exit(0);
+    }
 
+    i = 0;
+    peers = NULL;
+    while(sqlite3_step(res) == SQLITE_ROW)
+    {
+    	if(i == 0)
+    	{
+
+    		peers = calloc(sqlite3_column_int(res, 0), sizeof(char*));
+    	}
+    	ret = asprintf(&peers[i], "%s", sqlite3_column_text(res, 1));
+
+        i++;
+    }
+    peer_cnt = i;
+    sqlite3_finalize(res);
+    slog(LOG_DEBUG, "Peer count. peers[%d]", peer_cnt);
+
+    for(i = 0; i < peer_cnt; i++)
+    {
+    	cmd_sipshowpeer(peers[i]);
+    }
 
     return true;
 }
@@ -531,15 +492,13 @@ static int init_sqlite(void)
     ret = asprintf(&sql, "create table peer(\n"
             "-- peers table\n"
             "-- AMI sip show peer <peer_id>\n"
-//            "seq integer primary key autoincrement, \n"
 
-            "name text primary key,	-- Name         : 200-ipvstk-softphone-1\n"
+            "name text primary key,    -- Name         : 200-ipvstk-softphone-1\n"
             "secret text,        -- Secret       : <Set>\n"
             "md5secret text,     -- MD5Secret    : <Not set>\n"
             "remote_secret text, -- Remote Secret: <Not set>\n"
             "context text,       -- Context      : CallFromSipDevice\n"
 
-//            "subsc_cont text,    -- Subscr.Cont. : Hints-user1\n"
             "language text,      -- Language     : da\n"
             "ama_flags text,     -- AMA flags    : Unknown\n"
             "transfer_mode text, -- Transfer mode: open\n"
@@ -550,7 +509,6 @@ static int init_sqlite(void)
             "moh_suggest text,   -- MOH Suggest  :\n"
             "mailbox text,       -- Mailbox      : user1\n"
 
-//            "vm_extension text,  -- VM Extension : +4550609999\n"
             "last_msg_sent int,  -- LastMsgsSent : 32767/65535\n"
             "call_limit int,     -- Call limit   : 100\n"
             "max_forwards int,   -- Max forwards : 0\n"
@@ -563,8 +521,6 @@ static int init_sqlite(void)
             "force_rport text,   -- Force rport  : No\n"
             "acl text,           -- ACL          : No\n"
 
-
-//            "direct_med_acl text,    --  DirectMedACL : No\n"
             "t_38_support text,  -- T.38 support : Yes\n"
             "t_38_ec_mode text,  -- T.38 EC mode : FEC\n"
             "t_38_max_dtgram int,    -- T.38 MaxDtgrm: 400\n"
@@ -575,29 +531,17 @@ static int init_sqlite(void)
             "video_support text, -- Video Support: No\n"
             "text_support text,  -- Text Support : No\n"
 
-//            "ign_sdp_ver text,   -- Ign SDP ver  : No\n"
-//            "trust_rpid text,    -- Trust RPID   : No\n"
-//            "send_rpid text,     -- Send RPID    : No\n"
-//            "subscriptions text, -- Subscriptions: Yes\n"
-//            "overlap_dial text,  -- Overlap dial : Yes\n"
             "dtmp_mode text,     -- DTMFmode     : rfc2833\n"
 
-//            "timer_t1 int,       -- Timer T1     : 500\n"
-//            "timer_b int,        -- Timer B      : 32000\n"
             "to_host text,       -- ToHost       :\n"
             "addr_ip text,       -- Addr->IP     : (null)\n"
             "defaddr_ip text,    -- Defaddr->IP  : (null)\n"
 
-//            "prim_transp text,   -- Prim.Transp. : UDP\n"
-//            "allowed_trsp text,  -- Allowed.Trsp : UDP\n"
             "def_username text,  -- Def. Username:\n"
-//            "sip_options text,   -- SIP Options  : (none)\n"
             "codecs text,        -- Codecs       : 0xc (ulaw|alaw)\n"
 
-//            "codec_order text,   -- Codec Order  : (alaw:20,ulaw:20)\n"
-//            "auto_framing text,  -- Auto-Framing :  No\n"
             "status text,        -- Status       : UNKNOWN\n"
-            "useragent text,     -- Useragent    :\n"
+            "user_agent text,     -- Useragent    :\n"
             "reg_contact text,   -- Reg. Contact :\n"
 
             "qualify_freq text,  -- Qualify Freq : 60000 ms\n"
@@ -607,17 +551,25 @@ static int init_sqlite(void)
             "min_sess int,       -- Min-Sess     : 90\n"
 
             "rtp_engine text,    -- RTP Engine   : asterisk\n"
-            "parkinglot text,    -- Parkinglot   :\n"
+            "parking_lot text,   -- Parkinglot   :\n"
             "use_reason text,    -- Use Reason   : Yes\n"
             "encryption text,    -- Encryption   : No\n"
 
-    		"named_call_group text, "
-			"def_addr_port int, "
-			"comedia text, "
-			"description text, "
-			"addr_port int, "
+            "chan_type text,      -- Channeltype  :\n"
+            "chan_obj_type text, -- ChanObjectType :\n"
+            "tone_zone text,     -- ToneZone :\n"
+            "named_pickup_group text,  -- Named Pickupgroup : \n"
+            "busy_level int,     -- Busy-level :\n"
 
-			"can_reinvite text"
+            "named_call_group text, -- Named Callgroup :\n"
+            "def_addr_port int, \n"
+            "comedia text, \n"
+            "description text, \n"
+            "addr_port int, \n"
+
+            "can_reinvite text, \n"
+    		"device_state test, \n"
+//    		"status_cause text		-- why status changed \n"
 
             ");"
             );
