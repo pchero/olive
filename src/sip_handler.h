@@ -5,9 +5,9 @@
  *      Author: pchero
  */
 
-#ifndef SRC_SIP_HANDLER_H_
-#define SRC_SIP_HANDLER_H_
+#ifndef 03_GIT_OLIVE_SRC_SIP_HANDLER_H_
+#define 03_GIT_OLIVE_SRC_SIP_HANDLER_H_
 
 
 
-#endif /* SRC_SIP_HANDLER_H_ */
+#endif /* 03_GIT_OLIVE_SRC_SIP_HANDLER_H_ */

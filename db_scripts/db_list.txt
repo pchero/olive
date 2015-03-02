@@ -13,7 +13,7 @@ campagin
 
 
 
-strategy
+plan
 -- 전략 리스트
 
 -- seq      : sequence uniq. asc

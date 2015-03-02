@@ -18,25 +18,44 @@ create table campaign(
 
 drop table if exists agent;
 create table agent(
+-- agent table
+-- every agents are belongs to here.
     seq         int(10)         unsigned auto_increment,
     uuid        varchar(255)    not null unique,
     id			varchar(255)	not null unique,	-- login id
     password    varchar(1023)   not null,			-- login passwd
     name        varchar(255),
-    detail      varchar(1023),                              -- description
+    desc_admin  varchar(1023),      -- description(for administrator)
+    desc_user   varchar(1023),      -- description(for users)
+    create_time datetime,           -- create datetime
+    create_user varchar(255),       -- create user
+    modified_time   datetime,       -- last modified time
+    modified_user   varchar(255),   -- last modified user
+    
+    -- agent level (permission)
     
     primary key(seq, id)
 );
 
-drop table if exists agent_set;
-create table agent_set(
-    seq         int(10)         unsigned auto_increment,
-    id          int(10)         unsigned unique,
-    detail      varchar(1023),                              -- description
-    -- We need something like list table for agents list
+drop table if exists agent_group;
+create table agent_group(
+-- master table of agent groups.
+    uuid    varchar(255)    not null unique,    -- key of redis.
+    name    varchar(255),
+    detail  varchar(1023),      -- description
     
-    primary key(seq, id)
+    primary key(uuid)
 );
+
+--drop table if exists agent_set;
+--create table agent_set(
+--    seq         int(10)         unsigned auto_increment,
+--    id          int(10)         unsigned unique,
+--    detail      varchar(1023),                              -- description
+--    -- We need something like list table for agents list
+--    
+--    primary key(seq, id)
+--);
 
 drop table if exists plan;
 create table plan(
@@ -44,6 +63,9 @@ create table plan(
     id          int(10)         unsigned unique,
     name        varchar(255),
     detail      varchar(1023),                              -- description
+    
+    -- no answer timeout
+    -- retry number
     
     primary key(seq, id)
 );
