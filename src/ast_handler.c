@@ -283,12 +283,6 @@ int ast_load_registry(void)
  */
 static void evt_peerstatus(json_t* j_recv)
 {
-    char* sql;
-//    char* sql_tmp;
-    char* peer;
-    char* org;
-    int ret;
-
 //    ChannelType - The channel technology of the peer.
 //    Peer - The name of the peer (including channel technology).
 //    PeerStatus - New status of the peer.
@@ -311,6 +305,12 @@ static void evt_peerstatus(json_t* j_recv)
 //        "Address":"127.0.0.1"
 //    }
 
+    char* sql;
+    char* peer;
+    char* org;
+    char* err;
+    int ret;
+
     // Peer - The name of the peer (including channel technology).
     peer = strdup(json_string_value(json_object_get(j_recv, "Peer")));
     org = peer;
@@ -325,14 +325,17 @@ static void evt_peerstatus(json_t* j_recv)
             );
     free(org);
 
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+        slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
+        sqlite3_free(err);
+        free(sql);
+
         return;
     }
-
     free(sql);
+
 
     return;
 }
@@ -354,25 +357,29 @@ static void evt_devicestatechange(json_t* j_recv)
     char* sql;
     char* peer;
     char* org;
+    char* err;
+    char* tmp;
     int ret;
 
     // Peer - The name of the peer (including channel technology).
     peer = strdup(json_string_value(json_object_get(j_recv, "Device")));
     org = peer;
-    strsep(&peer, "/");
+    tmp = strsep(&peer, "/");
 
     // We use only "Device"
     ret = asprintf(&sql, "update peer set device_state=\"%s\" where name=\"%s\";",
             json_string_value(json_object_get(j_recv, "State")),
-            peer
+            peer ? peer:tmp
             );
     free(org);
 
-
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+        slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
+        sqlite3_free(err);
+        free(sql);
+
         return;
     }
 
@@ -509,6 +516,27 @@ static void evt_reload(json_t* j_recv)
 //    Module: chan_sip.so
 //    Status: 2
 
+	int ret;
+
+	if(strcmp(json_string_value(json_object_get(j_recv, "Module")), "chan_sip.so") == 0)
+	{
+		// chan_sip reloaded.
+		slog(LOG_INFO, "Module reloaded. chan_sip.so.");
+
+	    ret = ast_load_peers();
+	    if(ret != true)
+	    {
+	        slog(LOG_ERR, "Could not load peer information.");
+	    }
+	    slog(LOG_DEBUG, "Complete load peer information");
+
+	    ret = ast_load_registry();
+	    if(ret != true)
+	    {
+	        slog(LOG_ERR, "Could not load registry information");
+	    }
+	}
+
     return;
 }
 
@@ -542,23 +570,25 @@ static void evt_registry(json_t* j_recv)
 
     int ret;
     char* sql;
+    char* err;
 
-    ret = asprintf(&sql, "insert or replace into registry(user_name, domain_name, state) values ("
-            "\"%s\", \"%s\", \"%s\""
-            ");",
+    ret = asprintf(&sql, "update registry set state = \"%s\" where user_name = \"%s\" and domain_name = \"%s\";",
+    		json_string_value(json_object_get(j_recv, "Status")),
             json_string_value(json_object_get(j_recv, "Username")),
-            json_string_value(json_object_get(j_recv, "Domain")),
-            json_string_value(json_object_get(j_recv, "Status"))
+            json_string_value(json_object_get(j_recv, "Domain"))
             );
 
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
-    free(sql);
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+        slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
+        sqlite3_free(err);
+        free(sql);
 
         return;
     }
+
+    free(sql);
 
     return;
 }
@@ -573,6 +603,7 @@ int cmd_sippeers(void)
     char* res;
     int ret;
     char* sql;
+    char* err;
     size_t index;
     json_t *j_val;
 
@@ -617,14 +648,15 @@ int cmd_sippeers(void)
 
         // insert name only
         j_tmp = json_object_get(j_val, "ObjectName");
-        ret = asprintf(&sql, "insert or replace into peer(name) values (\"%s\");", json_string_value(j_tmp));
+        ret = asprintf(&sql, "insert into peer(name) values (\"%s\");", json_string_value(j_tmp));
 
-        ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
-        if(ret != SQLITE_OK)
+        ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
+        if((ret != SQLITE_OK) && (ret != SQLITE_CONSTRAINT))
         {
-            slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+            slog(LOG_ERR, "Could not execute query. ret[%d], sql[%s], err[%s]", ret, sql, err);
 
             free(sql);
+            sqlite3_free(err);
             json_decref(j_res);
             return false;
         }
@@ -648,6 +680,7 @@ int cmd_sipshowpeer(char* peer)
     char* res;
     int ret;
     char* sql;
+    char* err;
 
     json_t* j_res;
     json_t* j_tmp;
@@ -796,10 +829,11 @@ int cmd_sipshowpeer(char* peer)
             json_string_value(json_object_get(j_tmp, "SIP-CanReinvite"))
             );
 
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not update peer info. ret[%d], err[%d:%s], sql[%s]", ret, errno, strerror(errno), sql);
+        slog(LOG_ERR, "Could not update peer info. ret[%d], err[%s], sql[%s]", ret, err, sql);
+        sqlite3_free(err);
     }
 
     json_decref(j_res);
@@ -809,7 +843,7 @@ int cmd_sipshowpeer(char* peer)
 }
 
 /**
- * @brief    Action: SIPshowregistry
+ * @brief 	Action: SIPshowregistry
  * @return  success:true, fail:false
  */
 int cmd_sipshowregistry(void)
@@ -818,6 +852,7 @@ int cmd_sipshowregistry(void)
     char* res;
     int ret;
     char* sql;
+    char* err;
     size_t index;
     json_t *j_val;
 
@@ -829,7 +864,7 @@ int cmd_sipshowregistry(void)
     res = ast_send_cmd(cmd);
     if(res == NULL)
     {
-        slog(LOG_ERR, "Could not send Action:SIPpeers\n");
+        slog(LOG_ERR, "Could not send Action:SIPshowregistry\n");
         return false;
     }
 //    slog(LOG_DEBUG, "Received msg. msg[%s]", res);
@@ -877,11 +912,12 @@ int cmd_sipshowregistry(void)
                 atoi(json_string_value(json_object_get(j_val, "RegistrationTime")))
                 );
 
-        ret = sqlite3_exec(g_app->db, sql, NULL, 0, 0);
+        ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
         if(ret != SQLITE_OK)
         {
-            slog(LOG_ERR, "Could not execute query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+            slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
 
+            sqlite3_free(err);
             free(sql);
             json_decref(j_res);
             return false;
@@ -894,7 +930,113 @@ int cmd_sipshowregistry(void)
     return true;
 }
 
+/**
+ * @brief	Action: Originate.
+ * @return	success:true, fail:false
+ */
+int cmd_originate(json_t* j_dial)
+{
 
+//    ActionID - ActionID for this transaction. Will be returned.
+//    Channel - Channel name to call.
+//    Exten - Extension to use (requires Context and Priority)
+//    Context - Context to use (requires Exten and Priority)
+//    Priority - Priority to use (requires Exten and Context)
+//    Application - Application to execute.
+//    Data - Data to use (requires Application).
+//    Timeout - How long to wait for call to be answered (in ms.).
+//    CallerID - Caller ID to be set on the outgoing channel.
+//    Variable - Channel variable to set, multiple Variable: headers are allowed.
+//    Account - Account code.
+//    EarlyMedia - Set to true to force call bridge on early media..
+//    Async - Set to true for fast origination.
+//    Codecs - Comma-separated list of codecs to use for this call.
+//    ChannelId - Channel UniqueId to be set on the channel.
+//    OtherChannelId - Channel UniqueId to be set on the second local channel.
+
+// <Example>
+// Action: Originate
+// Channel: Local/1@dummy
+// Application: ((Asterisk cmd System|System))
+// Data: /path/to/script
+
+	char* cmd;
+	int ret;
+	char* res;
+	const char* tmp;
+	json_t* j_res;
+	json_error_t j_err;
+
+	ret = asprintf(&cmd, "{\"Action\": \"Originate\", "
+			"\"Channel\": \"%s\", "
+			"\"Application\": \"%s\", "
+			"\"Data\": \"%s\", "
+			"\"Timeout\": \"%s\", "
+			"\"CallerID\": \"%s\", "
+
+			"\"Variable\": \"%s\", "
+			"\"Account\": \"%s\", "
+			"\"EarlyMedia\": \"%s\", "
+			"\"Async\": \"%s\", "
+			"\"Codecs\": \"%s\", "
+
+			"\"ChannelId\": \"%s\", "
+			"\"OtherChannelId\": \"%s\""
+			"}",
+			json_string_value(json_object_get(j_dial, "Channel")),
+			json_string_value(json_object_get(j_dial, "Application")),
+			json_string_value(json_object_get(j_dial, "Data")),
+			json_string_value(json_object_get(j_dial, "Timeout")),
+			json_string_value(json_object_get(j_dial, "CallerID")),
+
+			json_string_value(json_object_get(j_dial, "Variable")),
+			json_string_value(json_object_get(j_dial, "Account")),
+			json_string_value(json_object_get(j_dial, "EarlyMedia")),
+			"true",	// Async must be set to "true"
+			json_string_value(json_object_get(j_dial, "Codecs")),
+
+			json_string_value(json_object_get(j_dial, "ChannelId")),
+			json_string_value(json_object_get(j_dial, "OtherChannelId"))
+			);
+    res = ast_send_cmd(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action:Originate. cmd[%s]\n", cmd);
+        free(cmd);
+        return false;
+    }
+    free(cmd);
+
+    j_res = json_loads(res, 0, &j_err);
+    free(res);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                );
+        return false;
+    }
+
+    tmp = json_string_value(json_object_get(j_res, "Response"));
+    if(tmp == NULL)
+    {
+    	return false;
+    }
+
+    ret = strcmp(tmp, "Success");
+    if(ret != 0)
+    {
+    	slog(LOG_ERR, "Could not originate call. response[%s], message[%s]",
+    	                json_string_value(json_object_get(j_res, "Response")),
+						json_string_value(json_object_get(j_res, "Message"))
+    	                );
+    	json_decref(j_res);
+    	return false;
+    }
+    json_decref(j_res);
+
+	return true;
+}
 
 /**
  * Return event type.
