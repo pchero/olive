@@ -11,7 +11,9 @@
 
 #include <stdio.h>
 #include <jansson.h>
+#include <evhtp.h>
 
+#include "common.h"
 #include "slog.h"
 #include "htp_handler.h"
 #include "base64.h"
@@ -19,13 +21,120 @@
 
 
 static bool is_auth(evhtp_request_t* req);
+static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
+static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer);
+
+
+/**
+ * @brief	Initiate evhtp.
+ * @return
+ */
+int init_evhtp(void)
+{
+    // Initiate http/https interface
+    evhtp_t* evhtp;
+    evhtp_t* evhtp_ssl;
+    json_t*	j_tmp;
+    char* ip;
+    int	http_port;
+    int https_port;
+    int ret;
+
+    evhtp_ssl_cfg_t ssl_cfg = {
+        .pemfile            = "" PREFIX "/etc/ssl/olive.server.pem",
+        .privfile           = "" PREFIX "/etc/ssl/olive.server.pem",
+        .cafile             = NULL,
+        .capath             = NULL,
+        .ciphers            = "RC4+RSA:HIGH:+MEDIUM:+LOW",
+        .ssl_opts           = SSL_OP_NO_SSLv2,
+        .ssl_ctx_timeout    = 60 * 60 * 48,
+        .verify_peer        = SSL_VERIFY_PEER,
+        .verify_depth       = 42,
+        .x509_verify_cb     = ssl_verify_callback,
+        .x509_chk_issued_cb = ssl_check_issued_cb,
+        .scache_type        = evhtp_ssl_scache_type_internal,
+        .scache_size        = 1024,
+        .scache_timeout     = 1024,
+        .scache_init        = NULL,
+        .scache_add         = NULL,
+        .scache_get         = NULL,
+        .scache_del         = NULL,
+    };
+    evhtp = evhtp_new(g_app->ev_base, NULL);
+    evhtp_ssl = evhtp_new(g_app->ev_base, NULL);
+
+    evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
+
+    j_tmp = json_object_get(g_app->j_conf, "addr_server");
+    ret = asprintf(&ip, "%s", json_string_value(j_tmp));
+
+    j_tmp = json_object_get(g_app->j_conf, "http_port");
+    http_port = atoi(json_string_value(j_tmp));
+
+    j_tmp = json_object_get(g_app->j_conf, "https_port");
+    https_port = atoi(json_string_value(j_tmp));
+
+    slog(LOG_INFO, "Bind http/https. ip[%s], http_port[%d], https_port[%d]", ip, http_port, https_port);
+    ret = evhtp_bind_socket(evhtp, ip, http_port, 1024);
+    if(ret < 0)
+    {
+        slog(LOG_ERR, "Could not bind http socket. err[%s]", strerror(errno));
+        return false;
+    }
+
+    ret = evhtp_bind_socket(evhtp_ssl, ip, https_port, 1024);
+    if(ret < 0)
+    {
+        slog(LOG_ERR, "Could not bind https socket. err[%s]", strerror(errno));
+        return false;
+    }
+    slog(LOG_INFO, "Bind complete.");
+
+    // register interfaces
+//    evhtp_set_regex_cb(evhtp, "^/simple", testcb, NULL);
+
+    // campaigns
+    evhtp_set_regex_cb(evhtp_ssl, "^/campaigns", htpcb_campaigns, NULL);
+    evhtp_set_regex_cb(evhtp_ssl, "^/campaigns/*", htpcb_campaigns_specific, NULL);
+
+//    // agents
+//    evhtp_set_regex_cb(evhtp_ssl, "^/agents", htpcb_agents, NULL);
+//    evhtp_set_regex_cb(evhtp_ssl, "^/agents/*", htpcb_agents_specific, NULL);
+
+//    // dial-lists
+//    evhtp_set_regex_cb(evhtp_ssl, "^/dial-lists", htpcb_dial_lists, NULL);
+//    evhtp_set_regex_cb(evhtp_ssl, "^/dial-lists/*", htpcb_dial_lists_specific, NULL);
+
+    // peers
+
+    // groups
+
+
+
+    slog(LOG_INFO, "Registered interfaces");
+
+    slog(LOG_INFO, "Finished all initiation.");
+
+    return true;
+}
+
+
+static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store) {
+    return 1;
+}
+
+static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer) {
+    return 1;
+}
+
+
 
 /**
  * Interface for campaign list
  * @param r
  * @param arg
  */
-void srv_campaign_list_cb(evhtp_request_t *req, __attribute__((unused)) void *arg)
+void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
     char *query;
@@ -34,7 +143,7 @@ void srv_campaign_list_cb(evhtp_request_t *req, __attribute__((unused)) void *ar
     char **result;
     char *tmp_str;
 
-    slog(LOG_DEBUG, "srv_campaign_list_cb called!");
+    slog(LOG_DEBUG, "htpcb_campaign_list called!");
 
     ret = is_auth(req);
     if(ret == false)
@@ -42,6 +151,15 @@ void srv_campaign_list_cb(evhtp_request_t *req, __attribute__((unused)) void *ar
         slog(LOG_DEBUG, "authorization failed.");
         return;
     }
+
+    // POST : new campaign.
+
+    // GET : return campaign list
+
+    // PUT : update several campaign info
+
+    // DELETE : Not support.
+
 
     // make json
     ret = asprintf(&query, "select id, name, status, agent_set, plan, diallist, detail from campaign");
@@ -93,7 +211,7 @@ void srv_campaign_list_cb(evhtp_request_t *req, __attribute__((unused)) void *ar
  * @param req
  * @param arg
  */
-void srv_campaign_update_cb(evhtp_request_t *req, __attribute__((unused)) void *arg)
+void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
 
@@ -104,6 +222,14 @@ void srv_campaign_update_cb(evhtp_request_t *req, __attribute__((unused)) void *
     {
         return;
     }
+
+    // POST : Not support
+
+    // GET : Return specified campaign info.
+
+    // PUT : Update specified campaign info.
+
+    // DELETE : Delete specified campaign.
 }
 
 /**
@@ -122,7 +248,8 @@ static bool is_auth(evhtp_request_t* req)
     db_ctx_t* ctx;
     int  i, ret;
 
-    fprintf(stderr, "is_auth!!\n");
+//    fprintf(stderr, "is_auth!!\n");
+    slog(LOG_DEBUG, "is_auth.");
     conn = evhtp_request_get_connection(req);
     if(conn->request->headers_in == NULL)
     {
@@ -181,13 +308,14 @@ static bool is_auth(evhtp_request_t* req)
     }
 
     ctx = db_query(query);
-    free(query);
     if(ctx == NULL)
     {
-        slog(LOG_ERR, "Could not query. user[%s:%s]", username, password);
+        slog(LOG_ERR, "Could not query. query[%s], user[%s:%s]", query, username, password);
         evhtp_send_reply(req, EVHTP_RES_SERVERR);
+        free(query);
         return false;
     }
+    free(query);
 
     db_result_record(ctx, &result);
     db_free(ctx);

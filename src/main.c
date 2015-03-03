@@ -39,7 +39,6 @@ app_* g_app = NULL;
 static int init_zmq(void);
 static int init_log(void);
 static int init_libevent(void);
-static int init_evhtp(void);
 static int init_database(void);
 static int init_ast_int(void);
 static int init_service(void);
@@ -259,50 +258,7 @@ static int init_libevent(void)
 
 }
 
-static int init_evhtp(void)
-{
-//    // Initiate http/https interface
-//    evhtp_ssl_cfg_t ssl_cfg = {
-//        .pemfile            = "" PREFIX "/etc/ssl/olive.server.pem",
-//        .privfile           = "" PREFIX "/etc/ssl/olive.server.pem",
-//        .cafile             = NULL,
-//        .capath             = NULL,
-//        .ciphers            = "RC4+RSA:HIGH:+MEDIUM:+LOW",
-//        .ssl_opts           = SSL_OP_NO_SSLv2,
-//        .ssl_ctx_timeout    = 60 * 60 * 48,
-//        .verify_peer        = SSL_VERIFY_PEER,
-//        .verify_depth       = 42,
-//        .x509_verify_cb     = ssl_verify_callback,
-//        .x509_chk_issued_cb = ssl_check_issued_cb,
-//        .scache_type        = evhtp_ssl_scache_type_internal,
-//        .scache_size        = 1024,
-//        .scache_timeout     = 1024,
-//        .scache_init        = NULL,
-//        .scache_add         = NULL,
-//        .scache_get         = NULL,
-//        .scache_del         = NULL,
-//    };
-//    evhtp = evhtp_new(evbase, NULL);
-//    evhtp_ssl = evhtp_new(evbase, NULL);
-//
-//    evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
-//    ip_bind = DEF_SERVERIP;
-//    port_http = DEF_HTTP_PORT;
-//    port_https = DEF_HTTPS_PORT;
-//    evhtp_bind_socket(evhtp, ip_bind, port_http, 1024);
-//    evhtp_bind_socket(evhtp_ssl, ip_bind, port_https, 1024);
-//    slog(LOG_INFO, "Initiated evhtp");
 
-//    // register interfaces
-//    evhtp_set_regex_cb(evhtp, "^/simple", testcb, NULL);
-//    evhtp_set_regex_cb(evhtp_ssl, "^/campaign/list", srv_campaign_list_cb, NULL);
-//    evhtp_set_regex_cb(evhtp_ssl, "^/campaign/update", srv_campaign_update_cb, NULL);
-//    slog(LOG_INFO, "Registered interfaces");
-//
-//    slog(LOG_INFO, "Finished all initiation.");
-
-    return true;
-}
 
 static int init_database(void)
 {
@@ -596,15 +552,6 @@ void testcb(evhtp_request_t *req, __attribute__((unused)) void *arg)
     slog(LOG_DEBUG, "testcb called!");
     evhtp_send_reply(req, EVHTP_RES_OK);
 }
-
-//static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store) {
-//    return 1;
-//}
-//
-//static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer) {
-//    return 1;
-//}
-
 /*!
   SIGTERM callback
 

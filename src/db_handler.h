@@ -10,35 +10,12 @@
 #ifndef DB_HANDLER_H_
 #define DB_HANDLER_H_
 
-#include <event.h>
-
-
 typedef struct db_ctx
 {
-//    void*   ctx;        ///< context
     void*   result;     ///< result set
     int     columns;    ///< column number in results
 
 } db_ctx_t;
-
-/**
- DB handle structure.
- */
-typedef struct db_handle{
-    /*
-     * a simple identifier
-     */
-    int id;
-//    struct event ev;
-
-    /*
-     * once a query has finished processing, call this function to deal
-     * with the data
-     */
-    void    (*callback)(void*);
-} db_handle_t;
-
-
 
 int db_init(char* host, char* user, char* pass, char* dbname, int port);
 

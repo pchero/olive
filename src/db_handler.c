@@ -5,10 +5,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <mysql.h>
+#include <jansson.h>
 
 //#include "common.h"
 
 #include "db_handler.h"
+#include "slog.h"
 
 MYSQL* g_db_conn = NULL;
 
@@ -25,7 +27,8 @@ int db_init(char* host, char* user, char* pass, char* dbname, int port)
     g_db_conn = mysql_init(NULL);
     if(g_db_conn == NULL)
     {
-        fprintf(stderr, "Could not init db. Err[%s]\n", mysql_error(g_db_conn));
+//        fprintf(stderr, "Could not init db. Err[%s]\n", mysql_error(g_db_conn));
+        slog(LOG_ERR, "Could not initiate mysql. err[%s]",  mysql_error(g_db_conn));
         return false;
     }
 
@@ -33,7 +36,8 @@ int db_init(char* host, char* user, char* pass, char* dbname, int port)
 
     if(mysql_real_connect(g_db_conn, host, user, pass, dbname, port, NULL, 0) == NULL)
     {
-        fprintf(stderr, "Err. Msg[%s]\n", mysql_error(g_db_conn));
+//        fprintf(stderr, "Err. Msg[%s]\n", mysql_error(g_db_conn));
+        slog(LOG_ERR, "Could not connect to mysql. err[%s]",  mysql_error(g_db_conn));
         mysql_close(g_db_conn);
         return false;
     }
@@ -159,6 +163,68 @@ int db_result_record(db_ctx_t* ctx, char** result)
         }
     }
     return true;
+}
+
+/**
+ *
+ * @param res
+ * @return	success:json_t*, fail:NULL
+ */
+json_t* db_get_record(db_ctx_t* ctx)
+{
+    json_t* j_res;
+    MYSQL_RES* res;
+    MYSQL_ROW row;
+    MYSQL_FIELD* field;
+    int field_cnt;
+    int i;
+
+    res = (MYSQL_RES*)ctx->result;
+
+    row = mysql_fetch_row(res);
+    if(row == NULL)
+    {
+        return NULL;
+    }
+
+    field = mysql_fetch_fields(res);
+    field_cnt = mysql_num_fields(res);
+
+    j_res = json_object();
+    for(i = 0; i < field_cnt; i++)
+    {
+        if(row[i] == NULL)
+        {
+            json_object_set(j_res, field[i].name, json_null());
+            continue;
+        }
+
+        switch(field->type)
+        {
+            case MYSQL_TYPE_LONG:
+            case MYSQL_TYPE_SHORT:
+            case MYSQL_TYPE_LONGLONG:
+            case MYSQL_TYPE_DECIMAL:
+            {
+                json_object_set_new(j_res, field[i].name, json_integer(atoi(row[i])));
+            }
+            break;
+
+            case MYSQL_TYPE_FLOAT:
+            {
+            	json_object_set_new(j_res, field[i].name, json_real(atof(row[i])));
+            }
+            break;
+
+            default:
+            {
+                json_object_set_new(j_res, field[i].name, json_string(row[i]));
+            }
+            break;
+        }
+    }
+
+    return j_res;
 }
 
 /**
