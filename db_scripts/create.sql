@@ -1,17 +1,18 @@
---campaign.sql
---Created on: Aug 15, 2014
+-- campaign.sql
+-- Created on: Aug 15, 2014
 --    Author: pchero
 
 drop table if exists campaign;
 create table campaign(
     seq         int(10)         unsigned auto_increment,
     uuid        varchar(255)    unique,
-    detail      varchar(1023),                              -- description
---    name        varchar(255),
---    status      varchar(10)     default 'stop',             -- status(start/starting/stop/stopping/pause/pausing..)
---    agent_set   int(10)         default '-1',               -- agent set id(agent_set)
---    plan        int(10)         default '-1',               -- plan id(plan)
---    diallist    int(10)         default '-1',               -- diallist id(diallist)
+    detail      varchar(1023),                      -- description
+    name        varchar(255),
+    status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/pause/pausing..)
+    status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
+    agent_group varchar(255),                       -- agent group uuid
+    plan        varchar(255),                       -- plan uuid(plan)
+    dial_list   varchar(255),                       -- dial_list uuid
 --
     primary key(seq, uuid)
 );
@@ -34,7 +35,7 @@ create table agent(
     
     -- agent level (permission)
     
-    primary key(seq, id)
+    primary key(seq, uuid)
 );
 
 drop table if exists agent_group;
@@ -47,46 +48,37 @@ create table agent_group(
     primary key(uuid)
 );
 
---drop table if exists agent_set;
---create table agent_set(
+-- drop table if exists agent_set;
+-- create table agent_set(
 --    seq         int(10)         unsigned auto_increment,
 --    id          int(10)         unsigned unique,
 --    detail      varchar(1023),                              -- description
 --    -- We need something like list table for agents list
 --    
 --    primary key(seq, id)
---);
+-- );
 
 drop table if exists plan;
 create table plan(
     seq         int(10)         unsigned auto_increment,
-    id          int(10)         unsigned unique,
+    uuid        varchar(255)    unique,
     name        varchar(255),
     detail      varchar(1023),                              -- description
     
     -- no answer timeout
     -- retry number
     
-    primary key(seq, id)
-);
-
-drop table if exists diallist;
-create table diallist(
-    seq         int(10)         unsigned auto_increment,
-    id          int(10)         unsigned unique,
-    name        varchar(255),
-    detail      varchar(255),                               -- description
-    
-    primary key(seq, id)
+    primary key(seq, uuid)
 );
 
 -- dial list
 -- manage all of dial list tables
---drop table if exists dial_list;
+drop table if exists dial_list_ma;
 create table dial_list_ma(
     seq         int(10)         unsigned auto_increment,    -- sequence
     uuid        varchar(255)    unique,                     -- dial_list_#### reference uuid.
     name        varchar(255),                               -- dial list name
+    dl_list     varchar(255),                               -- dial list table name.(dl_e276d8be)
     detail      text,                                       -- description of dialist
     
     primary key(seq, uuid)
@@ -94,6 +86,7 @@ create table dial_list_ma(
 
 -- dial list original.
 -- all of other dial lists are copy of this table.
+drop table if exists dl_org;
 create table dl_org(
     seq         int(10)         unsigned auto_increment,    -- seqeuence
     uuid        varchar(255)    unique,                     -- 
@@ -141,4 +134,20 @@ create table dl_org(
 --     primary key(seq)
 -- );
 
+
+-- Add admin user
+insert into agent(uuid, id, password) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "admin", "1234");
+insert into agent_group(uuid, name) values ("agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "master_agent_group");
+
+insert into plan(uuid, name) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "master_plan");
+
+create table dl_e276d8be like dl_org;
+insert into dl_e276d8be(uuid) values ("dl-04f9e9b6-5374-4c77-9a5a-4a9d79ea3937");
+
+insert into dial_list_ma(uuid, name, dl_list) values ("dl-e276d8be-a558-4546-948a-f99913a7fea2", "sample_dial_list", "dl_e276d8be");
+
+
+insert into campaign(uuid, name) values ("campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7", "sample_campaign");
+
+-- SET @s := CONCAT('SELECT * FROM ', (SELECT  `dl_list` FROM `dial_list_ma` WHERE `uuid` = 'dl-e276d8be-a558-4546-948a-f99913a7fea2'));  PREPARE stmt FROM @s;  EXECUTE stmt;  DEALLOCATE PREPARE stmt; //;
 
