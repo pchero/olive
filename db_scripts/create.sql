@@ -4,8 +4,12 @@
 
 drop table if exists campaign;
 create table campaign(
+    
+    -- identity
     seq         int(10)         unsigned auto_increment,
     uuid        varchar(255)    unique,
+    
+    -- information
     detail      varchar(1023),                      -- description
     name        varchar(255),
     status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/pause/pausing..)
@@ -13,19 +17,54 @@ create table campaign(
     agent_group varchar(255),                       -- agent group uuid
     plan        varchar(255),                       -- plan uuid(plan)
     dial_list   varchar(255),                       -- dial_list uuid
---
+--    result      varchar(255),                       -- campaign result table
+
+    -- created date
+    -- created agent
+    -- last modified date(except status)
+    -- last modified agent
+    -- last running date.
+    -- last running agent.
     primary key(seq, uuid)
+);
+
+drop table if exists campaign_result;
+create table campaign_result(
+-- campaign result table.
+    seq         int(10)         unsigned auto_increment,
+    cp_uuid     varchar(255)    not null,   -- campaign uuid
+    dl_list     varchar(255)    not null,   -- dl_list table name
+    dl_seq      int(10)         not null,   -- dl_list sequence number in the dl_list table.
+    
+    used_chaanel    varchar(255),       -- used channel id
+    used_registry   varchar(255),       -- used registry
+
+    result_dial     varchar(255),       -- dial result
+    result_result   varchar(255) default NULL,  -- route result
+    routed_agent    varchar(255) default NULL,  -- routetd agent uuid
+    
+    tm_dial_start   datetime,       -- dialing start time
+    tm_dial_stop    datetime,       -- dialing stop time
+    tm_route_start  datetime,       -- route start time
+    tm_route_stop   datetime,       -- route stop time    
+    
+    primary key(seq)
+    
 );
 
 drop table if exists agent;
 create table agent(
 -- agent table
 -- every agents are belongs to here.
+
+    -- identity
     seq         int(10)         unsigned auto_increment,
     uuid        varchar(255)    not null unique,
+    
+    -- information
     id			varchar(255)	not null unique,	-- login id
     password    varchar(1023)   not null,			-- login passwd
-    name        varchar(255),
+    name        varchar(255),                       -- agent name
     status      varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work)    
     desc_admin  varchar(1023),      -- description(for administrator)
     desc_user   varchar(1023),      -- description(for agent itself)
@@ -63,11 +102,14 @@ create table agent_group(
 
 drop table if exists plan;
 create table plan(
+
+    -- row identity
     seq         int(10)         unsigned auto_increment,
     uuid        varchar(255)    unique,
-    name        varchar(255),
-    detail      varchar(1023),          -- description
     
+    -- information
+    name        varchar(255),           -- plan name
+    detail      varchar(1023),          -- description
     dial_mode   varchar(255),           -- dial mode(desktop, power, predictive, robo)
     -- no answer timeout
     -- retry number
@@ -75,12 +117,16 @@ create table plan(
     primary key(seq, uuid)
 );
 
--- dial list
--- manage all of dial list tables
 drop table if exists dial_list_ma;
 create table dial_list_ma(
+-- dial list
+-- manage all of dial list tables
+
+    -- row identity
     seq         int(10)         unsigned auto_increment,    -- sequence
     uuid        varchar(255)    unique,                     -- dial_list_#### reference uuid.
+    
+    -- information
     name        varchar(255),                               -- dial list name
     dl_list     varchar(255),                               -- dial list table name.(dl_e276d8be)
     detail      text,                                       -- description of dialist
@@ -92,51 +138,70 @@ create table dial_list_ma(
 -- all of other dial lists are copy of this table.
 drop table if exists dl_org;
 create table dl_org(
+
+    -- row identity
     seq         int(10)         unsigned auto_increment,    -- seqeuence
     uuid        varchar(255)    unique,                     -- 
+    
+    -- information
     name        varchar(255),
     detail      varchar(255),
-    
-    number_1    varchar(255),
-    trycnt_1    int,
-    number_2    varchar(255),
-    trycnt_2    int,
-    number_3    varchar(255),
-    trycnt_3    int,
-    number_4    varchar(255),
-    trycnt_4    int,
-    number_5    varchar(255),
-    trycnt_5    int,
-    number_6    varchar(255),
-    trycnt_6    int,
-    number_7    varchar(255),
-    trycnt_7    int,
-    number_8    varchar(255),
-    trycnt_8    int,
-
+    number_1    varchar(255),       -- tel number 1
+    number_2    varchar(255),       -- tel number 2
+    number_3    varchar(255),       -- tel number 3
+    number_4    varchar(255),       -- tel number 4
+    number_5    varchar(255),       -- tel number 5
+    number_6    varchar(255),       -- tel number 6
+    number_7    varchar(255),       -- tel number 7
+    number_8    varchar(255),       -- tel number 8
+    app_data    text,               -- application data.
     email       text,
 
-    call_result int,            -- call result.
-    call_detail text,           -- more detail info about call result
+    -- results
+    trycnt_1    int default 0,      -- try count for tel number 1
+    trycnt_2    int default 0,      -- try count for tel number 2
+    trycnt_3    int default 0,      -- try count for tel number 3
+    trycnt_4    int default 0,      -- try count for tel number 4
+    trycnt_5    int default 0,      -- try count for tel number 5
+    trycnt_6    int default 0,      -- try count for tel number 6
+    trycnt_7    int default 0,      -- try count for tel number 7
+    trycnt_8    int default 0,      -- try count for tel number 8
+
+    
+    result_dial varchar(255),       -- last dial result.(no answer, answer, busy, ...)
+    result_route varchar(255),      -- last route result after answer.(routed, agent busy, no route place, ...)
+    
+    call_detail text,               -- more detail info about call result
     
     primary key(seq, uuid)
 );
+
 
 -- Add admin user
 insert into agent(uuid, id, password) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "admin", "1234");
 insert into agent_group_ma(uuid, name) values ("agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "master_agent_group");
 insert into agent_group(uuid_agent, uuid_group) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
 
-insert into plan(uuid, name) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "master_plan");
+insert into plan(uuid, name) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan");
 
+-- create dial list
 drop table if exists dl_e276d8be;
 create table dl_e276d8be like dl_org;
-insert into dl_e276d8be(uuid) values ("dl-04f9e9b6-5374-4c77-9a5a-4a9d79ea3937");
-
 insert into dial_list_ma(uuid, name, dl_list) values ("dl-e276d8be-a558-4546-948a-f99913a7fea2", "sample_dial_list", "dl_e276d8be");
 
+-- insert dial list
+insert into dl_e276d8be(uuid, name, number_1) values ("dl-04f9e9b6-5374-4c77-9a5a-4a9d79ea3937", "test1", "111-111-0001");
+insert into dl_e276d8be(uuid, name, number_1) values ("dl-8c80989e-f8bd-4d17-b6c1-950e053e61f6", "test2", "111-111-0002");
+insert into dl_e276d8be(uuid, name, number_1) values ("dl-c0d99b70-4661-45ae-b47f-7ed9282c977f", "test3", "111-111-0003");
 
-insert into campaign(uuid, name, status) values ("campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7", "sample_campaign", "start");
+
+
+insert into campaign(uuid, name, status, agent_group, plan, dial_list) 
+values (
+"campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7", "sample_campaign", "start", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56",
+"dl-e276d8be-a558-4546-948a-f99913a7fea2"
+);
+
 
 -- SET @s := CONCAT('SELECT * FROM ', (SELECT  `dl_list` FROM `dial_list_ma` WHERE `uuid` = 'dl-e276d8be-a558-4546-948a-f99913a7fea2'));  PREPARE stmt FROM @s;  EXECUTE stmt;  DEALLOCATE PREPARE stmt; //;
 

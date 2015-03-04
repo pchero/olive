@@ -143,9 +143,10 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     db_ctx_t* db_res;
     json_t* j_avail_agent;
     json_t* j_dial_list;
+    json_t*	j_dial;
 
     // get available agent
-    ret = asprintf("select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
+    ret = asprintf(&sql, "select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
             json_string_value(json_object_get(j_camp, "agent_group"))
             );
 
@@ -156,10 +157,52 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
         slog(LOG_DEBUG, "No avaialbe agent.");
         return;
     }
+    j_avail_agent = db_get_record(db_res);
+    db_free(db_res);
+
+    // get dial list table name
+    ret = asprintf(&sql, "select dl_list from dial_list_ma where uuid = \"%s\";",
+    		json_string_value(json_object_get(j_camp, "dial_list"))
+    		);
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+    	slog(LOG_DEBUG, "No set of dial list.");
+    	json_decref(j_avail_agent);
+    	return;
+    }
+    j_dial_list = db_get_record(db_res);
+    db_free(db_res);
 
     // get dial list
-    ret = asprintf()
+    ret = asprintf(&sql, "select *, "
+    		"trycnt_1 + trycnt_2 + trycnt_3 + trycnt_4 + trycnt_5 + trycnt_6 + trycnt_7 + trycnt_8 as trycnt "
+    		"from %s "
+    		"where result_route is NULL "
+    		"order by trycnt asc"
+    		"limit 1"
+    		";",
+			json_string_value(json_object_get(j_dial_list, "dl_list"))
+			);
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+    	slog(LOG_DEBUG, "No more to dial");
+    	json_decref(j_avail_agent);
+    	json_decref(j_dial_list);
+    	return;
+    }
+    j_dial = db_get_record(db_res);
+    db_free(db_res);
 
+    // dial
+
+
+    json_decref(j_avail_agent);
+    json_decref(j_dial_list);
+    json_decref(j_dial);
     return;
 }
 
