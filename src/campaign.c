@@ -20,8 +20,159 @@
 #include "slog.h"
 #include "campaign.h"
 #include "db_handler.h"
+#include "common.h"
 
 static int  get_status(int id);
+
+static void dial_desktop(json_t* j_camp, json_t* j_plan);
+static void dial_power(json_t* j_camp, json_t* j_plan);
+static void dial_predictive(json_t* j_camp, json_t* j_plan);
+static void dial_robo(json_t* j_camp, json_t* j_plan);
+
+
+
+void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *arg)
+{
+    int ret;
+    db_ctx_t*   db_res;
+    json_t*     j_camp;
+    json_t*     j_plan;
+    char*       sql;
+
+    // check start campaign
+    db_res = db_query("select * from campaign where status = \"start\" order by random limit 1");
+    if(db_res == NULL)
+    {
+        return;
+    }
+
+    j_camp = db_get_record(db_res);
+    db_free(db_res);
+    if(j_camp == NULL)
+    {
+        return;
+    }
+    slog(LOG_DEBUG, "Campaign info. uuid[%s]",
+            json_string_value(json_object_get(j_camp, "uuid"))
+            );
+
+    // get plan
+    ret = asprintf(&sql, "select * from plan where uuid = \"%s\";",
+            json_string_value(json_object_get(j_camp, "plan"))
+            );
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not find plan info. Stop campaign. uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        ret = asprintf(&sql, "update campaign set status=\"stop\" where uuid=\"%s\";",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        db_exec(sql);
+        free(sql);
+        json_decref(j_camp);
+        return;
+    }
+    j_plan = db_get_record(db_res);
+    db_free(db_res);
+
+    // dial
+    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "desktop");
+    if(ret == 0)
+    {
+        dial_desktop(j_camp, j_plan);
+    }
+
+    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "power");
+    if(ret == 0)
+    {
+        dial_power(j_camp, j_plan);
+    }
+
+    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "predictive");
+    if(ret == 0)
+    {
+        dial_predictive(j_camp, j_plan);
+    }
+
+    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "robo");
+    if(ret == 0)
+    {
+        dial_robo(j_camp, j_plan);
+    }
+
+    json_decref(j_camp);
+    json_decref(j_plan);
+
+    return;
+}
+
+/**
+ *
+ * @param j_camp
+ * @param j_plan
+ */
+static void dial_desktop(json_t* j_camp, json_t* j_plan)
+{
+    return;
+}
+
+/**
+ *
+ * @param j_camp
+ * @param j_plan
+ */
+static void dial_power(json_t* j_camp, json_t* j_plan)
+{
+    return;
+}
+
+/**
+ *
+ * @param j_camp
+ * @param j_plan
+ */
+static void dial_predictive(json_t* j_camp, json_t* j_plan)
+{
+    int ret;
+    json_t* j_group;
+    json_t* j_tmp;
+    char*   sql;
+    db_ctx_t* db_res;
+    json_t* j_avail_agent;
+    json_t* j_dial_list;
+
+    // get available agent
+    ret = asprintf("select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
+            json_string_value(json_object_get(j_camp, "agent_group"))
+            );
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_DEBUG, "No avaialbe agent.");
+        return;
+    }
+
+    // get dial list
+    ret = asprintf()
+
+    return;
+}
+
+/**
+ *
+ * @param j_camp
+ * @param j_plan
+ */
+static void dial_robo(json_t* j_camp, json_t* j_plan)
+{
+    return;
+}
+
 
 
 static int  get_status(int id)

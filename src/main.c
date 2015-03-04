@@ -27,6 +27,7 @@
 #include "campaign.h"
 #include "ast_handler.h"
 #include "htp_handler.h"
+#include "mem_sql.h"
 
 #define DEF_SERVERIP "127.0.0.1"
 #define DEF_HTTP_PORT   8010
@@ -379,6 +380,10 @@ static int init_ast_int(void)
 static int init_service(void)
 {
     int ret;
+//    db_ctx_t*   db_res;
+//    json_t*     j_res;
+//    char*       err;
+//    char*       sql;
 
     // load peer
     ret = ast_load_peers();
@@ -396,6 +401,36 @@ static int init_service(void)
         return false;
     }
 
+//    // load agent
+//    db_res = db_query("select uuid from agent;");
+//    if(db_res == NULL)
+//    {
+//        return true;
+//    }
+//    while(1)
+//    {
+//        j_res = db_get_record(db_res);
+//        if(j_res == NULL)
+//        {
+//            break;
+//        }
+//        // set all agent's status to "logout"
+//        ret = asprintf(&sql, "insert into agent(uuid, status) values (\"%s\", \"logout\");",
+//                json_string_value(json_object_get(j_res, "uuid"))
+//                );
+//        ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
+//        if(ret != SQLITE_OK)
+//        {
+//            slog(LOG_ERR, "Could not insert agent info. sql[%s], err[%s]", sql, err);
+//            free(sql);
+//            sqlite3_free(err);
+//            return false;
+//        }
+//        free(sql);
+//        json_decref(j_res);
+//    }
+
+
     return true;
 
 }
@@ -407,7 +442,6 @@ static int init_service(void)
 static int init_sqlite(void)
 {
     int ret;
-    char* sql;
     char* err;
 
 //    ret = sqlite3_open(":memory:", &g_app->db);
@@ -419,126 +453,31 @@ static int init_sqlite(void)
     }
 
     // create peer table.
-    ret = asprintf(&sql, "create table peer(\n"
-            "-- peers table\n"
-            "-- AMI sip show peer <peer_id>\n"
-
-            "name text primary key,    -- Name         : 200-ipvstk-softphone-1\n"
-            "secret text,        -- Secret       : <Set>\n"
-            "md5secret text,     -- MD5Secret    : <Not set>\n"
-            "remote_secret text, -- Remote Secret: <Not set>\n"
-            "context text,       -- Context      : CallFromSipDevice\n"
-
-            "language text,      -- Language     : da\n"
-            "ama_flags text,     -- AMA flags    : Unknown\n"
-            "transfer_mode text, -- Transfer mode: open\n"
-            "calling_pres text,  -- CallingPres  : Presentation Allowed, Not Screened\n"
-
-            "call_group text,    -- Callgroup    :\n"
-            "pickup_group text,  -- Pickupgroup  :\n"
-            "moh_suggest text,   -- MOH Suggest  :\n"
-            "mailbox text,       -- Mailbox      : user1\n"
-
-            "last_msg_sent int,  -- LastMsgsSent : 32767/65535\n"
-            "call_limit int,     -- Call limit   : 100\n"
-            "max_forwards int,   -- Max forwards : 0\n"
-            "dynamic text,       -- Dynamic      : Yes\n"
-            "caller_id text,     -- Callerid     : \"user 1\" <200>\n"
-
-            "max_call_br text,   -- MaxCallBR    : 384 kbps\n"
-            "reg_expire text,    -- Expire       : -1\n"
-            "auth_insecure text, -- Insecure     : invite\n"
-            "force_rport text,   -- Force rport  : No\n"
-            "acl text,           -- ACL          : No\n"
-
-            "t_38_support text,  -- T.38 support : Yes\n"
-            "t_38_ec_mode text,  -- T.38 EC mode : FEC\n"
-            "t_38_max_dtgram int,    -- T.38 MaxDtgrm: 400\n"
-            "direct_media text,  -- DirectMedia  : Yes\n"
-
-            "promisc_redir text, -- PromiscRedir : No\n"
-            "user_phone text,    -- User=Phone   : No\n"
-            "video_support text, -- Video Support: No\n"
-            "text_support text,  -- Text Support : No\n"
-
-            "dtmp_mode text,     -- DTMFmode     : rfc2833\n"
-
-            "to_host text,       -- ToHost       :\n"
-            "addr_ip text,       -- Addr->IP     : (null)\n"
-            "defaddr_ip text,    -- Defaddr->IP  : (null)\n"
-
-            "def_username text,  -- Def. Username:\n"
-            "codecs text,        -- Codecs       : 0xc (ulaw|alaw)\n"
-
-            "status text,        -- Status       : UNKNOWN\n"
-            "user_agent text,     -- Useragent    :\n"
-            "reg_contact text,   -- Reg. Contact :\n"
-
-            "qualify_freq text,  -- Qualify Freq : 60000 ms\n"
-            "sess_timers text,   -- Sess-Timers  : Refuse\n"
-            "sess_refresh text,  -- Sess-Refresh : uas\n"
-            "sess_expires int ,  -- Sess-Expires : 1800\n"
-            "min_sess int,       -- Min-Sess     : 90\n"
-
-            "rtp_engine text,    -- RTP Engine   : asterisk\n"
-            "parking_lot text,   -- Parkinglot   :\n"
-            "use_reason text,    -- Use Reason   : Yes\n"
-            "encryption text,    -- Encryption   : No\n"
-
-            "chan_type text,      -- Channeltype  :\n"
-            "chan_obj_type text, -- ChanObjectType :\n"
-            "tone_zone text,     -- ToneZone :\n"
-            "named_pickup_group text,  -- Named Pickupgroup : \n"
-            "busy_level int,     -- Busy-level :\n"
-
-            "named_call_group text, -- Named Callgroup :\n"
-            "def_addr_port int, \n"
-            "comedia text, \n"
-            "description text, \n"
-            "addr_port int, \n"
-
-            "can_reinvite text, \n"
-            "device_state test \n"
-//            "status_cause text        -- why status changed \n"
-
-            ");"
-            );
-
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
+    ret = sqlite3_exec(g_app->db, SQL_CREATE_PEER, NULL, 0, &err);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not create table peer. err[%s]\n", err);
+        slog(LOG_ERR, "Could not create table peer. err[%s]", err);
         sqlite3_free(err);
         return false;
     }
-    free(sql);
 
     // create registry table
-    ret = asprintf(&sql, "create table registry(\n"
-            "-- registry table\n"
-            "-- AMI sip show peer <peer_id>\n"
-            "host text,        -- host name(ip address).\n"
-            "port int,        -- port number.\n"
-            "user_name text,    -- login user name(for register)\n"
-            "domain_name text,        -- domain name(ip address)\n"
-            "domain_port int,        -- domain port\n"
-            "refresh int,            -- refresh interval\n"
-            "state text,            -- registry state\n"
-            "registration_time int, -- registration time\n"
-
-            "primary key(user_name, domain_name)"
-            ");"
-            );
-
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
+    ret = sqlite3_exec(g_app->db, SQL_CREATE_REGISTRY, NULL, 0, &err);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not create table peer. err[%s]\n", err);
+        slog(LOG_ERR, "Could not create table peer. err[%s]", err);
         sqlite3_free(err);
         return false;
     }
-    free(sql);
 
+    // create agent table
+    ret = sqlite3_exec(g_app->db, SQL_CREATE_AGENT, NULL, 0, &err);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not create table peer. err[%s]", err);
+        sqlite3_free(err);
+        return false;
+    }
 
     return true;
 }
