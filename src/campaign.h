@@ -39,6 +39,7 @@ typedef struct _camp_t
 void camp_init(struct event_base* evbase);
 void camp_handler(int fd, short event, void *arg);
 
+bool load_table_trunk_group(void);
 
 
 #endif /* CAMPAIGN_H_ */

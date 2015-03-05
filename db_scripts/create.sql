@@ -14,9 +14,12 @@ create table campaign(
     name        varchar(255),
     status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/pause/pausing..)
     status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
+    
+    -- resources
     agent_group varchar(255),                       -- agent group uuid
     plan        varchar(255),                       -- plan uuid(plan)
     dial_list   varchar(255),                       -- dial_list uuid
+    trunk_group varchar(255),                       -- trunk group uuid
 --    result      varchar(255),                       -- campaign result table
 
     -- created date
@@ -148,9 +151,10 @@ create table dial_list_ma(
 );
 
 -- dial list original.
--- all of other dial lists are copy of this table.
 drop table if exists dl_org;
 create table dl_org(
+-- original dial list info table
+-- all of other dial lists are copy of this table.
 
     -- row identity
     seq         int(10)         unsigned auto_increment,    -- seqeuence
@@ -183,10 +187,39 @@ create table dl_org(
     tm_last_dial    datetime,       -- last tried dial time
     result_dial     varchar(255),   -- last dial result.(no answer, answer, busy, ...)
     result_route    varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
+    status      varchar(255) default "idle",    -- dial list status. (idle, dialing, ...)
     
     call_detail text,               -- more detail info about call result
     
     primary key(seq, uuid)
+);
+
+drop table if exists peer;
+create table peer(
+-- peer info(static info only)
+    name    varchar(255)    not null unique,
+    mode    varchar(255)    not null,           -- "peer", "trunk"
+    
+    primary key(name)
+);
+
+drop table if exists trunk_group_ma;
+create table trunk_group_ma(
+-- trunk group master table
+    uuid    varchar(255)    not  null unique,
+    name    varchar(255),
+    detail  text,
+    
+    primary key(uuid)
+);
+
+drop table if exists trunk_group;
+create table trunk_group(
+-- trunk_group - trunk matching table
+    group_uuid  varchar(255)    not null,
+    trunk_name  varchar(255)    not null,       -- asterisk peer name
+    
+    primary key(group_uuid, trunk_name)
 );
 
 
@@ -194,8 +227,6 @@ create table dl_org(
 insert into agent(uuid, id, password) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "admin", "1234");
 insert into agent_group_ma(uuid, name) values ("agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "master_agent_group");
 insert into agent_group(uuid_agent, uuid_group) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
-
-insert into plan(uuid, name) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan");
 
 -- create dial list
 drop table if exists dl_e276d8be;
@@ -207,12 +238,19 @@ insert into dl_e276d8be(uuid, name, number_1) values ("dl-04f9e9b6-5374-4c77-9a5
 insert into dl_e276d8be(uuid, name, number_1) values ("dl-8c80989e-f8bd-4d17-b6c1-950e053e61f6", "test2", "111-111-0002");
 insert into dl_e276d8be(uuid, name, number_1) values ("dl-c0d99b70-4661-45ae-b47f-7ed9282c977f", "test3", "111-111-0003");
 
+-- insert trunk
+insert into peer(name, mode) values ("trunk-sample_01", "trunk");
+insert into trunk_group_ma(uuid, name, detail) values ("trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56", "sample trunk group", "sample"); 
+insert into trunk_group(group_uuid, trunk_name) values ("trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56", "trunk-sample_01");
 
+-- insert plan
+insert into plan(uuid, name) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan");
 
-insert into campaign(uuid, name, status, agent_group, plan, dial_list) 
+-- insert campaign
+insert into campaign(uuid, name, status, agent_group, plan, dial_list, trunk_group) 
 values (
 "campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7", "sample_campaign", "start", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56",
-"dl-e276d8be-a558-4546-948a-f99913a7fea2"
+"dl-e276d8be-a558-4546-948a-f99913a7fea2", "trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56"
 );
 
 

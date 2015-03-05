@@ -646,7 +646,7 @@ int cmd_sippeers(void)
             break;
         }
 
-        // insert name only
+        // insert name only into sqlite3
         j_tmp = json_object_get(j_val, "ObjectName");
         ret = asprintf(&sql, "insert into peer(name) values (\"%s\");", json_string_value(j_tmp));
 
@@ -657,6 +657,19 @@ int cmd_sippeers(void)
 
             free(sql);
             sqlite3_free(err);
+            json_decref(j_res);
+            return false;
+        }
+        free(sql);
+
+        // insert name only into mysql
+        ret = asprintf(&sql, "insert ignore into peer (name) values (\"%s\");", json_string_value(j_tmp));
+        ret = db_exec(sql);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could init peer info. ret[%d], err[%s]", ret);
+
+            free(sql);
             json_decref(j_res);
             return false;
         }

@@ -93,7 +93,7 @@ db_ctx_t* db_query(char* query)
 /**
  * database query execute function. (update, delete, insert)
  * @param query
- * @return
+ * @return	success:true, fail:false
  */
 int db_exec(char* query)
 {
@@ -102,9 +102,11 @@ int db_exec(char* query)
     ret = mysql_query(g_db_conn, query);
     if(ret != 0)
     {
-        fprintf(stderr, "Err. Something was wrong. err[%d:%s]\n", ret, mysql_error(g_db_conn));
+//        fprintf(stderr, "Err. Something was wrong. err[%d:%s]\n", ret, mysql_error(g_db_conn));
+    	slog(LOG_ERR, "Could not execute query. qeury[%s], err[%d:%s]\n", query, ret, mysql_error(g_db_conn));
+    	return false;
     }
-    return ret;
+    return true;
 }
 
 /**

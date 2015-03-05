@@ -122,4 +122,10 @@ char* SQL_CREATE_AGENT = "create table agent(\n"
         "status text                -- \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
         ");";
 
+
+char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
+		"group_uuid text,		-- group id\n"
+		"trunk_name text,		-- peer name\n"
+		");";
+
 #endif /* SRC_MEM_SQL_H_ */

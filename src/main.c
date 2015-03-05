@@ -401,6 +401,14 @@ static int init_service(void)
         return false;
     }
 
+    // load trunk_group
+    ret = load_table_trunk_group();
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not load trunk_group.");
+        return false;
+    }
+
 //    // load agent
 //    db_res = db_query("select uuid from agent;");
 //    if(db_res == NULL)
@@ -478,6 +486,15 @@ static int init_sqlite(void)
         sqlite3_free(err);
         return false;
     }
+
+    // create trunk group
+    ret = sqlite3_exec(g_app->db, SQL_CREATE_TRUNK_GROUP, NULL, 0, &err);
+    if(ret != SQLITE_OK)
+    {
+		slog(LOG_ERR, "Could not create table trunk_group. err[%s]", err);
+		sqlite3_free(err);
+		return false;
+	}
 
     return true;
 }
