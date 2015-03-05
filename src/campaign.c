@@ -22,6 +22,8 @@
 #include "campaign.h"
 #include "db_handler.h"
 #include "common.h"
+#include "memdb_handler.h"
+
 
 static int  get_status(int id);
 
@@ -138,21 +140,21 @@ static void dial_power(json_t* j_camp, json_t* j_plan)
 static void dial_predictive(json_t* j_camp, json_t* j_plan)
 {
     int ret;
-    json_t* j_group;
-    json_t* j_tmp;
+//    json_t* j_group;
+//    json_t* j_tmp;
     char*   sql;
     db_ctx_t* db_res;
     json_t* j_avail_agent;
     json_t* j_dlist_ma;
     json_t*	j_dlist;
-    json_t* j_dial;
-    char*   channel_id;
+//    json_t* j_dial;
+//    char*   channel_id;
     char*   tmp;
-    uuid_t uuid;
+//    uuid_t uuid;
     int i;
     int cur_trycnt;
     int max_trycnt;
-    char*   dial_addr;
+//    char*   dial_addr;
 
     // get available agent
     ret = asprintf(&sql, "select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
@@ -214,15 +216,6 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
             json_string_value(json_object_get(j_dlist_ma, "dl_list"))
             );
 
-//            "select *, "
-//    		"trycnt_1 + trycnt_2 + trycnt_3 + trycnt_4 + trycnt_5 + trycnt_6 + trycnt_7 + trycnt_8 as trycnt "
-//    		"from %s "
-//    		"where result_route is NULL "
-//    		"order by trycnt asc"
-//    		"limit 1"
-//    		";",
-//			json_string_value(json_object_get(j_dlist_ma, "dl_list"))
-//			);
     db_res = db_query(sql);
     free(sql);
     if(db_res == NULL)
@@ -239,7 +232,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     for(i = 1; i < 9; i++)
     {
         ret = asprintf(&tmp, "number_%d", i);
-        ret = strlen(json_object_get(j_dlist, tmp));
+        ret = strlen(json_string_value(json_object_get(j_dlist, tmp)));
         free(tmp);
         if(ret == 0)
         {
@@ -260,32 +253,33 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
         }
     }
 
-    // create dial address
-    // get trunk
-    ret = asprintf(&sql, "select * from ");
-    j_tmp = json_object_get(j_camp, "trunk_group");
-//    ret = asprintf(&dial_addr, "sip/")
-
-    // dial
-    // create uuid
-    tmp = NULL;
-    uuid_generate(uuid);
-    uuid_unparse_lower(uuid, tmp);
-    ret = asprintf(&channel_id, "ch-%s", tmp);
-
-    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}"
-            "Channel", "%s",    // dial to
-            "Application", "%s",    // detection application
-            "Data", "%s",           // application parameter
-            "Timeout", "%s",        // timeout second
-            "CallerID", "%s",       // caller id
-
-            "Variable", "%s",       // sip header set
-            "Account", "%s",        // not use yet
-            "EarlyMedia", "%s",     // early media
-            "ChannelId", channel_id    //
-            );
-    free(channel_id);
+//    // create dial address
+////    ret = asprintf(&dial_addr, "sip/%s")
+//    // get trunk
+//    ret = asprintf(&sql, "select * from ");
+//    j_tmp = json_object_get(j_camp, "trunk_group");
+////    ret = asprintf(&dial_addr, "sip/")
+//
+//    // dial
+//    // create uuid
+//    tmp = NULL;
+//    uuid_generate(uuid);
+//    uuid_unparse_lower(uuid, tmp);
+//    ret = asprintf(&channel_id, "ch-%s", tmp);
+//
+//    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}"
+//            "Channel", "%s",    // dial to
+//            "Application", "%s",    // detection application
+//            "Data", "%s",           // application parameter
+//            "Timeout", "%s",        // timeout second
+//            "CallerID", "%s",       // caller id
+//
+//            "Variable", "%s",       // sip header set
+//            "Account", "%s",        // not use yet
+//            "EarlyMedia", "%s",     // early media
+//            "ChannelId", channel_id    //
+//            );
+//    free(channel_id);
 
 
     json_decref(j_avail_agent);
@@ -525,7 +519,6 @@ bool load_table_trunk_group(void)
 	db_ctx_t* db_res;
 	json_t* j_tmp;
 	char* sql;
-	char* err;
 	int flg_err;
 
     db_res = db_query("select * from trunk_group;");
@@ -550,17 +543,14 @@ bool load_table_trunk_group(void)
                 );
         json_decref(j_tmp);
 
-        ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-        if(ret != SQLITE_OK)
+        ret = memdb_exec(sql);
+        free(sql);
+        if(ret == false)
         {
-            slog(LOG_ERR, "Could not insert trunk_group. sql[%s], err[%s]", sql, err);
-            sqlite3_free(err);
+            slog(LOG_ERR, "Could not insert trunk_group.")
             flg_err = true;
-            free(sql);
             break;
         }
-        free(sql);
-
     }
 
     db_free(db_res);

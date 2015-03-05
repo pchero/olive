@@ -191,7 +191,7 @@ int ast_load_registry(void);
 void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, void *arg);
 
 int	cmd_sippeers();
-int cmd_sipshowpeer(char* peer);
+int cmd_sipshowpeer(const char* peer);
 int cmd_sipshowregistry(void);
 
 

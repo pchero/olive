@@ -10,8 +10,10 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <jansson.h>
+#include <string.h>
 
 #include "memdb_handler.h"
+#include "slog.h"
 
 sqlite3* g_memdb;        ///< memory db
 
@@ -22,7 +24,6 @@ sqlite3* g_memdb;        ///< memory db
 int memdb_init(void)
 {
     int ret;
-    char* err;
 
 //    ret = sqlite3_open(":memory:", &g_app->db);
     ret = sqlite3_open("test.db", &g_memdb);
@@ -31,7 +32,6 @@ int memdb_init(void)
         slog(LOG_ERR, "Could not open memory database. err[%d:%s]", errno, strerror(errno));
         return false;
     }
-
 
     return true;
 }
@@ -56,24 +56,24 @@ int memdb_exec(char* sql)
 }
 
 /**
- * use for exeucte query.
+ * use for exeucte query. returns memdb_res
  * select only.
  */
 memdb_res* memdb_qeury(char* sql)
 {
     int ret;
-    memdb_res* res;
+    memdb_res* mem_res;
 
-    res = calloc(1, sizeof(memdb_res));
+    mem_res = calloc(1, sizeof(memdb_res));
 
-    ret = sqlite3_prepare_v2(g_memdb, sql, -1, &res->res, NULL);
+    ret = sqlite3_prepare_v2(g_memdb, sql, -1, &mem_res->res, NULL);
     if(ret != SQLITE_OK)
     {
         slog(LOG_ERR, "Could not get peer names. err[%d:%s]", errno, strerror(errno));
         return NULL;
     }
 
-    return true;
+    return mem_res;
 }
 
 /**
@@ -89,6 +89,10 @@ json_t* memdb_get_result(memdb_res* mem_res)
     ret = sqlite3_step(mem_res->res);
     if(ret != SQLITE_ROW)
     {
+        if(ret != SQLITE_DONE)
+        {
+            slog(LOG_ERR, "Could not patch memdb. ret[%d], err[%d:%s]", ret, errno, strerror(errno));
+        }
         return NULL;
     }
 
@@ -96,10 +100,7 @@ json_t* memdb_get_result(memdb_res* mem_res)
     j_res = json_object();
     for(i = 0; i < cols; i++)
     {
-        json_object_set_new(j_res,
-                sqlite3_column_name(mem_res->res, i),
-                json_string(sqlite3_column_text(mem_res->res, i))
-                );
+        json_object_set_new(j_res, sqlite3_column_name(mem_res->res, i), json_string((char*)sqlite3_column_text(mem_res->res, i)));
     }
 
     return j_res;
@@ -111,8 +112,8 @@ json_t* memdb_get_result(memdb_res* mem_res)
  */
 void memdb_free(memdb_res* mem_res)
 {
-    sqlite3_finalize(mem_res);
-    free(memdb_res);
+    sqlite3_finalize(mem_res->res);
+    free(mem_res);
 }
 
 

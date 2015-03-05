@@ -28,6 +28,8 @@
 #include "ast_handler.h"
 #include "htp_handler.h"
 #include "mem_sql.h"
+#include "memdb_handler.h"
+
 
 #define DEF_SERVERIP "127.0.0.1"
 #define DEF_HTTP_PORT   8010
@@ -43,7 +45,7 @@ static int init_libevent(void);
 static int init_database(void);
 static int init_ast_int(void);
 static int init_service(void);
-static int init_sqlite(void);
+static int init_memdb(void);
 
 static void sigterm_cb(unused__ int fd, unused__ short event, unused__ void *arg);
 static void sigusr_cb(unused__ int fd, unused__ short event, unused__ void *arg);
@@ -125,7 +127,7 @@ int main(int argc, char** argv)
     slog(LOG_INFO, "Initiated database");
 
     // init memory db
-    ret = init_sqlite();
+    ret = init_memdb();
     if(ret != true)
     {
         fprintf(stderr, "Could not initiate memory db. ret[%d]\n", ret);
@@ -409,36 +411,6 @@ static int init_service(void)
         return false;
     }
 
-//    // load agent
-//    db_res = db_query("select uuid from agent;");
-//    if(db_res == NULL)
-//    {
-//        return true;
-//    }
-//    while(1)
-//    {
-//        j_res = db_get_record(db_res);
-//        if(j_res == NULL)
-//        {
-//            break;
-//        }
-//        // set all agent's status to "logout"
-//        ret = asprintf(&sql, "insert into agent(uuid, status) values (\"%s\", \"logout\");",
-//                json_string_value(json_object_get(j_res, "uuid"))
-//                );
-//        ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-//        if(ret != SQLITE_OK)
-//        {
-//            slog(LOG_ERR, "Could not insert agent info. sql[%s], err[%s]", sql, err);
-//            free(sql);
-//            sqlite3_free(err);
-//            return false;
-//        }
-//        free(sql);
-//        json_decref(j_res);
-//    }
-
-
     return true;
 
 }
@@ -447,54 +419,45 @@ static int init_service(void)
  * initiate memdb.
  * @return  succes:true, fail:false
  */
-static int init_sqlite(void)
+static int init_memdb(void)
 {
     int ret;
-    char* err;
 
-//    ret = sqlite3_open(":memory:", &g_app->db);
-    ret = sqlite3_open("test.db", &g_app->db);
-    if(ret != 0)
+    ret = memdb_init();
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not open memory database. err[%d:%s]", errno, strerror(errno));
+        slog(LOG_ERR, "Could not initiate memory database.");
         return false;
     }
 
     // create peer table.
-    ret = sqlite3_exec(g_app->db, SQL_CREATE_PEER, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+    ret = memdb_exec(SQL_CREATE_PEER);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not create table peer. err[%s]", err);
-        sqlite3_free(err);
+        slog(LOG_ERR, "Could not create table peer.");
         return false;
     }
 
-    // create registry table
-    ret = sqlite3_exec(g_app->db, SQL_CREATE_REGISTRY, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+    ret = memdb_exec(SQL_CREATE_REGISTRY);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not create table peer. err[%s]", err);
-        sqlite3_free(err);
+        slog(LOG_ERR, "Could not create table peer.");
         return false;
     }
 
-    // create agent table
-    ret = sqlite3_exec(g_app->db, SQL_CREATE_AGENT, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+    ret = memdb_exec(SQL_CREATE_AGENT);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not create table peer. err[%s]", err);
-        sqlite3_free(err);
+        slog(LOG_ERR, "Could not create table agent");
         return false;
     }
 
-    // create trunk group
-    ret = sqlite3_exec(g_app->db, SQL_CREATE_TRUNK_GROUP, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+    ret = memdb_exec(SQL_CREATE_TRUNK_GROUP);
+    if(ret == false)
     {
-		slog(LOG_ERR, "Could not create table trunk_group. err[%s]", err);
-		sqlite3_free(err);
-		return false;
-	}
+        slog(LOG_ERR, "Could not create table trunk_group");
+        return false;
+    }
 
     return true;
 }

@@ -24,6 +24,8 @@
 #include "ast_handler.h"
 #include "slog.h"
 #include "db_handler.h"
+#include "memdb_handler.h"
+
 
 #define MAX_ZMQ_RCV_BUF 8192
 
@@ -218,10 +220,8 @@ static void ast_recv_handler(json_t* j_evt)
 int ast_load_peers(void)
 {
     int ret;
-    sqlite3_stmt* res;
-    char**    peers;
-    int    i;
-    int    peer_cnt;
+    memdb_res* res;
+    json_t* j_res;
 
     // get sip peers
     ret = cmd_sippeers();
@@ -232,34 +232,33 @@ int ast_load_peers(void)
     }
     slog(LOG_DEBUG, "Finished cmd_sippeers.");
 
-    ret = sqlite3_prepare_v2(g_app->db, "select (select count() from peer) as count, name from peer;", -1, &res, NULL);
-    if(ret != SQLITE_OK)
+    res = memdb_qeury("select name from peer;");
+    if(res == NULL)
     {
-        slog(LOG_ERR, "Could not get peer names. err[%d:%s]", errno, strerror(errno));
-        exit(0);
+        slog(LOG_ERR, "Could not get peer names.");
+        return false;
     }
 
-    i = 0;
-    peers = NULL;
-    while(sqlite3_step(res) == SQLITE_ROW)
+    while(1)
     {
-        if(i == 0)
+        j_res = memdb_get_result(res);
+        if(j_res == NULL)
         {
-
-            peers = calloc(sqlite3_column_int(res, 0), sizeof(char*));
+            break;
         }
-        ret = asprintf(&peers[i], "%s", sqlite3_column_text(res, 1));
 
-        i++;
+        slog(LOG_DEBUG, "Check value. name[%s]", json_string_value(json_object_get(j_res, "name")));
+        ret = cmd_sipshowpeer(json_string_value(json_object_get(j_res, "name")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not get peer info.");
+            json_decref(j_res);
+            memdb_free(res);
+            return false;
+        }
+        json_decref(j_res);
     }
-    peer_cnt = i;
-    sqlite3_finalize(res);
-    slog(LOG_DEBUG, "Peer count. peers[%d]", peer_cnt);
-
-    for(i = 0; i < peer_cnt; i++)
-    {
-        cmd_sipshowpeer(peers[i]);
-    }
+    memdb_free(res);
 
     return true;
 }
@@ -308,7 +307,6 @@ static void evt_peerstatus(json_t* j_recv)
     char* sql;
     char* peer;
     char* org;
-    char* err;
     int ret;
 
     // Peer - The name of the peer (including channel technology).
@@ -325,18 +323,13 @@ static void evt_peerstatus(json_t* j_recv)
             );
     free(org);
 
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
-        sqlite3_free(err);
-        free(sql);
-
+        slog(LOG_ERR, "Could not update peer");
         return;
     }
-    free(sql);
-
-
     return;
 }
 
@@ -357,7 +350,6 @@ static void evt_devicestatechange(json_t* j_recv)
     char* sql;
     char* peer;
     char* org;
-    char* err;
     char* tmp;
     int ret;
 
@@ -373,17 +365,13 @@ static void evt_devicestatechange(json_t* j_recv)
             );
     free(org);
 
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
-        sqlite3_free(err);
-        free(sql);
-
+        slog(LOG_ERR, "Could not update evt_devicestatechange.");
         return;
     }
-
-    free(sql);
     return;
 }
 
@@ -570,7 +558,6 @@ static void evt_registry(json_t* j_recv)
 
     int ret;
     char* sql;
-    char* err;
 
     ret = asprintf(&sql, "update registry set state = \"%s\" where user_name = \"%s\" and domain_name = \"%s\";",
     		json_string_value(json_object_get(j_recv, "Status")),
@@ -578,18 +565,13 @@ static void evt_registry(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "Domain"))
             );
 
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
-        sqlite3_free(err);
-        free(sql);
-
+        slog(LOG_ERR, "Coult not update evt_registry");
         return;
     }
-
-    free(sql);
-
     return;
 }
 
@@ -603,7 +585,6 @@ int cmd_sippeers(void)
     char* res;
     int ret;
     char* sql;
-    char* err;
     size_t index;
     json_t *j_val;
 
@@ -648,26 +629,23 @@ int cmd_sippeers(void)
 
         // insert name only into sqlite3
         j_tmp = json_object_get(j_val, "ObjectName");
-        ret = asprintf(&sql, "insert into peer(name) values (\"%s\");", json_string_value(j_tmp));
+        ret = asprintf(&sql, "insert or ignore into peer(name) values (\"%s\");", json_string_value(j_tmp));
 
-        ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-        if((ret != SQLITE_OK) && (ret != SQLITE_CONSTRAINT))
+        ret = memdb_exec(sql);
+        free(sql);
+        if(ret == false)
         {
-            slog(LOG_ERR, "Could not execute query. ret[%d], sql[%s], err[%s]", ret, sql, err);
-
-            free(sql);
-            sqlite3_free(err);
+            slog(LOG_ERR, "Could not insert peer data.");
             json_decref(j_res);
             return false;
         }
-        free(sql);
 
         // insert name only into mysql
         ret = asprintf(&sql, "insert ignore into peer (name) values (\"%s\");", json_string_value(j_tmp));
         ret = db_exec(sql);
         if(ret == false)
         {
-            slog(LOG_ERR, "Could init peer info. ret[%d], err[%s]", ret);
+            slog(LOG_ERR, "Could init peer info. ret[%d]", ret);
 
             free(sql);
             json_decref(j_res);
@@ -687,13 +665,12 @@ int cmd_sippeers(void)
  * @brief   Action: SIPShowPeer
  * @return  success:true, fail:false
  */
-int cmd_sipshowpeer(char* peer)
+int cmd_sipshowpeer(const char* peer)
 {
     char* cmd;
     char* res;
     int ret;
     char* sql;
-    char* err;
 
     json_t* j_res;
     json_t* j_tmp;
@@ -723,47 +700,148 @@ int cmd_sipshowpeer(char* peer)
         return false;
     }
 
-    ret = asprintf(&sql, "insert or replace into peer("
-            "name, secret, md5secret, remote_secret, context, "
-            "language, ama_flags, transfer_mode, calling_pres, "
-            "call_group, pickup_group, moh_suggest, mailbox, "
-            "last_msg_sent, call_limit, max_forwards, dynamic, caller_id, "
-            "max_call_br, reg_expire, auth_insecure, force_rport, acl, "
+//    ret = asprintf(&sql, "insert or replace into peer("
+//            "name, secret, md5secret, remote_secret, context, "
+//            "language, ama_flags, transfer_mode, calling_pres, "
+//            "call_group, pickup_group, moh_suggest, mailbox, "
+//            "last_msg_sent, call_limit, max_forwards, dynamic, caller_id, "
+//            "max_call_br, reg_expire, auth_insecure, force_rport, acl, "
+//
+//            "t_38_support, t_38_ec_mode, t_38_max_dtgram, direct_media, "
+//            "promisc_redir, user_phone, video_support, text_support, "
+//            "dtmp_mode, "
+//            "to_host, addr_ip, defaddr_ip, "
+//            "def_username, codecs, "
+//
+//            "status, user_agent, reg_contact, "
+//            "qualify_freq, sess_timers, sess_refresh, sess_expires, min_sess, "
+//            "rtp_engine, parking_lot, use_reason, encryption, "
+//            "chan_type, chan_obj_type, tone_zone, named_pickup_group, busy_level, "
+//            "named_call_group, def_addr_port, comedia, description, addr_port, "
+//            "can_reinvite "
+//            ") values ("
+//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+//            "\"%s\", \"%s\", \"%s\", \"%s\", "
+//            "\"%s\", \"%s\", \"%s\", \"%s\", "
+//            "%d, %d, %d, \"%s\", \"%s\", "
+//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+//
+//            "\"%s\", \"%s\", %d, \"%s\", "
+//            "\"%s\", \"%s\", \"%s\", \"%s\", "
+//            "\"%s\", "
+//            "\"%s\", \"%s\", \"%s\", "
+//            "\"%s\", \"%s\", "
+//
+//            "\"%s\", \"%s\", \"%s\", "
+//            "\"%s\", \"%s\", \"%s\", %d, %d, "
+//            "\"%s\", \"%s\", \"%s\", \"%s\", "
+//            "\"%s\", \"%s\", \"%s\", \"%s\", %d, "
+//            "\"%s\", %d, \"%s\", \"%s\", %d, "
+//
+//            "\"%s\""
+//            ");",
+//            json_string_value(json_object_get(j_tmp, "ObjectName")),
+//            json_string_value(json_object_get(j_tmp, "SecretExist")),
+//            json_string_value(json_object_get(j_tmp, "MD5SecretExist")),
+//            json_string_value(json_object_get(j_tmp, "RemoteSecretExist")),
+//            json_string_value(json_object_get(j_tmp, "Context")),
+//
+//            json_string_value(json_object_get(j_tmp, "Language")),
+//            json_string_value(json_object_get(j_tmp, "AMAflags")),
+//            json_string_value(json_object_get(j_tmp, "TransferMode")),
+//            json_string_value(json_object_get(j_tmp, "CallingPres")),
+//
+//            json_string_value(json_object_get(j_tmp, "Callgroup")),
+//            json_string_value(json_object_get(j_tmp, "Pickupgroup")),
+//            json_string_value(json_object_get(j_tmp, "MOHSuggest")),
+//            json_string_value(json_object_get(j_tmp, "VoiceMailbox")),
+//
+//            (int)json_integer_value(json_object_get(j_tmp, "LastMsgsSent")),
+//            (int)json_integer_value(json_object_get(j_tmp, "Call-limit")),
+//            (int)json_integer_value(json_object_get(j_tmp, "Maxforwards")),
+//            json_string_value(json_object_get(j_tmp, "Dynamic")),
+//            json_string_value(json_object_get(j_tmp, "Callerid")),
+//
+//            json_string_value(json_object_get(j_tmp, "MaxCallBR")),
+//            json_string_value(json_object_get(j_tmp, "RegExpire")),
+//            json_string_value(json_object_get(j_tmp, "SIP-AuthInsecure")),
+//            json_string_value(json_object_get(j_tmp, "SIP-Forcerport")),
+//            json_string_value(json_object_get(j_tmp, "ACL")),
+//
+//
+//            json_string_value(json_object_get(j_tmp, "SIP-T.38Support")),
+//            json_string_value(json_object_get(j_tmp, "SIP-T.38EC")),
+//            (int)json_integer_value(json_object_get(j_tmp, "SIP-T.38MaxDtgrm")),
+//            json_string_value(json_object_get(j_tmp, "SIP-DirectMedia")),
+//
+//            json_string_value(json_object_get(j_tmp, "SIP-PromiscRedir")),
+//            json_string_value(json_object_get(j_tmp, "SIP-UserPhone")),
+//            json_string_value(json_object_get(j_tmp, "SIP-VideoSupport")),
+//            json_string_value(json_object_get(j_tmp, "SIP-TextSupport")),
+//
+//            json_string_value(json_object_get(j_tmp, "SIP-DTMFmode")),
+//
+//            json_string_value(json_object_get(j_tmp, "ToHost")),
+//            json_string_value(json_object_get(j_tmp, "Address-IP")),
+//            json_string_value(json_object_get(j_tmp, "Default-addr-IP")),
+//
+//            json_string_value(json_object_get(j_tmp, "Default-Username")),
+//            json_string_value(json_object_get(j_tmp, "Codecs")),
+//
+//
+//            json_string_value(json_object_get(j_tmp, "Status")),
+//            json_string_value(json_object_get(j_tmp, "SIP-Useragent")),
+//            json_string_value(json_object_get(j_tmp, "Reg-Contact")),
+//
+//            json_string_value(json_object_get(j_tmp, "QualifyFreq")),
+//            json_string_value(json_object_get(j_tmp, "SIP-Sess-Timers")),
+//            json_string_value(json_object_get(j_tmp, "SIP-Sess-Refresh")),
+//            (int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Expires")),
+//            (int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Min")),
+//
+//            json_string_value(json_object_get(j_tmp, "SIP-RTP-Engine")),
+//            json_string_value(json_object_get(j_tmp, "Parkinglot")),
+//            json_string_value(json_object_get(j_tmp, "SIP-Use-Reason-Header")),
+//            json_string_value(json_object_get(j_tmp, "SIP-Encryption")),
+//
+//            json_string_value(json_object_get(j_tmp, "Channeltype")),
+//            json_string_value(json_object_get(j_tmp, "ChanObjectType")),
+//            json_string_value(json_object_get(j_tmp, "ToneZone")),
+//            json_string_value(json_object_get(j_tmp, "Named Pickupgroup")),
+//            (int)json_integer_value(json_object_get(j_tmp, "Busy-level")),
+//
+//            json_string_value(json_object_get(j_tmp, "Named Callgroup")),
+//            (int)json_integer_value(json_object_get(j_tmp, "Default-addr-port")),
+//            json_string_value(json_object_get(j_tmp, "SIP-Comedia")),
+//            json_string_value(json_object_get(j_tmp, "Description")),
+//            (int)json_integer_value(json_object_get(j_tmp, "Address-Port")),
+//
+//            json_string_value(json_object_get(j_tmp, "SIP-CanReinvite"))
+//            );
 
-            "t_38_support, t_38_ec_mode, t_38_max_dtgram, direct_media, "
-            "promisc_redir, user_phone, video_support, text_support, "
-            "dtmp_mode, "
-            "to_host, addr_ip, defaddr_ip, "
-            "def_username, codecs, "
+    ret = asprintf(&sql, "update peer set "
+            "secret = \"%s\", md5secret = \"%s\", remote_secret = \"%s\", context = \"%s\", "
+            "language = \"%s\", ama_flags = \"%s\", transfer_mode = \"%s\", calling_pres = \"%s\", "
+            "call_group = \"%s\", pickup_group = \"%s\", moh_suggest = \"%s\", mailbox = \"%s\", "
+            "last_msg_sent = %d, call_limit = %d, max_forwards = %d, dynamic = \"%s\", caller_id = \"%s\", "
+            "max_call_br = \"%s\", reg_expire = \"%s\", auth_insecure = \"%s\", force_rport = \"%s\", acl = \"%s\", "
 
-            "status, user_agent, reg_contact, "
-            "qualify_freq, sess_timers, sess_refresh, sess_expires, min_sess, "
-            "rtp_engine, parking_lot, use_reason, encryption, "
-            "chan_type, chan_obj_type, tone_zone, named_pickup_group, busy_level, "
-            "named_call_group, def_addr_port, comedia, description, addr_port, "
-            "can_reinvite "
-            ") values ("
-            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\", \"%s\", "
-            "%d, %d, %d, \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "t_38_support = \"%s\", t_38_ec_mode = \"%s\", t_38_max_dtgram = %d, direct_media = \"%s\", "
+            "promisc_redir = \"%s\", user_phone = \"%s\", video_support = \"%s\", text_support = \"%s\", "
+            "dtmp_mode = \"%s\", "
+            "to_host = \"%s\", addr_ip = \"%s\", defaddr_ip = \"%s\", "
+            "def_username = \"%s\", codecs = \"%s\", "
 
-            "\"%s\", \"%s\", %d, \"%s\", "
-            "\"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", "
-            "\"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", "
+            "status = \"%s\", user_agent = \"%s\", reg_contact = \"%s\", "
+            "qualify_freq = \"%s\", sess_timers = \"%s\", sess_refresh = \"%s\", sess_expires = %d, min_sess = %d, "
+            "rtp_engine = \"%s\", parking_lot = \"%s\", use_reason = \"%s\", encryption = \"%s\", "
+            "chan_type = \"%s\", chan_obj_type = \"%s\", tone_zone = \"%s\", named_pickup_group = \"%s\", busy_level = %d, "
+            "named_call_group = \"%s\", def_addr_port = %d, comedia = \"%s\", description = \"%s\", addr_port = %d, "
 
-            "\"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\", %d, %d, "
-            "\"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\", \"%s\", %d, "
-            "\"%s\", %d, \"%s\", \"%s\", %d, "
+            "can_reinvite = \"%s\" "
 
-            "\"%s\""
-            ");",
-            json_string_value(json_object_get(j_tmp, "ObjectName")),
+            "where name = \"%s\""
+            ";",
             json_string_value(json_object_get(j_tmp, "SecretExist")),
             json_string_value(json_object_get(j_tmp, "MD5SecretExist")),
             json_string_value(json_object_get(j_tmp, "RemoteSecretExist")),
@@ -839,18 +917,22 @@ int cmd_sipshowpeer(char* peer)
             json_string_value(json_object_get(j_tmp, "Description")),
             (int)json_integer_value(json_object_get(j_tmp, "Address-Port")),
 
-            json_string_value(json_object_get(j_tmp, "SIP-CanReinvite"))
+            json_string_value(json_object_get(j_tmp, "SIP-CanReinvite")),
+
+            json_string_value(json_object_get(j_tmp, "ObjectName"))
             );
 
-    ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-    if(ret != SQLITE_OK)
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not update peer info. ret[%d], err[%s], sql[%s]", ret, err, sql);
-        sqlite3_free(err);
+        slog(LOG_ERR, "Could not update peer info.");
+        json_decref(j_res);
+        return false;
     }
 
     json_decref(j_res);
-    free(sql);
 
     return true;
 }
@@ -865,7 +947,6 @@ int cmd_sipshowregistry(void)
     char* res;
     int ret;
     char* sql;
-    char* err;
     size_t index;
     json_t *j_val;
 
@@ -925,17 +1006,14 @@ int cmd_sipshowregistry(void)
                 atoi(json_string_value(json_object_get(j_val, "RegistrationTime")))
                 );
 
-        ret = sqlite3_exec(g_app->db, sql, NULL, 0, &err);
-        if(ret != SQLITE_OK)
+        ret = memdb_exec(sql);
+        free(sql);
+        if(ret == false)
         {
-            slog(LOG_ERR, "Could not execute query. sql[%s], err[%s]", sql, err);
-
-            sqlite3_free(err);
-            free(sql);
+            slog(LOG_ERR, "Failed cmd_sipshowregistry.");
             json_decref(j_res);
             return false;
         }
-        free(sql);
     }
 
     json_decref(j_res);

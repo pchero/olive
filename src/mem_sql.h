@@ -110,7 +110,7 @@ char* SQL_CREATE_REGISTRY = "create table registry(\n"
         "state text,            -- registry state\n"
         "registration_time int, -- registration time\n"
 
-        "primary key(user_name, domain_name)"
+        "primary key(user_name, domain_name)\n"
         ");";
 
 /**
@@ -118,14 +118,18 @@ char* SQL_CREATE_REGISTRY = "create table registry(\n"
  * Only for agent status
  */
 char* SQL_CREATE_AGENT = "create table agent(\n"
-        "uuid text primary key,     -- uuid\n"
-        "status text                -- \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
+        "uuid text,                 -- uuid\n"
+        "status text,               -- \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
+
+        "primary key(uuid)\n"
         ");";
 
 
 char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
-		"group_uuid text,		-- group id\n"
-		"trunk_name text,		-- peer name\n"
-		");";
+        "group_uuid text,       -- group id\n"
+        "trunk_name text,       -- peer name\n"
+
+        "primary key(group_uuid, trunk_name)\n"
+        ");";
 
 #endif /* SRC_MEM_SQL_H_ */

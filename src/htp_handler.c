@@ -66,12 +66,27 @@ int init_evhtp(void)
     evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
 
     j_tmp = json_object_get(g_app->j_conf, "addr_server");
+    if(j_tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not get value. addr_server");
+        return false;
+    }
     ret = asprintf(&ip, "%s", json_string_value(j_tmp));
 
     j_tmp = json_object_get(g_app->j_conf, "http_port");
+    if(j_tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not get value. http_port");
+        return false;
+    }
     http_port = atoi(json_string_value(j_tmp));
 
     j_tmp = json_object_get(g_app->j_conf, "https_port");
+    if(j_tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not get value. https_port");
+        return false;
+    }
     https_port = atoi(json_string_value(j_tmp));
 
     slog(LOG_INFO, "Bind http/https. ip[%s], http_port[%d], https_port[%d]", ip, http_port, https_port);
