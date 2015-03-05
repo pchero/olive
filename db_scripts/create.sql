@@ -111,8 +111,21 @@ create table plan(
     name        varchar(255),           -- plan name
     detail      varchar(1023),          -- description
     dial_mode   varchar(255),           -- dial mode(desktop, power, predictive, robo)
-    -- no answer timeout
+    
+    dial_timeout    int,                -- no answer timeout
+    caller_id   varchar(255),           -- show string as an caller
+    
     -- retry number
+    max_retry_cnt_1     int default 5,  -- max retry count for dial number 1
+    max_retry_cnt_2     int default 5,  -- max retry count for dial number 2
+    max_retry_cnt_3     int default 5,  -- max retry count for dial number 3
+    max_retry_cnt_4     int default 5,  -- max retry count for dial number 4
+    max_retry_cnt_5     int default 5,  -- max retry count for dial number 5
+    max_retry_cnt_6     int default 5,  -- max retry count for dial number 6
+    max_retry_cnt_7     int default 5,  -- max retry count for dial number 7
+    max_retry_cnt_8     int default 5,  -- max retry count for dial number 8
+    
+    
     
     primary key(seq, uuid)
 );
@@ -167,9 +180,9 @@ create table dl_org(
     trycnt_7    int default 0,      -- try count for tel number 7
     trycnt_8    int default 0,      -- try count for tel number 8
 
-    
-    result_dial varchar(255),       -- last dial result.(no answer, answer, busy, ...)
-    result_route varchar(255),      -- last route result after answer.(routed, agent busy, no route place, ...)
+    tm_last_dial    datetime,       -- last tried dial time
+    result_dial     varchar(255),   -- last dial result.(no answer, answer, busy, ...)
+    result_route    varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
     
     call_detail text,               -- more detail info about call result
     

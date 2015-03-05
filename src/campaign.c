@@ -16,6 +16,7 @@
 #include <time.h>
 #include <errno.h>
 #include <event2/event.h>
+#include <uuid/uuid.h>
 
 #include "slog.h"
 #include "campaign.h"
@@ -142,8 +143,12 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     char*   sql;
     db_ctx_t* db_res;
     json_t* j_avail_agent;
-    json_t* j_dial_list;
-    json_t*	j_dial;
+    json_t* j_dlist_ma;
+    json_t*	j_dlist;
+    json_t* j_dial;
+    char*   channel_id;
+    char*   tmp;
+    uuid_t uuid;
 
     // get available agent
     ret = asprintf(&sql, "select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
@@ -172,7 +177,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     	json_decref(j_avail_agent);
     	return;
     }
-    j_dial_list = db_get_record(db_res);
+    j_dlist_ma = db_get_record(db_res);
     db_free(db_res);
 
     // get dial list
@@ -183,26 +188,47 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     		"order by trycnt asc"
     		"limit 1"
     		";",
-			json_string_value(json_object_get(j_dial_list, "dl_list"))
+			json_string_value(json_object_get(j_dlist_ma, "dl_list"))
 			);
     db_res = db_query(sql);
     free(sql);
     if(db_res == NULL)
     {
-    	slog(LOG_DEBUG, "No more to dial");
+    	slog(LOG_DEBUG, "No more list to dial");
     	json_decref(j_avail_agent);
-    	json_decref(j_dial_list);
+    	json_decref(j_dlist_ma);
     	return;
     }
-    j_dial = db_get_record(db_res);
+    j_dlist = db_get_record(db_res);
     db_free(db_res);
 
+    // get dial number
+
+
     // dial
+    // create uuid
+    uuid_generate(uuid);
+    uuid_unparse_lower(uuid, tmp);
+    ret = asprintf(&channel_id, "ch-%s", tmp);
+
+    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}"
+            "Channel", "%s",    // dial to
+            "Application", "%s",    // detection application
+            "Data", "%s",           // application parameter
+            "Timeout", "%s",        // timeout second
+            "CallerID", "%s",       // caller id
+
+            "Variable", "%s",       // sip header set
+            "Account", "%s",        // not use yet
+            "EarlyMedia", "%s",     // early media
+            "ChannelId", channel_id    //
+            );
+    free(channel_id);
 
 
     json_decref(j_avail_agent);
-    json_decref(j_dial_list);
-    json_decref(j_dial);
+    json_decref(j_dlist_ma);
+    json_decref(j_dlist);
     return;
 }
 
@@ -215,7 +241,6 @@ static void dial_robo(json_t* j_camp, json_t* j_plan)
 {
     return;
 }
-
 
 
 static int  get_status(int id)
