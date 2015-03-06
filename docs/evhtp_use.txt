@@ -1,0 +1,26 @@
+
+
+CFLAGS+=-Ilibevhtp -Ilibevhtp/evthr -Ilibevhtp/oniguruma -Ilibevhtp/htparse
+
+LDADD+= libevhtp/libevhtp.a 
+# libevhtp is used standalone
+fetch-prep-evhtp:
+.if !exists($(LIBEVHTP_SRC)/libevhtp.a)
+.if exists($(LIBEVHTP_SRC))
+        cd $(LIBEVHTP_SRC) && git pull
+.else
+        git clone https://github.com/ellzey/libevhtp.git $(LIBEVHTP_SRC)
+        cd $(LIBEVHTP_SRC) && patch < ../patch.lib.evhtp.h
+.endif
+        -cd $(LIBEVHTP_SRC) && rm CMakeCache.txt
+        -sed -i.bak -e 's#cmake_minimum_required(VERSION 2.8)#cmake_minimum_required(VERSION 2.6)#' $(LIBEVHTP_SRC)/CMakeLists.txt
+.endif
+
+prep-evhtp: fetch-prep-evhtp
+.if !exists($(LIBEVHTP_SRC)/libevhtp.a)
+        cd $(LIBEVHTP_SRC) && cmake -DEVHTP_DISABLE_SSL:STRING="1" .
+        cd $(LIBEVHTP_SRC) && make clean && make depend && make
+.endif
+
+
+all: prep-evhtp
