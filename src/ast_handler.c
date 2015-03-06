@@ -232,7 +232,7 @@ int ast_load_peers(void)
     }
     slog(LOG_DEBUG, "Finished cmd_sippeers.");
 
-    res = memdb_qeury("select name from peer;");
+    res = memdb_query("select name from peer;");
     if(res == NULL)
     {
         slog(LOG_ERR, "Could not get peer names.");

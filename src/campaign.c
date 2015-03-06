@@ -23,14 +23,16 @@
 #include "db_handler.h"
 #include "common.h"
 #include "memdb_handler.h"
+#include "ast_handler.h"
+
 
 
 static int  get_status(int id);
 
-static void dial_desktop(json_t* j_camp, json_t* j_plan);
-static void dial_power(json_t* j_camp, json_t* j_plan);
-static void dial_predictive(json_t* j_camp, json_t* j_plan);
-static void dial_robo(json_t* j_camp, json_t* j_plan);
+static void dial_desktop(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
+static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
+static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
+static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 
 
 
@@ -40,6 +42,7 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
     db_ctx_t*   db_res;
     json_t*     j_camp;
     json_t*     j_plan;
+    json_t*     j_dlma;
     char*       sql;
 
     // check start campaign
@@ -81,33 +84,50 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
     j_plan = db_get_record(db_res);
     db_free(db_res);
 
-    // dial
+    // get dial list ma
+    ret = asprintf(&sql, "select dl_list from dial_list_ma where uuid = \"%s\";",
+            json_string_value(json_object_get(j_camp, "dial_list"))
+            );
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_DEBUG, "No set of dial list.");
+        json_decref(j_camp);
+        json_decref(j_plan);
+        return;
+    }
+    j_dlma = db_get_record(db_res);
+    db_free(db_res);
+
+    // check dial mode
     ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "desktop");
     if(ret == 0)
     {
-        dial_desktop(j_camp, j_plan);
+        dial_desktop(j_camp, j_plan, j_dlma);
     }
 
     ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "power");
     if(ret == 0)
     {
-        dial_power(j_camp, j_plan);
+        dial_power(j_camp, j_plan, j_dlma);
     }
 
     ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "predictive");
     if(ret == 0)
     {
-        dial_predictive(j_camp, j_plan);
+        dial_predictive(j_camp, j_plan, j_dlma);
     }
 
     ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "robo");
     if(ret == 0)
     {
-        dial_robo(j_camp, j_plan);
+        dial_robo(j_camp, j_plan, j_dlma);
     }
 
     json_decref(j_camp);
     json_decref(j_plan);
+    json_decref(j_dlma);
 
     return;
 }
@@ -117,7 +137,7 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
  * @param j_camp
  * @param j_plan
  */
-static void dial_desktop(json_t* j_camp, json_t* j_plan)
+static void dial_desktop(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 {
     return;
 }
@@ -127,7 +147,7 @@ static void dial_desktop(json_t* j_camp, json_t* j_plan)
  * @param j_camp
  * @param j_plan
  */
-static void dial_power(json_t* j_camp, json_t* j_plan)
+static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 {
     return;
 }
@@ -137,7 +157,7 @@ static void dial_power(json_t* j_camp, json_t* j_plan)
  * @param j_camp
  * @param j_plan
  */
-static void dial_predictive(json_t* j_camp, json_t* j_plan)
+static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 {
     int ret;
 //    json_t* j_group;
@@ -147,16 +167,19 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     json_t* j_avail_agent;
     json_t* j_dlist_ma;
     json_t*	j_dlist;
-//    json_t* j_dial;
+    json_t* j_trunk;
+    json_t* j_dial;
 //    char*   channel_id;
     char*   tmp;
 //    uuid_t uuid;
     int i;
     int cur_trycnt;
     int max_trycnt;
-//    char*   dial_addr;
+    char*   dial_addr;
+    memdb_res* mem_res;
+    int dial_num_point;
 
-    // get available agent
+    // get available agent(just figure out how many calls are can go)
     ret = asprintf(&sql, "select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
             json_string_value(json_object_get(j_camp, "agent_group"))
             );
@@ -165,25 +188,17 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     free(sql);
     if(db_res == NULL)
     {
-        slog(LOG_DEBUG, "No avaialbe agent.");
+        slog(LOG_DEBUG, "Could not get result.");
         return;
     }
-    j_avail_agent = db_get_record(db_res);
-    db_free(db_res);
 
-    // get dial list table name
-    ret = asprintf(&sql, "select dl_list from dial_list_ma where uuid = \"%s\";",
-    		json_string_value(json_object_get(j_camp, "dial_list"))
-    		);
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
+    j_avail_agent = db_get_record(db_res);
+    if(j_avail_agent == NULL)
     {
-    	slog(LOG_DEBUG, "No set of dial list.");
-    	json_decref(j_avail_agent);
-    	return;
+        slog(LOG_DEBUG, "No available agent. Stop dialing.");
+        return;
     }
-    j_dlist_ma = db_get_record(db_res);
+    json_decref(j_avail_agent);
     db_free(db_res);
 
     // get dial list
@@ -213,7 +228,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
             (int)json_integer_value(json_object_get(j_plan, "max_retry_cnt_6")),
             (int)json_integer_value(json_object_get(j_plan, "max_retry_cnt_7")),
             (int)json_integer_value(json_object_get(j_plan, "max_retry_cnt_8")),
-            json_string_value(json_object_get(j_dlist_ma, "dl_list"))
+            json_string_value(json_object_get(j_dlma, "dl_list"))
             );
 
     db_res = db_query(sql);
@@ -221,7 +236,6 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     if(db_res == NULL)
     {
     	slog(LOG_DEBUG, "No more list to dial");
-    	json_decref(j_avail_agent);
     	json_decref(j_dlist_ma);
     	return;
     }
@@ -229,6 +243,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
     db_free(db_res);
 
     // get dial number
+    dial_num_point = -1;
     for(i = 1; i < 9; i++)
     {
         ret = asprintf(&tmp, "number_%d", i);
@@ -249,11 +264,64 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
 
         if(cur_trycnt < max_trycnt)
         {
+            dial_num_point = i;
             break;
         }
     }
+    if(dial_num_point < 0)
+    {
+        slog(LOG_ERR, "Could not find correct number count.");
+        json_decref(j_dlist_ma);
+        json_decref(j_dlist);
 
-//    // create dial address
+        return;
+    }
+
+    // create dial address
+    // get trunk
+    ret = asprintf(&sql, "select * from peer where status like \"OK%%\" "
+            "and name = (select trunk_name from trunk_group where group_uuid = \"%s\" order by random()) "
+            "limit 1;",
+            json_string_value(json_object_get(j_camp, "trunk_group"))
+            );
+    mem_res = memdb_query(sql);
+    free(sql);
+    j_trunk = memdb_get_result(mem_res);
+    if(j_trunk == NULL)
+    {
+        slog(LOG_INFO, "No available trunk.");
+
+        json_decref(j_dlist_ma);
+        json_decref(j_dlist);
+
+        return;
+    }
+
+    // dial to
+    ret = asprintf(&tmp, "trycnt_%d", dial_num_point);
+    ret = asprintf(&dial_addr, "sip/%s@%s",
+            json_string_value(json_object_get(j_dlist, tmp)),
+            json_string_value(json_object_get(j_trunk, "name"))
+            );
+    free(tmp);
+    slog(LOG_INFO, "Dialing info. dial_addr[%s]", dial_addr);
+
+    j_dial = json_pack("{s:s}"
+            "Channel", dial_addr
+            );
+    free(dial_addr);
+    json_decref(j_dlist_ma);
+    json_decref(j_dlist);
+    return;
+
+
+    ret = cmd_originate(j_dial);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not originate.");
+        return;
+    }
+
 ////    ret = asprintf(&dial_addr, "sip/%s")
 //    // get trunk
 //    ret = asprintf(&sql, "select * from ");
@@ -280,12 +348,6 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
 //            "ChannelId", channel_id    //
 //            );
 //    free(channel_id);
-
-
-    json_decref(j_avail_agent);
-    json_decref(j_dlist_ma);
-    json_decref(j_dlist);
-    return;
 }
 
 /**
@@ -293,7 +355,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan)
  * @param j_camp
  * @param j_plan
  */
-static void dial_robo(json_t* j_camp, json_t* j_plan)
+static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 {
     return;
 }

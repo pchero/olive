@@ -59,7 +59,7 @@ int memdb_exec(char* sql)
  * use for exeucte query. returns memdb_res
  * select only.
  */
-memdb_res* memdb_qeury(char* sql)
+memdb_res* memdb_query(char* sql)
 {
     int ret;
     memdb_res* mem_res;

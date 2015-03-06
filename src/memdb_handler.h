@@ -19,7 +19,7 @@ typedef struct _memdb_res
 
 
 void memdb_free(memdb_res* mem_res);
-memdb_res* memdb_qeury(char* sql);
+memdb_res* memdb_query(char* sql);
 json_t* memdb_get_result(memdb_res* mem_res);
 int memdb_exec(char* sql);
 int memdb_init(void);
