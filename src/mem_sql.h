@@ -15,7 +15,7 @@ char* SQL_CREATE_PEER = "create table peer(\n"
         "-- peers table\n"
         "-- AMI sip show peer <peer_id>\n"
 
-        "name text primary key,    -- Name         : 200-ipvstk-softphone-1\n"
+        "name text not null, -- Name         : 200-ipvstk-softphone-1\n"
         "secret text,        -- Secret       : <Set>\n"
         "md5secret text,     -- MD5Secret    : <Not set>\n"
         "remote_secret text, -- Remote Secret: <Not set>\n"
@@ -90,7 +90,9 @@ char* SQL_CREATE_PEER = "create table peer(\n"
         "addr_port int, \n"
 
         "can_reinvite text, \n"
-        "device_state test \n"
+        "device_state text, \n"
+
+        "primary key(name)"
 
         ");";
 
