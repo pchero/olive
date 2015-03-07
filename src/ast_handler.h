@@ -194,6 +194,8 @@ int	cmd_sippeers();
 int cmd_sipshowpeer(const char* peer);
 int cmd_sipshowregistry(void);
 int cmd_originate(json_t* j_dial);
+json_t* cmd_getvar(char* chan, char* var);
+
 
 
 

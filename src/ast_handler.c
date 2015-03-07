@@ -1111,6 +1111,7 @@ int cmd_originate(json_t* j_dial)
     tmp = json_string_value(json_object_get(j_res, "Response"));
     if(tmp == NULL)
     {
+        json_decref(j_res);
     	return false;
     }
 
@@ -1127,6 +1128,84 @@ int cmd_originate(json_t* j_dial)
     json_decref(j_res);
 
 	return true;
+}
+
+/**
+ *
+ * @param chan
+ * @param var
+ * @return
+ */
+json_t* cmd_getvar(
+        char* chan, ///< channel name
+        char* var   ///< variable name
+        )
+{
+//    Action: Getvar
+//    ActionID: <value>
+//    Channel: <value>
+//    Variable: <value>
+//
+//    Note
+//    If a channel name is not provided then the variable is considered global.
+//
+//
+//    ActionID - ActionID for this transaction. Will be returned.
+//    Channel - Channel to read variable from.
+//    Variable - Variable name, function or expression.
+
+    char* cmd;
+    int ret;
+    char* res;
+    const char* tmp;
+    json_t* j_res;
+    json_error_t j_err;
+
+    ret = asprintf(&cmd, "{\"Action\": \"Getvar\", "
+            "\"Channel\": \"%s\", "
+            "\"Variable\": \"%s\" "
+            "}",
+            chan,
+            var
+            );
+    res = ast_send_cmd(cmd);
+    free(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action: Getvar.");
+        return NULL;
+    }
+
+    j_res = json_loads(res, 0, &j_err);
+    free(res);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not load result. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                );
+        return NULL;
+    }
+
+    tmp = json_string_value(json_object_get(j_res, "Response"));
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Invalid response.");
+        json_decref(j_res);
+        return NULL;
+    }
+
+    ret = strcmp(tmp, "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Could not Getvar. response[%s], message[%s]",
+                        json_string_value(json_object_get(j_res, "Response")),
+                        json_string_value(json_object_get(j_res, "Message"))
+                        );
+        json_decref(j_res);
+        return NULL;
+    }
+
+    return j_res;
 }
 
 /**

@@ -360,7 +360,6 @@ static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     return;
 }
 
-
 static int  get_status(int id)
 {
     char* query;
