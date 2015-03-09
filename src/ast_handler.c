@@ -25,6 +25,7 @@
 #include "slog.h"
 #include "db_handler.h"
 #include "memdb_handler.h"
+#include "causes_.h"
 
 
 #define MAX_ZMQ_RCV_BUF 8192
