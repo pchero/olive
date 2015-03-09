@@ -25,7 +25,6 @@
 #include "slog.h"
 #include "db_handler.h"
 #include "memdb_handler.h"
-#include "causes_.h"
 
 
 #define MAX_ZMQ_RCV_BUF 8192
@@ -1314,7 +1313,7 @@ int cmd_hangup(
     char* cmd;
     int ret;
     char* res;
-    char* tmp;
+    const char* tmp;
     json_t* j_res;
     json_error_t j_err;
 
@@ -1388,14 +1387,14 @@ int cmd_blindtransfer(
     char* cmd;
     int ret;
     char* res;
-    char* tmp;
+    const char* tmp;
     json_t* j_res;
     json_error_t j_err;
 
     ret = asprintf(&cmd, "{\"Action\": \"BlindTransfer\", "
             "\"Channel\": \"%s\", "
             "\"Context\": \"%s\", "
-            "\"Exten\": \"%d\" "
+            "\"Exten\": \"%s\" "
             "}",
             chan,
             context,
@@ -1474,7 +1473,7 @@ int cmd_redirect(
     char* cmd;
     int ret;
     char* res;
-    char* tmp;
+    const char* tmp;
     json_t* j_res;
     json_error_t j_err;
 
