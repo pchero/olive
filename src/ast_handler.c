@@ -25,6 +25,7 @@
 #include "slog.h"
 #include "db_handler.h"
 #include "memdb_handler.h"
+#include "causes_.h"
 
 
 #define MAX_ZMQ_RCV_BUF 8192
@@ -1072,7 +1073,10 @@ int cmd_originate(json_t* j_dial)
 			"\"Codecs\": \"%s\", "
 
 			"\"ChannelId\": \"%s\", "
-			"\"OtherChannelId\": \"%s\""
+			"\"OtherChannelId\": \"%s\","
+			"\"Exten\": \"%s\","
+			"\"Context\": \"%s\","
+			"\"Priority\": \"%s\""
 			"}",
 			json_string_value(json_object_get(j_dial, "Channel")),
 			json_string_value(json_object_get(j_dial, "Application")),
@@ -1087,7 +1091,10 @@ int cmd_originate(json_t* j_dial)
 			json_string_value(json_object_get(j_dial, "Codecs")),
 
 			json_string_value(json_object_get(j_dial, "ChannelId")),
-			json_string_value(json_object_get(j_dial, "OtherChannelId"))
+			json_string_value(json_object_get(j_dial, "OtherChannelId")),
+			json_string_value(json_object_get(j_dial, "Exten")),
+			json_string_value(json_object_get(j_dial, "Context")),
+			json_string_value(json_object_get(j_dial, "Priority"))
 			);
     res = ast_send_cmd(cmd);
     if(res == NULL)
@@ -1206,6 +1213,248 @@ json_t* cmd_getvar(
     }
 
     return j_res;
+}
+
+int cmd_hangup(
+        char* chan,
+        AST_CAUSE_TYPE cause
+        )
+{
+//    Action: Hangup
+//    ActionID: <value>
+//    Channel: <value>
+//    Cause: <value>
+
+//    ActionID - ActionID for this transaction. Will be returned.
+//    Channel - The exact channel name to be hungup, or to use a regular expression, set this parameter to: /regex/
+//    Example exact channel: SIP/provider-0000012a
+//    Example regular expression: /^SIP/provider-.*$/
+//    Cause - Numeric hangup cause.
+
+    char* cmd;
+    int ret;
+    char* res;
+    char* tmp;
+    json_t* j_res;
+    json_error_t j_err;
+
+    ret = asprintf(&cmd, "{\"Action\": \"Hangup\", "
+            "\"Channel\": \"%s\", "
+            "\"Cause\": \"%d\" "
+            "}",
+            chan,
+            cause
+            );
+
+    res = ast_send_cmd(cmd);
+    free(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action: Hangup.");
+        return false;
+    }
+
+    j_res = json_loads(res, 0, &j_err);
+    free(res);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not load result. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                );
+        return false;
+    }
+
+    tmp = json_string_value(json_object_get(j_res, "Response"));
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Invalid response.");
+        json_decref(j_res);
+        return false;
+    }
+
+    ret = strcmp(tmp, "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Could not Hangup. response[%s], message[%s]",
+                        json_string_value(json_object_get(j_res, "Response")),
+                        json_string_value(json_object_get(j_res, "Message"))
+                        );
+        json_decref(j_res);
+        return false;
+    }
+    json_decref(j_res);
+
+    return true;
+}
+
+int cmd_blindtransfer(
+        char* chan,
+        char* context,
+        char* exten
+        )
+{
+//    Blind transfer channel(s) to the given destination
+
+//    Action: BlindTransfer
+//    Channel: <value>
+//    Context: <value>
+//    Exten: <value>
+
+
+//    Channel
+//    Context
+//    Exten
+
+    char* cmd;
+    int ret;
+    char* res;
+    char* tmp;
+    json_t* j_res;
+    json_error_t j_err;
+
+    ret = asprintf(&cmd, "{\"Action\": \"BlindTransfer\", "
+            "\"Channel\": \"%s\", "
+            "\"Context\": \"%s\", "
+            "\"Exten\": \"%d\" "
+            "}",
+            chan,
+            context,
+            exten
+            );
+
+    res = ast_send_cmd(cmd);
+    free(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action: BlindTransfer.");
+        return false;
+    }
+
+    j_res = json_loads(res, 0, &j_err);
+    free(res);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not load result. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                );
+        return false;
+    }
+
+    tmp = json_string_value(json_object_get(j_res, "Response"));
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Invalid response.");
+        json_decref(j_res);
+        return false;
+    }
+
+    ret = strcmp(tmp, "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Could not BlindTransfer. response[%s], message[%s]",
+                        json_string_value(json_object_get(j_res, "Response")),
+                        json_string_value(json_object_get(j_res, "Message"))
+                        );
+        json_decref(j_res);
+        return false;
+    }
+    json_decref(j_res);
+
+    return true;
+}
+
+int cmd_redirect(
+        json_t* j_redir
+        )
+{
+//    Redirect (transfer) a call.
+
+//    Action: Redirect
+//    ActionID: <value>
+//    Channel: <value>
+//    ExtraChannel: <value>
+//    Exten: <value>
+//    ExtraExten: <value>
+//    Context: <value>
+//    ExtraContext: <value>
+//    Priority: <value>
+//    ExtraPriority: <value>
+
+
+//    ActionID - ActionID for this transaction. Will be returned.
+//    Channel - Channel to redirect.
+//    ExtraChannel - Second call leg to transfer (optional).
+//    Exten - Extension to transfer to.
+//    ExtraExten - Extension to transfer extrachannel to (optional).
+//    Context - Context to transfer to.
+//    ExtraContext - Context to transfer extrachannel to (optional).
+//    Priority - Priority to transfer to.
+//    ExtraPriority - Priority to transfer extrachannel to (optional).
+
+    char* cmd;
+    int ret;
+    char* res;
+    char* tmp;
+    json_t* j_res;
+    json_error_t j_err;
+
+    ret = asprintf(&cmd, "{\"Action\": \"Redirect\", "
+            "\"Channel\": \"%s\", "
+            "\"ExtraChannel\": \"%s\", "
+            "\"Exten\": \"%s\", "
+            "\"ExtraExten\": \"%s\", "
+            "\"Context\": \"%s\", "
+            "\"Priority\": \"%s\", "
+            "\"ExtraPriority\": \"%s\" "
+            "}",
+            json_string_value(json_object_get(j_redir, "Channel")),
+            json_string_value(json_object_get(j_redir, "ExtraChannel")),
+            json_string_value(json_object_get(j_redir, "Exten")),
+            json_string_value(json_object_get(j_redir, "ExtraExten")),
+            json_string_value(json_object_get(j_redir, "Context")),
+            json_string_value(json_object_get(j_redir, "Priority")),
+            json_string_value(json_object_get(j_redir, "ExtraPriority"))
+            );
+
+    res = ast_send_cmd(cmd);
+    free(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action: Redirect.");
+        return false;
+    }
+
+    j_res = json_loads(res, 0, &j_err);
+    free(res);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not load result. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                );
+        return false;
+    }
+
+    tmp = json_string_value(json_object_get(j_res, "Response"));
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Invalid response.");
+        json_decref(j_res);
+        return false;
+    }
+
+    ret = strcmp(tmp, "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Could not Redirect. response[%s], message[%s]",
+                        json_string_value(json_object_get(j_res, "Response")),
+                        json_string_value(json_object_get(j_res, "Message"))
+                        );
+        json_decref(j_res);
+        return false;
+    }
+    json_decref(j_res);
+
+    return true;
 }
 
 /**

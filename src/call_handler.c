@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 
+#include "common.h"
 #include "call_handler.h"
 
 /**
@@ -17,4 +18,15 @@
 int call_distribute(char* chan)
 {
     return true;
+}
+
+
+void cb_call_timeout(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
+{
+    // check timeout call
+
+    // send hangup AMI
+
+
+    return;
 }
