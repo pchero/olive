@@ -126,12 +126,36 @@ char* SQL_CREATE_AGENT = "create table agent(\n"
         "primary key(uuid)\n"
         ");";
 
-
+/**
+ * trunk groups.
+ */
 char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
         "group_uuid text,       -- group id\n"
         "trunk_name text,       -- peer name\n"
 
         "primary key(group_uuid, trunk_name)\n"
+        ");";
+
+
+/**
+ * channel info table
+ */
+char* SQL_CREATE_CHANNEL = "create table channel(\n"
+        "-- identity\n"
+        "uuid        text,   -- channel uuid(channel-...)\n"
+        "camp_uuid   text,   -- campaign uuid\n"
+        "dl_uuid text,       -- dl list uuid\n"
+
+        "-- status\n"
+        "status      text,   -- dialing, parking..\n"
+        "tm_dial     text,   -- dialing start time. \n"
+        "tm_answer   text,   -- answered time.\n"
+        "tm_transfer text,   -- transfered time.(to agent)\n"
+
+        "dial_timeout    text,   -- dial timeout.(to be)\n"
+        "voice_detection text,   -- voice answer detection result.\n"
+
+        "primary key(uuid)\n"
         ");";
 
 #endif /* SRC_MEM_SQL_H_ */

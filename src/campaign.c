@@ -160,18 +160,15 @@ static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 {
     int ret;
-//    json_t* j_group;
-//    json_t* j_tmp;
     char*   sql;
     db_ctx_t* db_res;
     json_t* j_avail_agent;
-    json_t* j_dlist_ma;
     json_t*	j_dlist;
     json_t* j_trunk;
     json_t* j_dial;
-//    char*   channel_id;
+    char*   channel_id;
     char*   tmp;
-//    uuid_t uuid;
+    uuid_t uuid;
     int i;
     int cur_trycnt;
     int max_trycnt;
@@ -179,7 +176,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     memdb_res* mem_res;
     int dial_num_point;
 
-    // get available agent(just figure out how many calls are can go)
+    // get available agent(just figure out how many calls are can go at this moment)
     ret = asprintf(&sql, "select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
             json_string_value(json_object_get(j_camp, "agent_group"))
             );
@@ -188,7 +185,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     free(sql);
     if(db_res == NULL)
     {
-        slog(LOG_DEBUG, "Could not get result.");
+        slog(LOG_DEBUG, "Could not get available agent.");
         return;
     }
 
@@ -236,7 +233,6 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     if(db_res == NULL)
     {
     	slog(LOG_DEBUG, "No more list to dial");
-    	json_decref(j_dlist_ma);
     	return;
     }
     j_dlist = db_get_record(db_res);
@@ -271,9 +267,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     if(dial_num_point < 0)
     {
         slog(LOG_ERR, "Could not find correct number count.");
-        json_decref(j_dlist_ma);
         json_decref(j_dlist);
-
         return;
     }
 
@@ -290,12 +284,17 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     if(j_trunk == NULL)
     {
         slog(LOG_INFO, "No available trunk.");
-
-        json_decref(j_dlist_ma);
         json_decref(j_dlist);
 
         return;
     }
+
+    // create channel id
+    tmp = NULL;
+    uuid_generate(uuid);
+    uuid_unparse_lower(uuid, tmp);
+    ret = asprintf(&channel_id, "channel-%s", tmp);
+    slog(LOG_INFO, "Create channel id. channel[%s]", channel_id);
 
     // dial to
     ret = asprintf(&tmp, "trycnt_%d", dial_num_point);
@@ -305,49 +304,56 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             );
     free(tmp);
     slog(LOG_INFO, "Dialing info. dial_addr[%s]", dial_addr);
+    json_decref(j_trunk);
 
-    j_dial = json_pack("{s:s}"
-            "Channel", dial_addr
+    j_dial = json_pack("{s:s, s:s, s:s, s:s}"
+            "Channel", dial_addr,
+            "ChannelId", channel_id,
+            "Exten", "s"
+            "Context", "olive_outbound_amd_default"
             );
+    free(channel_id);
     free(dial_addr);
-    json_decref(j_dlist_ma);
-    json_decref(j_dlist);
-    return;
-
 
     ret = cmd_originate(j_dial);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not originate.");
+        json_decref(j_dial);
+        json_decref(j_dlist);
         return;
     }
 
-////    ret = asprintf(&dial_addr, "sip/%s")
-//    // get trunk
-//    ret = asprintf(&sql, "select * from ");
-//    j_tmp = json_object_get(j_camp, "trunk_group");
-////    ret = asprintf(&dial_addr, "sip/")
-//
-//    // dial
-//    // create uuid
-//    tmp = NULL;
-//    uuid_generate(uuid);
-//    uuid_unparse_lower(uuid, tmp);
-//    ret = asprintf(&channel_id, "ch-%s", tmp);
-//
-//    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}"
-//            "Channel", "%s",    // dial to
-//            "Application", "%s",    // detection application
-//            "Data", "%s",           // application parameter
-//            "Timeout", "%s",        // timeout second
-//            "CallerID", "%s",       // caller id
-//
-//            "Variable", "%s",       // sip header set
-//            "Account", "%s",        // not use yet
-//            "EarlyMedia", "%s",     // early media
-//            "ChannelId", channel_id    //
-//            );
-//    free(channel_id);
+    // insert to channel.
+    ret = asprintf(&sql, "insert into channel("
+            "uuid, camp_uuid, dl_uuid, status, tm_dial, "
+            "tm_answer, tm_transfer, dial_timeout, voice_detection"
+            ")values("
+            "%s, %s, %s, %s, %s, "
+            "%s, %s, "
+            "strftime(\"%%s\", \"now\") + %d, "
+            "%s"
+            ");",
+            json_string_value(json_object_get(j_dial, "ChannelId")),
+            json_string_value(json_object_get(j_camp, "uuid")),
+            json_string_value(json_object_get(j_dlist, "uuid")),
+            "dialing",
+            "datetime(\"now\"), "
+
+            "NULL",
+            "NULL",
+
+            json_integer_value(json_object_get(j_plan, "dial_timeout")),
+
+            "NULL"
+            );
+    json_decref(j_dial);
+    json_decref(j_dlist);
+    ret = memdb_exec(sql);
+    free(sql);
+
+    return;
+
 }
 
 /**
