@@ -338,12 +338,12 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             json_string_value(json_object_get(j_camp, "uuid")),
             json_string_value(json_object_get(j_dlist, "uuid")),
             "dialing",
-            "datetime(\"now\"), "
+            "datetime(\"now\"), ",
 
             "NULL",
             "NULL",
 
-            json_integer_value(json_object_get(j_plan, "dial_timeout")),
+            (int)json_integer_value(json_object_get(j_plan, "dial_timeout")),
 
             "NULL"
             );
