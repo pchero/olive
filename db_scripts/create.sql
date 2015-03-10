@@ -12,7 +12,7 @@ create table campaign(
     -- information
     detail      varchar(1023),                      -- description
     name        varchar(255),
-    status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/pause/pausing..)
+    status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/force_stopping)
     status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
     
     -- resources
@@ -187,7 +187,7 @@ create table dl_org(
     tm_last_dial    datetime,       -- last tried dial time
     result_dial     varchar(255),   -- last dial result.(no answer, answer, busy, ...)
     result_route    varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
-    status      varchar(255) default "idle",    -- dial list status. (idle, dialing, ...)
+    status      varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
     
     call_detail text,               -- more detail info about call result
     

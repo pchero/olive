@@ -29,6 +29,7 @@
 #include "htp_handler.h"
 #include "mem_sql.h"
 #include "memdb_handler.h"
+#include "call_handler.h"
 
 
 #define DEF_SERVERIP "127.0.0.1"
@@ -164,6 +165,7 @@ int main(int argc, char** argv)
     slog(LOG_INFO, "Initiated callback");
 
 
+    // start loop.
     event_base_loop(g_app->ev_base, 0);
 
 //    // Release http/https events
@@ -397,10 +399,6 @@ static int init_ast_int(void)
 static int init_service(void)
 {
     int ret;
-//    db_ctx_t*   db_res;
-//    json_t*     j_res;
-//    char*       err;
-//    char*       sql;
 
     // load peer
     ret = ast_load_peers();
@@ -430,16 +428,37 @@ static int init_service(void)
 
 }
 
-
+/**
+ * register callbacks
+ * @return
+ */
 static int init_callback(void)
 {
-    struct event* ev_campaign;
+    struct event* ev;
     struct timeval tm_fast = {0, 20000};    // 20 ms
-//    struct timeval tm_slow = {0, 500000};        // 500 ms
+    struct timeval tm_slow = {0, 500000};        // 500 ms
 
+    // fast
+    // campaign_running
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_running, NULL);
+    event_add(ev, &tm_fast);
 
-    ev_campaign = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_running, NULL);
-    event_add(ev_campaign, &tm_fast);
+    // call_distribute
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_call_distribute, NULL);
+    event_add(ev, &tm_fast);
+
+    // slow
+    // call_timeout
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_call_timeout, NULL);
+    event_add(ev, &tm_slow);
+
+    // campaign_stop
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_stop, NULL);
+    event_add(ev, &tm_slow);
+
+    // campaign_forcestop
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_forcestop, NULL);
+    event_add(ev, &tm_slow);
 
 
     return true;

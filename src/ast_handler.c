@@ -1295,7 +1295,7 @@ json_t* cmd_getvar(
 }
 
 int cmd_hangup(
-        char* chan,
+        const char* chan,
         AST_CAUSE_TYPE cause
         )
 {

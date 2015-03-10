@@ -164,6 +164,171 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
 }
 
 /**
+ * Check campaign stop.
+ * Check the calls for stopping campaign from channel table.
+ * If there's no channel for stopping campaign, then update campaign info.
+ */
+void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg)
+{
+    char* sql;
+    int ret;
+    db_ctx_t* db_res;
+    memdb_res*  mem_res;
+    json_t* j_camp;
+    json_t* j_chan;
+
+    ret = asprintf(&sql, "select * from campaign where status = \"%s\"",
+            "stopping"
+            );
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get stopping campaign info.");
+        return;
+    }
+
+    while(1)
+    {
+        j_camp = db_get_record(db_res);
+        if(j_camp == NULL)
+        {
+            // No more campaign for trying to stop.
+            break;
+        }
+
+        ret = asprintf(&sql, "select * from channel where camp_uuid = \"%s\";",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        mem_res = memdb_query(sql);
+        free(sql);
+        if(mem_res == NULL)
+        {
+            slog(LOG_ERR, "Could not get channel info.");
+            json_decref(j_camp);
+            continue;
+        }
+
+        j_chan = memdb_get_result(mem_res);
+        memdb_free(mem_res);
+        if(j_chan != NULL)
+        {
+            json_decref(j_camp);
+            json_decref(j_chan);
+            continue;
+        }
+
+        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\"",
+                "stop",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        ret = memdb_exec(sql);
+        free(sql);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not update campaign info.");
+            json_decref(j_camp);
+
+            continue;
+        }
+        json_decref(j_camp);
+    }
+
+    return;
+}
+
+
+/**
+ * Check campaign force_stopping.
+ * Check the calls for force_stopping campaign from channel table.
+ * Hangup the every dialing calls for campaign and change campaign status to stopping.
+ * It will not hangup after dialing.
+ */
+void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void *arg)
+{
+    char* sql;
+    int ret;
+    db_ctx_t* db_res;
+    memdb_res*  mem_res;
+    json_t* j_camp;
+    json_t* j_chan;
+
+    ret = asprintf(&sql, "select * from campaign where status = \"%s\"",
+            "force_stopping"
+            );
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get force_stopping campaign info.");
+        return;
+    }
+
+    while(1)
+    {
+        j_camp = db_get_record(db_res);
+        if(j_camp == NULL)
+        {
+            // No more campaign for trying to force_stop.
+            break;
+        }
+
+        ret = asprintf(&sql, "select * from channel where camp_uuid = \"%s\" and status = \"%s\";",
+                json_string_value(json_object_get(j_camp, "uuid")),
+                "dialing"
+                );
+        mem_res = memdb_query(sql);
+        free(sql);
+        if(mem_res == NULL)
+        {
+            slog(LOG_ERR, "Could not get channel info.");
+            json_decref(j_camp);
+            continue;
+        }
+
+        // hangup the every calls.
+        while(1)
+        {
+            j_chan = memdb_get_result(mem_res);
+            if(j_chan == NULL)
+            {
+                break;
+            }
+
+            ret = cmd_hangup(
+                    json_string_value(json_object_get(j_chan, "uuid")),
+                    AST_CAUSE_NORMAL_CLEARING
+                    );
+            if(ret == false)
+            {
+                slog(LOG_ERR, "Could not hangup the channel.");
+                continue;
+            }
+
+            json_decref(j_chan);
+        }
+        memdb_free(mem_res);
+
+        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\"",
+                "stopping",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        ret = memdb_exec(sql);
+        free(sql);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not update campaign info.");
+            json_decref(j_camp);
+
+            continue;
+        }
+        json_decref(j_camp);
+    }
+
+    return;
+}
+
+/**
  *
  * @param j_camp
  * @param j_plan
@@ -184,9 +349,10 @@ static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 }
 
 /**
- *
- * @param j_camp
- * @param j_plan
+ *  Make a call by predictive algorithms
+ * @param j_camp    campaign info
+ * @param j_plan    plan info
+ * @param j_dlma    dial list master info
  */
 static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 {
@@ -278,6 +444,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
         free(tmp);
         if(ret == 0)
         {
+            // No number set.
             continue;
         }
 
@@ -398,83 +565,9 @@ static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 }
 
 /**
- * Initiate campaigns.
- * Check the already start campaigns and run it.
- * @param evbase
+ *
+ * @return
  */
-void camp_init(struct event_base* evbase)
-{
-    char* query;
-    db_ctx_t* ctx;
-//    bool   more;
-//    char*  result;
-//    struct timeval tv;
-    int ret;
-
-    ret = asprintf(&query, "select id from campaign where status = 'run'");
-    if(ret < 0)
-    {
-        slog(LOG_ERR, "Could not make query. err[%d:%s]", errno, strerror(errno));
-        return;
-    }
-
-    ctx = db_query(query);
-    if(ctx == NULL)
-    {
-        slog(LOG_ERR, "Could not create ctx. query[%s]", query);
-        return;
-    }
-    free(query);
-
-//    tv.tv_sec = 0;
-//    tv.tv_usec = 0;
-//
-//    while(1)
-//    {
-//        more = db_result_record(ctx, &result);
-//        if(more == -1)
-//        {
-//            slog(LOG_ERR, "result error. msg[%d:%s]", errno, strerror(errno));
-//            break;
-//        }
-//        if(more == false)
-//        {
-//            slog(LOG_DEBUG, "We got a last. break.");
-//            break;
-//        }
-//
-//        if(result == NULL)
-//        {
-//            slog(LOG_ERR, "Could not get the result.");
-//            break;
-//        }
-//        slog(LOG_DEBUG, "result[%s]", result);
-//
-//        // register camp_handler
-//        camp_t* camp;
-//        camp = calloc(1, sizeof(camp_t));
-//        camp->id = atoi(result);
-//        camp->ev = event_new(base, listener, EV_READ|EV_PERSIST, do_accept, (void*)base);
-//
-//        event_assign(camp->ev, evbase, -1, 0, camp_handler, camp);
-//        event_add(camp->ev, &tv);
-//
-//        free(result);
-//    }
-    db_free(ctx);
-}
-
-
-bool camp_update_action(int camp_id, CAMP_STATUS_T action)
-{
-    // Get campaign info
-    // Update campaign
-
-    // Send to all of clients.
-
-    return true;
-}
-
 bool load_table_trunk_group(void)
 {
     int ret;
