@@ -70,14 +70,14 @@ db_ctx_t* db_query(char* query)
     ret = mysql_query(g_db_conn, query);
     if(ret != 0)
     {
-        fprintf(stderr, "Err. Something was wrong. err[%d:%s]\n", ret, mysql_error(g_db_conn));
+        slog(LOG_ERR, "Could not query to db. sql[%s], err[%d:%s]", query, ret, mysql_error(g_db_conn));
         return NULL;
     }
 
     result = mysql_store_result(g_db_conn);
     if(result == NULL)
     {
-        fprintf(stderr, "execQuery:mysql_stmt_store_result[%s]", mysql_error(g_db_conn));
+        slog(LOG_ERR, "Could not store result. sql[%s], err[%s]", query, mysql_error(g_db_conn));
         return NULL;
     }
 
@@ -102,7 +102,6 @@ int db_exec(char* query)
     ret = mysql_query(g_db_conn, query);
     if(ret != 0)
     {
-//        fprintf(stderr, "Err. Something was wrong. err[%d:%s]\n", ret, mysql_error(g_db_conn));
     	slog(LOG_ERR, "Could not execute query. qeury[%s], err[%d:%s]\n", query, ret, mysql_error(g_db_conn));
     	return false;
     }

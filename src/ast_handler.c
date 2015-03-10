@@ -1367,9 +1367,9 @@ int cmd_hangup(
 }
 
 int cmd_blindtransfer(
-        char* chan,
-        char* context,
-        char* exten
+        const char* chan,
+        const char* context,
+        const char* exten
         )
 {
 //    Blind transfer channel(s) to the given destination

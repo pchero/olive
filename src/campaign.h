@@ -13,6 +13,8 @@
 #include <event2/event.h>
 #include <evhtp.h>
 
+#include "common.h"
+
 typedef enum _CAMP_STATUS_T
 {
     // static status
@@ -26,18 +28,8 @@ typedef enum _CAMP_STATUS_T
     E_CAMP_PAUSING = 13,
 } CAMP_STATUS_T;
 
-typedef struct _camp_t
-{
-    struct event* ev;
-    int     id;
-//    char*   name;
-//    char*   desc;
-//    int     agent_group;
-//    int     dial_list;
-} camp_t;
 
-void camp_init(struct event_base* evbase);
-void camp_handler(int fd, short event, void *arg);
+void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *arg);
 
 bool load_table_trunk_group(void);
 

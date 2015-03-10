@@ -11,6 +11,8 @@
 #include "call_handler.h"
 #include "memdb_handler.h"
 #include "slog.h"
+#include "db_handler.h"
+#include "ast_handler.h"
 
 
 /**

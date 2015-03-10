@@ -45,6 +45,7 @@ static int init_libevent(void);
 static int init_database(void);
 static int init_ast_int(void);
 static int init_service(void);
+static int init_callback(void);
 static int init_memdb(void);
 
 static void sigterm_cb(unused__ int fd, unused__ short event, unused__ void *arg);
@@ -139,14 +140,28 @@ int main(int argc, char** argv)
     ret = init_ast_int();
     if(ret != true)
     {
-        fprintf(stderr, "Could not initiate asterisk interface. ret[%d]", ret);
+        fprintf(stderr, "Could not initiate asterisk interface. ret[%d]\n", ret);
         exit(0);
     }
     slog(LOG_INFO, "Initiated asterisk interface");
 
     // campaign initiate
     ret = init_service();
-    slog(LOG_INFO, "Initiated campaign");
+    if(ret != true)
+    {
+        fprintf(stderr, "Could not initiate service. ret[%d]\n", ret);
+        exit(0);
+    }
+    slog(LOG_INFO, "Initiated service");
+
+    // register callbacks
+    ret = init_callback();
+    if(ret == false)
+    {
+        fprintf(stderr, "Could not initiate callbacks. ret[%d]\n", ret);
+        exit(0);
+    }
+    slog(LOG_INFO, "Initiated callback");
 
 
     event_base_loop(g_app->ev_base, 0);
@@ -415,6 +430,21 @@ static int init_service(void)
 
 }
 
+
+static int init_callback(void)
+{
+    struct event* ev_campaign;
+    struct timeval tm_fast = {0, 20000};    // 20 ms
+//    struct timeval tm_slow = {0, 500000};        // 500 ms
+
+
+    ev_campaign = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_running, NULL);
+    event_add(ev_campaign, &tm_fast);
+
+
+    return true;
+}
+
 /**
  * initiate memdb.
  * @return  succes:true, fail:false
@@ -519,79 +549,3 @@ static void siginfo_cb(unused__ int fd, unused__ short event, unused__ void *arg
     slog(LOG_DEBUG, "Running information:<none>");
 }
 
-
-
-//
-//void sig_init()
-//{
-//
-//}
-//
-//void sig_exit()
-//{
-//
-//}
-
-
-//
-//int _main(int argc, char** argv)
-//{
-////    struct event_base *evbase;
-////    struct event *ev_sigterm, *ev_sigint, *ev_sigusr1, *ev_sigusr2, *ev_siginfo;
-//
-//    db_ctx_t* ctx[100];
-//    int ret;
-//    char* tmp_res;
-//    int i;
-//
-//    /* Init libevent */
-////    evbase = event_base_new();
-//
-//    ret = db_init();
-//    if(ret == false)
-//    {
-//        fprintf(stderr, "db_init failed..\n");
-//        exit(1);
-//    }
-//
-//    // Query test
-//    for(i = 0; i < 100; i++)
-//    {
-//        ctx[i] = db_query("select * from test");
-//    }
-//    printf("Goood...!\n");
-//
-//    // Get result test
-//    int j;
-//    for(i = 0; i < 100; i++)
-//    {
-//        tmp_res = NULL;
-//        ret = db_result(ctx[i], &tmp_res);
-////        printf("Ret[%d], result[%s], len[%d]\n", ret, tmp_res, strlen(tmp_res));
-//
-//        for(j = 0; j < strlen(tmp_res); j++)
-//        {
-////            printf("%c, ", tmp_res[j]);
-//        }
-//        free(tmp_res);
-//    }
-//
-//    for(i = 0; i < 100; i++)
-//    {
-//        free(ctx[i]->ctx);
-//        free(ctx[i]->result);
-//        free(ctx[i]);
-//    }
-//
-//
-//    printf("Hello, world.\n");
-//
-////    event_loop(0);
-////
-////    evtimer_set(&ev, say_hello, &ev);
-////    evtimer_add(&ev, &tv);
-////    event_dispatch();
-//
-//
-//    return 0;
-//}

@@ -261,7 +261,7 @@ int cmd_sipshowregistry(void);
 int cmd_originate(json_t* j_dial);
 json_t* cmd_getvar(char* chan, char* var);
 int cmd_hangup(char* chan, AST_CAUSE_TYPE cause);
-int cmd_blindtransfer(char* chan, char* context, char* exten);
+int cmd_blindtransfer(const char* chan, const char* context, const char* exten);
 int cmd_redirect(json_t* j_redir);
 
 
