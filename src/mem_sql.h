@@ -122,6 +122,7 @@ char* SQL_CREATE_REGISTRY = "create table registry(\n"
 char* SQL_CREATE_AGENT = "create table agent(\n"
         "uuid text,                 -- uuid\n"
         "status text,               -- \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
+        "status_update_time text,   -- last status update time"
 
         "primary key(uuid)\n"
         ");";
@@ -142,20 +143,31 @@ char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
  */
 char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "-- identity\n"
-        "uuid        text,   -- channel uuid(channel-...)\n"
+        "uuid        text,   -- channel uuid(channel-...)\n"    //
         "camp_uuid   text,   -- campaign uuid\n"
         "dl_uuid text,       -- dl list uuid\n"
 
         "-- status\n"
         "status      text,   -- dialing, parking..\n"
         "tm_dial     text,   -- dialing start time. \n"
-        "tm_answer   text,   -- answered time.\n"
-        "tm_transfer text,   -- transfered time.(to agent)\n"
+        "tm_answer   text,   -- dial list answered time.\n"
+        "tm_transfer text,   -- transfer start time.(to agent)\n"
+        "tm_transfered text, -- transfer end time(if agent answered)"
 
         "dial_timeout    text,   -- dial timeout.(to be)\n"
         "voice_detection text,   -- voice answer detection result.\n"
+        "agent_transfer  text,   -- transfered agent uuid\n"
 
         "primary key(uuid)\n"
         ");";
+
+
+/**
+ * Not use yet.
+ */
+char* SQL_CREATE_CAMPAIGN = "create table campaign(\n"
+        ""
+        ");";
+
 
 #endif /* SRC_MEM_SQL_H_ */

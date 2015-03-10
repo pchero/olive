@@ -69,7 +69,7 @@ memdb_res* memdb_query(char* sql)
     ret = sqlite3_prepare_v2(g_memdb, sql, -1, &mem_res->res, NULL);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not get peer names. err[%d:%s]", errno, strerror(errno));
+        slog(LOG_ERR, "Could not prepare query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
         return NULL;
     }
 

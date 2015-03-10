@@ -73,14 +73,14 @@ create table agent(
     desc_user   varchar(1023),      -- description(for agent itself)
     create_time datetime,           -- create datetime
     create_user varchar(255),       -- create user
-    info_modified_time   datetime,       -- last agent info modified time
-    info_modified_user   varchar(255),   -- last agent info modified user
+    info_update_time   datetime,       -- last agent info modified time
+    info_update_user   varchar(255),   -- last agent info modified user
     
     
     -- agent level (permission)
     
     -- agent performance
-    status_modified_time datetime,  -- last status changed time.
+    status_update_time datetime,  -- last status changed time.
     
     primary key(seq, uuid)
 );
@@ -198,7 +198,9 @@ drop table if exists peer;
 create table peer(
 -- peer info(static info only)
     name    varchar(255)    not null unique,
+
     mode    varchar(255)    not null,           -- "peer", "trunk"
+    agent_uuid varchar(255),                    -- agnet uuid
     
     primary key(name)
 );

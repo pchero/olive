@@ -11,7 +11,7 @@
 
 #include "common.h"
 
-
+void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg);
 void cb_call_timeout(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg);
 
 
