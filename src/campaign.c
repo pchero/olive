@@ -35,11 +35,11 @@ static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 /**
  * @brief   Check start campaign and try to make a call.
  */
-void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *arg)
+void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg)
 {
     int ret;
     db_ctx_t*   db_res;
-    json_t*     j_camp;
+    json_t*     j_camp; // working campaign
     json_t*     j_plan;
     json_t*     j_dlma;
     char*       sql;
@@ -65,7 +65,7 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
         return;
     }
 
-    // query plan
+    // get plan
     ret = asprintf(&sql, "select * from plan where uuid = \"%s\";",
             json_string_value(json_object_get(j_camp, "plan"))
             );
@@ -73,7 +73,10 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
     free(sql);
     if(db_res == NULL)
     {
-        slog(LOG_ERR, "Could not get plan info.");
+        slog(LOG_ERR, "Could not get plan info. camp_uuid[%s], plan_uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid")),
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
         json_decref(j_camp);
         return;
     }
@@ -83,7 +86,7 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
     db_free(db_res);
     if(j_plan == NULL)
     {
-        slog(LOG_ERR, "Could not find plan info. Stop campaign. camp_uuid[%s], camp_name[%s], plan_uuid[%s]",
+        slog(LOG_ERR, "Could not find plan info. Stopping campaign. camp_uuid[%s], camp_name[%s], plan_uuid[%s]",
                 json_string_value(json_object_get(j_camp, "uuid")),
                 json_string_value(json_object_get(j_camp, "name")),
                 json_string_value(json_object_get(j_camp, "plan"))
@@ -97,7 +100,7 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
         return;
     }
 
-    // get dial list ma
+    // get dial list
     ret = asprintf(&sql, "select dl_list from dial_list_ma where uuid = \"%s\";",
             json_string_value(json_object_get(j_camp, "dial_list"))
             );
@@ -129,6 +132,11 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
     // check dial mode
     if(json_string_value(json_object_get(j_plan, "dial_mode")) == NULL)
     {
+        slog(LOG_ERR, "Plan has no dial_mode. Stopping campaign. camp_uuid[%s], camp_name[%s], plan_uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid")),
+                json_string_value(json_object_get(j_camp, "name")),
+                json_string_value(json_object_get(j_camp, "plan"))
+                )
         // No dial_mode set plan
         json_decref(j_camp);
         json_decref(j_plan);
@@ -137,36 +145,36 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
         return;
     }
 
-    slog(LOG_DEBUG, "Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s]",
+    slog(LOG_INFO, "Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s]",
             json_string_value(json_object_get(j_camp, "uuid")),
             json_string_value(json_object_get(j_camp, "name")),
             json_string_value(json_object_get(j_camp, "status")),
             json_string_value(json_object_get(j_plan, "dial_mode"))
             );
 
-
-    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "desktop");
-    if(ret == 0)
+    if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "desktop") == 0)
     {
+        slog(LOG_INFO, "Destop dialing.");
         dial_desktop(j_camp, j_plan, j_dlma);
     }
-
-    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "power");
-    if(ret == 0)
+    else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "power") == 0)
     {
+        slog(LOG_INFO, "Power dialing.");
         dial_power(j_camp, j_plan, j_dlma);
     }
-
-    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "predictive");
-    if(ret == 0)
+    else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "predictive") == 0)
     {
+        slog(LOG_INFO, "Predictive dialing.");
         dial_predictive(j_camp, j_plan, j_dlma);
     }
-
-    ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "robo");
-    if(ret == 0)
+    else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "robo") == 0)
     {
+        slog(LOG_INFO, "Robo dialing.");
         dial_robo(j_camp, j_plan, j_dlma);
+    }
+    else
+    {
+        slog(LOG_ERR, "No match dial_mode.");
     }
 
     json_decref(j_camp);
@@ -362,7 +370,8 @@ static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 }
 
 /**
- *  Make a call by predictive algorithms
+ *  Make a call by predictive algorithms.
+ *  Currently, just consider ready agent only.
  * @param j_camp    campaign info
  * @param j_plan    plan info
  * @param j_dlma    dial list master info

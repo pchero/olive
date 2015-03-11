@@ -61,12 +61,6 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             break;
         }
 
-        ret = json_object_size(j_pcall);
-        if(ret == 0)
-        {
-            continue;
-        }
-
         // get campaign info
         ret = asprintf(&sql, "select * from campaign where uuid=\"%s\";",
                 json_string_value(json_object_get(j_pcall, "camp_uuid"))

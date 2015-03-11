@@ -30,7 +30,7 @@ typedef enum _CAMP_STATUS_T
 
 
 // callbacks
-void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *arg);
+void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg);
 void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg);
 void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void *arg);
 

@@ -440,7 +440,7 @@ static int init_callback(void)
 
     // fast
     // campaign_running
-    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_running, NULL);
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_start, NULL);
     event_add(ev, &tm_fast);
 
     // call_distribute
