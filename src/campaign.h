@@ -29,13 +29,18 @@ typedef enum _CAMP_STATUS_T
 } CAMP_STATUS_T;
 
 
+// callbacks
 void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *arg);
 void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg);
 void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void *arg);
 
-
-
+// etc
 bool load_table_trunk_group(void);
+
+// interfaces
+OLIVE_RESULT campaign_update(json_t* j_camp);
+OLIVE_RESULT campaign_create(json_t* j_camp);
+
 
 
 #endif /* CAMPAIGN_H_ */

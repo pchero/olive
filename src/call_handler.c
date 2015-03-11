@@ -147,6 +147,7 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
                     );
             json_decref(j_peer);
             mem_peers = memdb_query(sql);
+            free(sql);
             if(mem_peers == NULL)
             {
                 slog(LOG_ERR, "Could not get peer info.");
@@ -154,6 +155,7 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             }
 
             j_peer_tmp = memdb_get_result(mem_peers);
+            memdb_free(mem_peers);
             if(j_peer_tmp != NULL)
             {
                 break;

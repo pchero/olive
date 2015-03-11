@@ -492,6 +492,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     mem_res = memdb_query(sql);
     free(sql);
     j_trunk = memdb_get_result(mem_res);
+    memdb_free(mem_res);
     if(j_trunk == NULL)
     {
         slog(LOG_INFO, "No available trunk.");
@@ -629,5 +630,78 @@ bool load_table_trunk_group(void)
     }
     return true;
 
+}
+
+/**
+ * Update campaign info
+ */
+OLIVE_RESULT campaign_update(json_t* j_camp)
+{
+    char* sql;
+    int ret;
+    db_ctx_t*   db_res;
+    json_t*     j_res;
+
+    // check campaign existence.
+    ret = asprintf(&sql, "select * from campaign where uuid = \"%s\"",
+            json_string_value(json_object_get(j_camp, "uuid"))
+            );
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get campaign info.");
+        return OLIVE_INTERNAL_ERROR;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not find campaign info. uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        return OLIVE_NO_CAMPAIGN;
+    }
+    json_decref(j_res);
+
+
+    ret = asprintf(&sql, "update campaign set "
+            "status=\"%s\" "
+            "where uuid = \"%s\"",
+            json_string_value(json_object_get(j_camp, "status")),
+            json_string_value(json_object_get(j_camp, "uuid"))
+            );
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update campaign info. uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        return OLIVE_INTERNAL_ERROR;
+    }
+
+    return OLIVE_OK;
+}
+
+/**
+ * Create campaign
+ * @param j_camp
+ * @return
+ */
+OLIVE_RESULT campaign_create(json_t* j_camp)
+{
+    return OLIVE_OK;
+}
+
+/**
+ * Delete campaign
+ * @param j_camp
+ * @return
+ */
+OLIVE_RESULT campaign_delete(json_t* j_camp)
+{
+    return OLIVE_OK;
 }
 

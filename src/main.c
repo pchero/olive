@@ -436,7 +436,7 @@ static int init_callback(void)
 {
     struct event* ev;
     struct timeval tm_fast = {0, 20000};    // 20 ms
-    struct timeval tm_slow = {0, 500000};        // 500 ms
+    struct timeval tm_slow = {0, 500000};   // 500 ms
 
     // fast
     // campaign_running
@@ -487,6 +487,7 @@ static int init_memdb(void)
         return false;
     }
 
+    // registry table
     ret = memdb_exec(SQL_CREATE_REGISTRY);
     if(ret == false)
     {
@@ -494,6 +495,7 @@ static int init_memdb(void)
         return false;
     }
 
+    // agent table
     ret = memdb_exec(SQL_CREATE_AGENT);
     if(ret == false)
     {
@@ -501,6 +503,7 @@ static int init_memdb(void)
         return false;
     }
 
+    // trunk group table
     ret = memdb_exec(SQL_CREATE_TRUNK_GROUP);
     if(ret == false)
     {
@@ -508,6 +511,7 @@ static int init_memdb(void)
         return false;
     }
 
+    // channel table
     ret = memdb_exec(SQL_CREATE_CHANNEL);
     if(ret == false)
     {

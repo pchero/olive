@@ -77,7 +77,9 @@ memdb_res* memdb_query(char* sql)
 }
 
 /**
- * get result from memdb_res
+ * get result from memdb_res.
+ * Return result as json.
+ * @param mem_res
  */
 json_t* memdb_get_result(memdb_res* mem_res)
 {

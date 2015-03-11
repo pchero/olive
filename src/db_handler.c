@@ -167,7 +167,8 @@ int db_result_record(db_ctx_t* ctx, char** result)
 }
 
 /**
- *
+ * Return 1 record info by json.
+ * If there's no more record or error happened, it will return NULL.
  * @param res
  * @return	success:json_t*, fail:NULL
  */

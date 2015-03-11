@@ -37,7 +37,6 @@ typedef struct
     void*   zevt;       ///< event socket with asterisk-zmq
     void*   zlog;       ///< log socket with logstash.
     struct event_base*  ev_base;    //!< event base.(libevent)
-//    sqlite3 *db;        ///< memory db
 } app_;
 
 extern app_* g_app;
