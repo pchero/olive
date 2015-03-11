@@ -200,20 +200,28 @@ json_t* db_get_record(db_ctx_t* ctx)
             continue;
         }
 
-        switch(field->type)
+        switch(field[i].type)
         {
-            case MYSQL_TYPE_LONG:
-            case MYSQL_TYPE_SHORT:
-            case MYSQL_TYPE_LONGLONG:
             case MYSQL_TYPE_DECIMAL:
+            case MYSQL_TYPE_TINY:
+            case MYSQL_TYPE_SHORT:
+            case MYSQL_TYPE_LONG:
+            case MYSQL_TYPE_LONGLONG:
             {
                 json_object_set_new(j_res, field[i].name, json_integer(atoi(row[i])));
             }
             break;
 
             case MYSQL_TYPE_FLOAT:
+            case MYSQL_TYPE_DOUBLE:
             {
             	json_object_set_new(j_res, field[i].name, json_real(atof(row[i])));
+            }
+            break;
+
+            case MYSQL_TYPE_NULL:
+            {
+                json_object_set_new(j_res, field[i].name, json_null());
             }
             break;
 

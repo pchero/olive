@@ -122,7 +122,7 @@ char* SQL_CREATE_REGISTRY = "create table registry(\n"
 char* SQL_CREATE_AGENT = "create table agent(\n"
         "uuid text,                 -- uuid\n"
         "status text,               -- \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
-        "status_update_time text,   -- last status update time"
+        "status_update_time text,   -- last status update time\n"
 
         "primary key(uuid)\n"
         ");";

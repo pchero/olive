@@ -246,7 +246,7 @@ insert into trunk_group_ma(uuid, name, detail) values ("trunkgroup-445df643-f8a6
 insert into trunk_group(group_uuid, trunk_name) values ("trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56", "trunk-sample_01");
 
 -- insert plan
-insert into plan(uuid, name) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan");
+insert into plan(uuid, name, dial_mode) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan", "predictive");
 
 -- insert campaign
 insert into campaign(uuid, name, status, agent_group, plan, dial_list, trunk_group) 

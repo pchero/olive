@@ -45,7 +45,7 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
     char*       sql;
 
     // query start campaign
-    ret = asprintf(&sql, "select * from campaign where status = \"%s\" order by random limit 1",
+    ret = asprintf(&sql, "select * from campaign where status = \"%s\" order by rand() limit 1;",
             "start"
             );
     db_res = db_query(sql);
@@ -64,11 +64,6 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
         // No available campaign.
         return;
     }
-    slog(LOG_DEBUG, "Campaign info. uuid[%s], name[%s], status[%s]",
-            json_string_value(json_object_get(j_camp, "uuid")),
-            json_string_value(json_object_get(j_camp, "name")),
-            json_string_value(json_object_get(j_camp, "status"))
-            );
 
     // query plan
     ret = asprintf(&sql, "select * from plan where uuid = \"%s\";",
@@ -132,6 +127,24 @@ void cb_campaign_running(unused__ int fd, unused__ short event, unused__ void *a
     }
 
     // check dial mode
+    if(json_string_value(json_object_get(j_plan, "dial_mode")) == NULL)
+    {
+        // No dial_mode set plan
+        json_decref(j_camp);
+        json_decref(j_plan);
+        json_decref(j_dlma);
+
+        return;
+    }
+
+    slog(LOG_DEBUG, "Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s]",
+            json_string_value(json_object_get(j_camp, "uuid")),
+            json_string_value(json_object_get(j_camp, "name")),
+            json_string_value(json_object_get(j_camp, "status")),
+            json_string_value(json_object_get(j_plan, "dial_mode"))
+            );
+
+
     ret = strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "desktop");
     if(ret == 0)
     {

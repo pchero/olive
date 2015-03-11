@@ -497,14 +497,21 @@ static int init_memdb(void)
     ret = memdb_exec(SQL_CREATE_AGENT);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not create table agent");
+        slog(LOG_ERR, "Could not create table agent.");
         return false;
     }
 
     ret = memdb_exec(SQL_CREATE_TRUNK_GROUP);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not create table trunk_group");
+        slog(LOG_ERR, "Could not create table trunk_group.");
+        return false;
+    }
+
+    ret = memdb_exec(SQL_CREATE_CHANNEL);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not create table channel.");
         return false;
     }
 
