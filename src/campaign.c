@@ -37,7 +37,7 @@ static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
  */
 void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg)
 {
-    int ret;
+    unused__ int ret;
     db_ctx_t*   db_res;
     json_t*     j_camp; // working campaign
     json_t*     j_plan;
@@ -136,7 +136,14 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
                 json_string_value(json_object_get(j_camp, "uuid")),
                 json_string_value(json_object_get(j_camp, "name")),
                 json_string_value(json_object_get(j_camp, "plan"))
-                )
+                );
+        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\"",
+                "stopping",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
+        db_exec(sql);
+        free(sql);
+
         // No dial_mode set plan
         json_decref(j_camp);
         json_decref(j_plan);
@@ -243,7 +250,7 @@ void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg)
                 "stop",
                 json_string_value(json_object_get(j_camp, "uuid"))
                 );
-        ret = memdb_exec(sql);
+        ret = db_exec(sql);
         free(sql);
         if(ret == false)
         {

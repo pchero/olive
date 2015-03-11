@@ -14,6 +14,8 @@
 #include <evhtp.h>
 
 #include "common.h"
+#include "olive_result.h"
+
 
 typedef enum _CAMP_STATUS_T
 {
