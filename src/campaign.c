@@ -514,10 +514,12 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 
     // create channel id
     tmp = NULL;
+    tmp = calloc(100, sizeof(char));
     uuid_generate(uuid);
     uuid_unparse_lower(uuid, tmp);
     ret = asprintf(&channel_id, "channel-%s", tmp);
     slog(LOG_INFO, "Create channel id. channel[%s]", channel_id);
+    free(tmp);
 
     // dial to
     ret = asprintf(&tmp, "trycnt_%d", dial_num_point);
