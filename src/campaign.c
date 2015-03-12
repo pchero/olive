@@ -152,31 +152,25 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
         return;
     }
 
-    slog(LOG_INFO, "Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s]",
-            json_string_value(json_object_get(j_camp, "uuid")),
-            json_string_value(json_object_get(j_camp, "name")),
-            json_string_value(json_object_get(j_camp, "status")),
-            json_string_value(json_object_get(j_plan, "dial_mode"))
-            );
 
     if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "desktop") == 0)
     {
-        slog(LOG_INFO, "Destop dialing.");
+//        slog(LOG_INFO, "Destop dialing.");
         dial_desktop(j_camp, j_plan, j_dlma);
     }
     else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "power") == 0)
     {
-        slog(LOG_INFO, "Power dialing.");
+//        slog(LOG_INFO, "Power dialing.");
         dial_power(j_camp, j_plan, j_dlma);
     }
     else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "predictive") == 0)
     {
-        slog(LOG_INFO, "Predictive dialing.");
+//        slog(LOG_INFO, "Predictive dialing.");
         dial_predictive(j_camp, j_plan, j_dlma);
     }
     else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "robo") == 0)
     {
-        slog(LOG_INFO, "Robo dialing.");
+//        slog(LOG_INFO, "Robo dialing.");
         dial_robo(j_camp, j_plan, j_dlma);
     }
     else
@@ -418,7 +412,8 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     j_avail_agent = db_get_record(db_res);
     if(j_avail_agent == NULL)
     {
-        slog(LOG_DEBUG, "No available agent. Stop dialing.");
+        // too much log..
+//        slog(LOG_DEBUG, "No available agent. Stop dialing.");
         return;
     }
     json_decref(j_avail_agent);
@@ -542,6 +537,13 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             );
     free(channel_id);
     free(dial_addr);
+
+    slog(LOG_INFO, "Dialing. Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s]",
+            json_string_value(json_object_get(j_camp, "uuid")),
+            json_string_value(json_object_get(j_camp, "name")),
+            json_string_value(json_object_get(j_camp, "status")),
+            json_string_value(json_object_get(j_plan, "dial_mode"))
+            );
 
     ret = cmd_originate(j_dial);
     if(ret == false)

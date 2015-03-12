@@ -30,6 +30,7 @@
 #include "mem_sql.h"
 #include "memdb_handler.h"
 #include "call_handler.h"
+#include "agent_handler.h"
 
 
 #define DEF_SERVERIP "127.0.0.1"
@@ -421,6 +422,14 @@ static int init_service(void)
     if(ret == false)
     {
         slog(LOG_ERR, "Could not load trunk_group.");
+        return false;
+    }
+
+    slog(LOG_DEBUG, "Load table agent.");
+    ret = load_table_agent();
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not load agent");
         return false;
     }
 
