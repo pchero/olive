@@ -250,7 +250,7 @@ typedef enum {
 } AST_CAUSE_TYPE;
 
 
-char* ast_send_cmd(char* cmd);
+//char* ast_send_cmd(char* cmd);
 int ast_load_peers(void);
 int ast_load_registry(void);
 void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, void *arg);
@@ -263,6 +263,8 @@ json_t* cmd_getvar(char* chan, char* var);
 int cmd_hangup(const char* chan, AST_CAUSE_TYPE cause);
 int cmd_blindtransfer(const char* chan, const char* context, const char* exten);
 int cmd_redirect(json_t* j_redir);
+int cmd_devicestatelist(void);
+
 
 
 

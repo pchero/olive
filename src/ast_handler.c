@@ -30,6 +30,8 @@
 #define MAX_ZMQ_RCV_BUF 8192
 
 
+static char* ast_send_cmd(char* cmd);
+
 static void ast_recv_handler(json_t* j_evt);
 static int ast_get_evt_type(const char* type);
 static void evt_peerstatus(json_t* j_recv);
@@ -47,7 +49,7 @@ static void evt_parkedcall(json_t* j_recv);
  @brief
  @return success:true, fail:false
  */
-char* ast_send_cmd(char* cmd)
+static char* ast_send_cmd(char* cmd)
 {
     int     ret;
     zmq_msg_t   msg;
@@ -1535,6 +1537,74 @@ int cmd_redirect(
 
     return true;
 }
+
+int cmd_devicestatelist(void)
+{
+//    List the current known device states.
+
+//    Action: DeviceStateList
+//    ActionID: <value>
+
+    json_t* j_res;
+    json_t* j_tmp;
+    json_t* j_val;
+    char* cmd;
+    char* res;
+    int index;
+    int ret;
+
+    cmd = "{\"Action\": \"DeviceStateList\"}";
+    res = ast_send_cmd(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not send Action:DeviceStateList\n");
+        return false;
+    }
+
+    j_res = json_loadb(res, strlen(res), 0, 0);
+    free(res);
+
+    j_tmp = json_array_get(j_res, 0);
+    if(j_tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not get correct result.");
+        return false;
+    }
+
+    ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Response error. err[%s]", json_string_value(json_object_get(j_tmp, "Message")));
+        json_decref(j_res);
+        return false;
+    }
+
+    index = 0;
+    json_array_foreach(j_res, index, j_val)
+    {
+        if(index == 0)
+        {
+            continue;
+        }
+
+        // check end of list
+        j_tmp = json_object_get(j_val, "Event");
+        ret = strcmp(json_string_value(j_tmp), "DeviceStateListComplete");
+        if(ret == 0)
+        {
+            break;
+        }
+
+        // pass it to devicestatechange handler.
+        evt_devicestatechange(j_val);
+    }
+
+    json_decref(j_res);
+
+    return true;
+}
+
+
 
 /**
  * Return event type.

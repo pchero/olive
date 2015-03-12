@@ -425,11 +425,19 @@ static int init_service(void)
         return false;
     }
 
-    slog(LOG_DEBUG, "Load table agent.");
+    // load agent
     ret = load_table_agent();
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not load agent");
+        slog(LOG_ERR, "Could not load agent.");
+        return false;
+    }
+
+    // get device info
+    ret = cmd_devicestatelist();
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not load device state info.");
         return false;
     }
 
