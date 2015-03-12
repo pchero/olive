@@ -115,7 +115,7 @@ create table plan(
     detail      varchar(1023),          -- description
     dial_mode   varchar(255),           -- dial mode(desktop, power, predictive, robo)
     
-    dial_timeout    int,                -- no answer timeout
+    dial_timeout    int default 30,     -- no answer timeout
     caller_id   varchar(255),           -- show string as an caller
     
     -- retry number

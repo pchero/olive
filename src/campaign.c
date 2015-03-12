@@ -518,7 +518,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     free(tmp);
 
     // dial to
-    ret = asprintf(&tmp, "trycnt_%d", dial_num_point);
+    ret = asprintf(&tmp, "number_%d", dial_num_point);
     ret = asprintf(&dial_addr, "sip/%s@%s",
             json_string_value(json_object_get(j_dlist, tmp)),
             json_string_value(json_object_get(j_trunk, "name"))
@@ -527,21 +527,30 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     slog(LOG_INFO, "Dialing info. dial_addr[%s]", dial_addr);
     json_decref(j_trunk);
 
-    j_dial = json_pack("{s:s, s:s, s:s, s:s}"
+    ret = asprintf(&tmp, "%d", (int)json_integer_value(json_object_get(j_plan, "dial_timeout")));
+    slog(LOG_DEBUG, "Check info. dial_addr[%s], channel_id[%s], timeout[%s], timeout_org[%d]",
+            dial_addr, channel_id, tmp, (int)json_integer_value(json_object_get(j_plan, "dial_timeout"))
+            );
+    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
             "Channel", dial_addr,
             "ChannelId", channel_id,
-            "Exten", "s"
-            "Context", "olive_outbound_amd_default"
+            "Exten", "s",
+            "Context", "olive_outbound_amd_default",
+            "Priority", "1",
+            "Timeout", tmp
             );
-    free(channel_id);
-    free(dial_addr);
+    free(tmp);
 
-    slog(LOG_INFO, "Dialing. Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s]",
+    slog(LOG_INFO, "Dialing. Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s], dial_num[%s], channel[%s]",
             json_string_value(json_object_get(j_camp, "uuid")),
             json_string_value(json_object_get(j_camp, "name")),
             json_string_value(json_object_get(j_camp, "status")),
-            json_string_value(json_object_get(j_plan, "dial_mode"))
+            json_string_value(json_object_get(j_plan, "dial_mode")),
+            dial_addr,
+            channel_id
             );
+    free(channel_id);
+    free(dial_addr);
 
     ret = cmd_originate(j_dial);
     if(ret == false)
@@ -576,9 +585,18 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             "NULL"
             );
     json_decref(j_dial);
-    json_decref(j_dlist);
     ret = memdb_exec(sql);
     free(sql);
+
+    // update dial list status
+    ret = asprintf(&sql, "update %s set status = \"%s\" where uuid =\"%s\"",
+            json_string_value(json_object_get(j_dlma, "dl_list")),
+            "dialing",
+            json_string_value(json_object_get(j_dlist, "uuid"))
+            );
+    ret = db_exec(sql);
+    free(sql);
+    json_decref(j_dlist);
 
     return;
 

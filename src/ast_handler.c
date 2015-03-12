@@ -1139,6 +1139,7 @@ int cmd_originate(json_t* j_dial)
 	const char* tmp;
 	json_t* j_res;
 	json_error_t j_err;
+	json_t* j_tmp;
 
 	ret = asprintf(&cmd, "{\"Action\": \"Originate\", "
 			"\"Channel\": \"%s\", "
@@ -1196,7 +1197,8 @@ int cmd_originate(json_t* j_dial)
         return false;
     }
 
-    tmp = json_string_value(json_object_get(j_res, "Response"));
+    j_tmp = json_array_get(j_res, 0);
+    tmp = json_string_value(json_object_get(j_tmp, "Response"));
     if(tmp == NULL)
     {
         json_decref(j_res);
@@ -1207,8 +1209,8 @@ int cmd_originate(json_t* j_dial)
     if(ret != 0)
     {
     	slog(LOG_ERR, "Could not originate call. response[%s], message[%s]",
-    	                json_string_value(json_object_get(j_res, "Response")),
-						json_string_value(json_object_get(j_res, "Message"))
+    	                json_string_value(json_object_get(j_tmp, "Response")),
+						json_string_value(json_object_get(j_tmp, "Message"))
     	                );
     	json_decref(j_res);
     	return false;
@@ -1248,6 +1250,7 @@ json_t* cmd_getvar(
     const char* tmp;
     json_t* j_res;
     json_error_t j_err;
+    json_t* j_tmp;
 
     ret = asprintf(&cmd, "{\"Action\": \"Getvar\", "
             "\"Channel\": \"%s\", "
@@ -1274,11 +1277,13 @@ json_t* cmd_getvar(
         return NULL;
     }
 
-    tmp = json_string_value(json_object_get(j_res, "Response"));
+    j_tmp = json_deep_copy(json_array_get(j_res, 0));
+    json_decref(j_res);
+    tmp = json_string_value(json_object_get(j_tmp, "Response"));
     if(tmp == NULL)
     {
         slog(LOG_ERR, "Invalid response.");
-        json_decref(j_res);
+        json_decref(j_tmp);
         return NULL;
     }
 
@@ -1286,14 +1291,14 @@ json_t* cmd_getvar(
     if(ret != 0)
     {
         slog(LOG_ERR, "Could not Getvar. response[%s], message[%s]",
-                        json_string_value(json_object_get(j_res, "Response")),
-                        json_string_value(json_object_get(j_res, "Message"))
+                        json_string_value(json_object_get(j_tmp, "Response")),
+                        json_string_value(json_object_get(j_tmp, "Message"))
                         );
-        json_decref(j_res);
+        json_decref(j_tmp);
         return NULL;
     }
 
-    return j_res;
+    return j_tmp;
 }
 
 int cmd_hangup(
@@ -1316,6 +1321,7 @@ int cmd_hangup(
     int ret;
     char* res;
     const char* tmp;
+    json_t* j_res_org;
     json_t* j_res;
     json_error_t j_err;
 
@@ -1335,15 +1341,18 @@ int cmd_hangup(
         return false;
     }
 
-    j_res = json_loads(res, 0, &j_err);
+    j_res_org = json_loads(res, 0, &j_err);
     free(res);
-    if(j_res == NULL)
+    if(j_res_org == NULL)
     {
         slog(LOG_ERR, "Could not load result. column[%d], line[%d], position[%d], source[%s], text[%s]",
                 j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
                 );
         return false;
     }
+
+    j_res = json_deep_copy(json_array_get(j_res_org, 0));
+    json_decref(j_res_org);
 
     tmp = json_string_value(json_object_get(j_res, "Response"));
     if(tmp == NULL)
@@ -1391,6 +1400,7 @@ int cmd_blindtransfer(
     char* res;
     const char* tmp;
     json_t* j_res;
+    json_t* j_res_org;
     json_error_t j_err;
 
     ret = asprintf(&cmd, "{\"Action\": \"BlindTransfer\", "
@@ -1411,15 +1421,18 @@ int cmd_blindtransfer(
         return false;
     }
 
-    j_res = json_loads(res, 0, &j_err);
+    j_res_org = json_loads(res, 0, &j_err);
     free(res);
-    if(j_res == NULL)
+    if(j_res_org == NULL)
     {
         slog(LOG_ERR, "Could not load result. column[%d], line[%d], position[%d], source[%s], text[%s]",
                 j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
                 );
         return false;
     }
+
+    j_res = json_deep_copy(json_array_get(j_res_org, 0));
+    json_decref(j_res_org);
 
     tmp = json_string_value(json_object_get(j_res, "Response"));
     if(tmp == NULL)
@@ -1477,6 +1490,7 @@ int cmd_redirect(
     char* res;
     const char* tmp;
     json_t* j_res;
+    json_t* j_res_org;
     json_error_t j_err;
 
     ret = asprintf(&cmd, "{\"Action\": \"Redirect\", "
@@ -1505,15 +1519,19 @@ int cmd_redirect(
         return false;
     }
 
-    j_res = json_loads(res, 0, &j_err);
+    j_res_org = json_loads(res, 0, &j_err);
     free(res);
-    if(j_res == NULL)
+    if(j_res_org == NULL)
     {
         slog(LOG_ERR, "Could not load result. column[%d], line[%d], position[%d], source[%s], text[%s]",
                 j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
                 );
         return false;
     }
+
+    j_res = json_deep_copy(json_array_get(j_res_org, 0));
+    json_decref(j_res_org);
+
 
     tmp = json_string_value(json_object_get(j_res, "Response"));
     if(tmp == NULL)
