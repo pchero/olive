@@ -155,22 +155,18 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
 
     if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "desktop") == 0)
     {
-//        slog(LOG_INFO, "Destop dialing.");
         dial_desktop(j_camp, j_plan, j_dlma);
     }
     else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "power") == 0)
     {
-//        slog(LOG_INFO, "Power dialing.");
         dial_power(j_camp, j_plan, j_dlma);
     }
     else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "predictive") == 0)
     {
-//        slog(LOG_INFO, "Predictive dialing.");
         dial_predictive(j_camp, j_plan, j_dlma);
     }
     else if(strcmp(json_string_value(json_object_get(j_plan, "dial_mode")), "robo") == 0)
     {
-//        slog(LOG_INFO, "Robo dialing.");
         dial_robo(j_camp, j_plan, j_dlma);
     }
     else
@@ -413,7 +409,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     if(j_avail_agent == NULL)
     {
         // too much log..
-//        slog(LOG_DEBUG, "No available agent. Stop dialing.");
+        // No available agent
         return;
     }
     json_decref(j_avail_agent);
