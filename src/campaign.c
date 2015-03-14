@@ -384,6 +384,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     json_t* j_dial;
     char*   channel_id;
     char*   tmp;
+    char    try_cnt[128];   // string buffer for "trycnt_1"...
     uuid_t uuid;
     int i;
     int cur_trycnt;
@@ -393,8 +394,13 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     int dial_num_point;
 
     // get available agent(just figure out how many calls are can go at this moment)
-    ret = asprintf(&sql, "select * from agent where uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") and status=\"ready\" limit 1;",
-            json_string_value(json_object_get(j_camp, "agent_group"))
+    ret = asprintf(&sql, "select * from agent where "
+            "uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") "
+            "and status=\"%s\" "
+            "limit 1;",
+
+            json_string_value(json_object_get(j_camp, "agent_group")),
+            "ready"
             );
 
     db_res = db_query(sql);
@@ -408,8 +414,8 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     j_avail_agent = db_get_record(db_res);
     if(j_avail_agent == NULL)
     {
-        // too much log..
         // No available agent
+        // Don't set any log here. Too much log..
         return;
     }
     json_decref(j_avail_agent);
@@ -588,10 +594,13 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     ret = memdb_exec(sql);
     free(sql);
 
+    sprintf(try_cnt, "trycnt_%d", dial_num_point);
+
     // update dial list status
-    ret = asprintf(&sql, "update %s set status = \"%s\" where uuid =\"%s\"",
+    ret = asprintf(&sql, "update %s set status = \"%s\", %s = %s + 1 where uuid =\"%s\"",
             json_string_value(json_object_get(j_dlma, "dl_list")),
             "dialing",
+            try_cnt, try_cnt,
             json_string_value(json_object_get(j_dlist, "uuid"))
             );
     ret = db_exec(sql);

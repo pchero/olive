@@ -456,7 +456,7 @@ static int init_callback(void)
     struct timeval tm_slow = {0, 500000};   // 500 ms
 
     // fast
-    // campaign_running
+    // campaign start
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_start, NULL);
     event_add(ev, &tm_fast);
 
