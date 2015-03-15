@@ -143,24 +143,83 @@ char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
  */
 char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "-- identity\n"
-        "uuid        text,   -- channel uuid(channel-...)\n"    //
+        "uuid        text,   -- channel uuid(channel-..., made by olive, Uniqueid)\n"
         "camp_uuid   text,   -- campaign uuid\n"
         "dl_uuid text,       -- dl list uuid\n"
 
         "-- status\n"
-        "status      text,   -- dialing, parking..\n"
         "tm_dial     text,   -- dialing start time. \n"
         "tm_answer   text,   -- dial list answered time.\n"
         "tm_transfer text,   -- transfer start time.(to agent)\n"
-        "tm_transfered text, -- transfer end time(if agent answered)"
+        "tm_transfered text, -- transfer end time(if agent answered)\n"
 
         "dial_timeout    text,   -- dial timeout.(to be)\n"
         "voice_detection text,   -- voice answer detection result.\n"
         "agent_transfer  text,   -- transfered agent uuid\n"
 
+        "-- set by asterisk\n"
+        "name text,                     -- channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
+        "exten text,                    -- extension \n"
+        "connected_line_name text,      -- ConnectedLineName\n"
+        "connected_line_num text,       -- ConnectedLineNum\n"
+        "context text,                  -- Context\n"
+        "caller_id_num  text,           -- CallerIDNum\n"
+        "caller_id_name text,           -- CallerIDName\n"
+        "language   text,               -- Language\n"
+        "account_code text,             -- AccountCode\n"
+        "status text,                   -- ChannelState code\n"
+        "status_desc text,              -- ChannelStateDesc\n"
+        "hangup text default \"no\",    -- yes/no\n"
+        "cause_code text,               -- Hangup cause code\n"
+        "cause  text,                   -- Hangup cause\n"
+
+        "-- destination info\n"
+        "dest_chan_state text,          -- DestChannelStateDesc\n"
+        "dest_chan_state_code text,     -- DestChannelState\n"
+        "dest_caller_id_num text,       -- DestCallerIDNum\n"
+        "dest_caller_id_name text,      -- DestCallerIDName\n"
+        "dest_connected_line_num text,  -- DestConnectedLineNum\n"
+        "dest_connected_line_name text, -- DestConnectedLineName\n"
+        "dest_language text,            -- DestLanguage\n"
+        "dest_account_code text,        -- DestAccountCode\n"
+        "dest_context text,             -- DestContext\n"
+        "dest_exten text,               -- DestExten\n"
+        "dial_string text,              -- DialString\n"
+        "dial_status text,              -- DialStatus\n"
+
+        "-- VarSet values\n"
+        "SIPCALLID text,    -- SIPCALLID\n"
+        "AMDSTATUS text,    -- AMDSTATUS\n"
+        "AMDCAUSE  text,    -- AMDCAUSE\n"
+
         "primary key(uuid)\n"
         ");";
 
+/**
+ * parked call info table
+ */
+char* SQL_CREATE_PARK = "create table park(\n"
+        "channel text,              -- ParkeeChannel\n"
+        "channel_state text,        -- ParkeeChannelState\n"
+        "channel_state_desc text,   -- ParkeeChannelStateDesc\n"
+        "caller_id_num text,        -- ParkeeCallerIDNum\n"
+        "caller_id_name text,       -- ParkeeCallerIDName\n"
+        "connected_line_num text,   -- ParkeeConnectedLineNum\n"
+        "connected_line_name text,  -- ParkeeConnectedLineName\n"
+        "language text,             -- ParkeeLanguage\n"
+        "account_code text,         -- ParkeeAccountCode\n"
+        "context text,              -- ParkeeContext\n"
+        "exten text,                -- ParkeeExten\n"
+        "priority text,             -- ParkeePriority\n"
+        "unique_id text,            -- ParkeeUniqueid\n"
+        "dial_string text,          -- ParkerDialString\n"
+        "parking_lot text,          -- Parkinglot\n"
+        "parking_space text,        -- ParkingSpace\n"
+        "parking_timeout text,      -- ParkingTimeout\n"
+        "parking_duration text,     -- ParkingDuration\n"
+
+        "primary key(channel)\n"
+        ");";
 
 /**
  * Not use yet.

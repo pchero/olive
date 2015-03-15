@@ -291,7 +291,7 @@ void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void 
             break;
         }
 
-        ret = asprintf(&sql, "select * from channel where camp_uuid = \"%s\" and status = \"%s\";",
+        ret = asprintf(&sql, "select * from channel where camp_uuid = \"%s\" and status_desc = \"%s\";",
                 json_string_value(json_object_get(j_camp, "uuid")),
                 "dialing"
                 );
@@ -393,6 +393,8 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     memdb_res* mem_res;
     int dial_num_point;
 
+//    slog(LOG_DEBUG, "dial_predictive");
+
     // get available agent(just figure out how many calls are can go at this moment)
     ret = asprintf(&sql, "select * from agent where "
             "uuid = (select uuid_agent from agent_group where uuid_group=\"%s\") "
@@ -455,11 +457,15 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     free(sql);
     if(db_res == NULL)
     {
-    	slog(LOG_DEBUG, "No more list to dial");
+    	slog(LOG_ERR, "Could not get dial list info.");
     	return;
     }
     j_dlist = db_get_record(db_res);
     db_free(db_res);
+    if(j_dlist == NULL)
+    {
+        return;
+    }
 
     // get dial number
     dial_num_point = -1;
@@ -572,16 +578,16 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             "uuid, camp_uuid, dl_uuid, status, tm_dial, "
             "tm_answer, tm_transfer, dial_timeout, voice_detection"
             ")values("
-            "%s, %s, %s, %s, %s, "
-            "%s, %s, "
+            "\"%s\", \"%s\", \"%s\", \"%s\", %s, "
+            "\"%s\", \"%s\", "
             "strftime(\"%%s\", \"now\") + %d, "
-            "%s"
+            "\"%s\""
             ");",
             json_string_value(json_object_get(j_dial, "ChannelId")),
             json_string_value(json_object_get(j_camp, "uuid")),
             json_string_value(json_object_get(j_dlist, "uuid")),
             "dialing",
-            "datetime(\"now\"), ",
+            "datetime(\"now\")",
 
             "NULL",
             "NULL",
@@ -590,21 +596,31 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 
             "NULL"
             );
-    json_decref(j_dial);
     ret = memdb_exec(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not insert channel info into memdb.");
+        // Just going.
+    }
     free(sql);
 
     sprintf(try_cnt, "trycnt_%d", dial_num_point);
 
     // update dial list status
-    ret = asprintf(&sql, "update %s set status = \"%s\", %s = %s + 1 where uuid =\"%s\"",
+    ret = asprintf(&sql, "update %s set status = \"%s\", %s = %s + 1, chan_uuid = \"%s\" where uuid =\"%s\"",
             json_string_value(json_object_get(j_dlma, "dl_list")),
             "dialing",
             try_cnt, try_cnt,
+            json_string_value(json_object_get(j_dial, "ChannelId")),
             json_string_value(json_object_get(j_dlist, "uuid"))
             );
     ret = db_exec(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not insert channel info into db.");
+    }
     free(sql);
+    json_decref(j_dial);
     json_decref(j_dlist);
 
     return;

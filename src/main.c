@@ -536,6 +536,14 @@ static int init_memdb(void)
         return false;
     }
 
+    // park table
+    ret = memdb_exec(SQL_CREATE_PARK);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not create table park.");
+        return false;
+    }
+
     return true;
 }
 

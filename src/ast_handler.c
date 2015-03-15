@@ -42,7 +42,12 @@ static void evt_fullybooted(json_t* j_recv);
 static void evt_reload(json_t* j_recv);
 static void evt_registry(json_t* j_recv);
 static void evt_parkedcall(json_t* j_recv);
-
+static void evt_newchannel(json_t* j_recv);
+static void evt_varset(json_t* j_recv);
+static void evt_hangup(json_t* j_recv);
+static void evt_newstate(json_t* j_recv);
+static void evt_dialbegin(json_t* j_recv);
+static void evt_dialend(json_t* j_recv);
 
 
 /**
@@ -155,18 +160,24 @@ static void ast_recv_handler(json_t* j_evt)
 
     switch(type)
     {
-        case PeerStatus:
-        {
-            // Update peer information
-            slog(LOG_DEBUG, "PeerStatus.");
-            evt_peerstatus(j_evt);
-        }
-        break;
-
         case DeviceStateChange:
         {
             slog(LOG_DEBUG, "DeviceStateChange.");
             evt_devicestatechange(j_evt);
+        }
+        break;
+
+        case DialBegin:
+        {
+            slog(LOG_DEBUG, "DialBegin.");
+            evt_dialbegin(j_evt);
+        }
+        break;
+
+        case DialEnd:
+        {
+            slog(LOG_DEBUG, "DialEnd.");
+            evt_dialend(j_evt);
         }
         break;
 
@@ -177,10 +188,39 @@ static void ast_recv_handler(json_t* j_evt)
         }
         break;
 
+        case Hangup:
+        {
+            slog(LOG_DEBUG, "Hangup.");
+            evt_hangup(j_evt);
+        }
+        break;
+
+        case Newchannel:
+        {
+            slog(LOG_DEBUG, "Newchannel.");
+            evt_newchannel(j_evt);
+        }
+        break;
+
+        case Newstate:
+        {
+            slog(LOG_DEBUG, "NewState.");
+            evt_newstate(j_evt);
+        }
+        break;
+
         case ParkedCall:
         {
             slog(LOG_DEBUG, "ParkedCall.");
             evt_parkedcall(j_evt);
+        }
+        break;
+
+        case PeerStatus:
+        {
+            // Update peer information
+            slog(LOG_DEBUG, "PeerStatus.");
+            evt_peerstatus(j_evt);
         }
         break;
 
@@ -209,6 +249,13 @@ static void ast_recv_handler(json_t* j_evt)
         {
             slog(LOG_DEBUG, "SuccessfulAuth");
             evt_successfulauth(j_evt);
+        }
+        break;
+
+        case VarSet:
+        {
+            slog(LOG_DEBUG, "VarSet");
+            evt_varset(j_evt);
         }
         break;
 
@@ -285,77 +332,6 @@ int ast_load_registry(void)
     ret = cmd_sipshowregistry();
 
     return ret;
-}
-
-static void evt_parkedcall(json_t* j_recv)
-{
-//    Raised when a channel is parked.
-
-//    Event: ParkedCall
-//    ParkeeChannel: <value>
-//    ParkeeChannelState: <value>
-//    ParkeeChannelStateDesc: <value>
-//    ParkeeCallerIDNum: <value>
-//    ParkeeCallerIDName: <value>
-//    ParkeeConnectedLineNum: <value>
-//    ParkeeConnectedLineName: <value>
-//    ParkeeAccountCode: <value>
-//    ParkeeContext: <value>
-//    ParkeeExten: <value>
-//    ParkeePriority: <value>
-//    ParkeeUniqueid: <value>
-//    ParkerDialString: <value>
-//    Parkinglot: <value>
-//    ParkingSpace: <value>
-//    ParkingTimeout: <value>
-//    ParkingDuration: <value>
-
-
-//    ParkeeChannel
-//    ParkeeChannelState - A numeric code for the channel's current state, related to ParkeeChannelStateDesc
-//    ParkeeChannelStateDesc
-//        Down
-//        Rsrvd
-//        OffHook
-//        Dialing
-//        Ring
-//        Ringing
-//        Up
-//        Busy
-//        Dialing Offhook
-//        Pre-ring
-//        Unknown
-//    ParkeeCallerIDNum
-//    ParkeeCallerIDName
-//    ParkeeConnectedLineNum
-//    ParkeeConnectedLineName
-//    ParkeeAccountCode
-//    ParkeeContext
-//    ParkeeExten
-//    ParkeePriority
-//    ParkeeUniqueid
-//    ParkerDialString - Dial String that can be used to call back the parker on ParkingTimeout.
-//    Parkinglot - Name of the parking lot that the parkee is parked in
-//    ParkingSpace - Parking Space that the parkee is parked in
-//    ParkingTimeout - Time remaining until the parkee is forcefully removed from parking in seconds
-//    ParkingDuration - Time the parkee has been in the parking bridge (in seconds)
-
-    char* sql;
-    int ret;
-
-    ret = asprintf(&sql, "update channel set status=\"parked\" where uuid=\"%s\";",
-            json_string_value(json_object_get(j_recv, "ParkeeChannel"))
-            );
-
-    ret = memdb_exec(sql);
-    free(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not update parkedcall.");
-        return;
-    }
-
-    return;
 }
 
 /**
@@ -586,32 +562,32 @@ static void evt_reload(json_t* j_recv)
 //    Module: chan_sip.so
 //    Status: 2
 
-	int ret;
+    int ret;
 
-	if(strcmp(json_string_value(json_object_get(j_recv, "Module")), "chan_sip.so") == 0)
-	{
-		// chan_sip reloaded.
-		slog(LOG_INFO, "Module reloaded. chan_sip.so.");
+    if(strcmp(json_string_value(json_object_get(j_recv, "Module")), "chan_sip.so") == 0)
+    {
+        // chan_sip reloaded.
+        slog(LOG_INFO, "Module reloaded. chan_sip.so.");
 
-	    ret = ast_load_peers();
-	    if(ret != true)
-	    {
-	        slog(LOG_ERR, "Could not load peer information.");
-	    }
-	    slog(LOG_DEBUG, "Complete load peer information");
+        ret = ast_load_peers();
+        if(ret != true)
+        {
+            slog(LOG_ERR, "Could not load peer information.");
+        }
+        slog(LOG_DEBUG, "Complete load peer information");
 
-	    ret = ast_load_registry();
-	    if(ret != true)
-	    {
-	        slog(LOG_ERR, "Could not load registry information");
-	    }
-	}
+        ret = ast_load_registry();
+        if(ret != true)
+        {
+            slog(LOG_ERR, "Could not load registry information");
+        }
+    }
 
     return;
 }
 
 /**
- * @brief FullyBooted
+ * @brief Registry
  * @param j_recv
  */
 static void evt_registry(json_t* j_recv)
@@ -642,7 +618,7 @@ static void evt_registry(json_t* j_recv)
     char* sql;
 
     ret = asprintf(&sql, "update registry set state = \"%s\" where user_name = \"%s\" and domain_name = \"%s\";",
-    		json_string_value(json_object_get(j_recv, "Status")),
+            json_string_value(json_object_get(j_recv, "Status")),
             json_string_value(json_object_get(j_recv, "Username")),
             json_string_value(json_object_get(j_recv, "Domain"))
             );
@@ -651,11 +627,798 @@ static void evt_registry(json_t* j_recv)
     free(sql);
     if(ret == false)
     {
-        slog(LOG_ERR, "Coult not update evt_registry");
+        slog(LOG_ERR, "could not update evt_registry");
         return;
     }
     return;
 }
+
+/**
+ * @brief Newchannel
+ * @param j_recv
+ */
+static void evt_newchannel(json_t* j_recv)
+{
+
+//    Raised when a new channel is created..
+
+//    Event: Newchannel
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+
+
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "update channel set "
+            "name = \"%s\", "
+            "exten = \"%s\", "
+            "connected_line_name = \"%s\", "
+            "connected_line_num = \"%s\", "
+            "context = \"%s\", "
+
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "language = \"%s\", "
+            "account_code = \"%s\", "
+            "status= \"%s\", "
+
+            "status_desc = \"%s\""
+
+            "where uuid = \"%s\";",
+
+            json_string_value(json_object_get(j_recv, "Channel")),
+            json_string_value(json_object_get(j_recv, "Exten")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
+            json_string_value(json_object_get(j_recv, "Context")),
+
+            json_string_value(json_object_get(j_recv, "CallerIDNum")),
+            json_string_value(json_object_get(j_recv, "CallerIDName")),
+            json_string_value(json_object_get(j_recv, "Language")),
+            json_string_value(json_object_get(j_recv, "AccountCode")),
+            json_string_value(json_object_get(j_recv, "ChannelState")),
+
+            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
+
+            json_string_value(json_object_get(j_recv, "Uniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "could not update evt_newchannel");
+    }
+    return;
+}
+
+/**
+ * @brief VarSet
+ * @param j_recv
+ */
+static void evt_varset(json_t* j_recv)
+{
+
+//    Raised when a variable local to the gosub stack frame is set due to a subroutine call.
+
+//    Event: VarSet
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+//    Variable: <value>
+//    Value: <value>
+
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+//    Variable - The LOCAL variable being set.
+
+    int ret;
+    char* sql;
+
+    // check variable
+//    if(strcmp(json_string_value(json_object_get(j_recv, "Variable")), "SIPCALLID") != 0)
+//    {
+//        slog(LOG_INFO, "No support variable set.");
+//        return;
+//    }
+
+    ret = asprintf(&sql, "update channel set "
+            "name = \"%s\", "
+            "exten = \"%s\", "
+            "connected_line_name = \"%s\", "
+            "connected_line_num = \"%s\", "
+            "context = \"%s\", "
+
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "language = \"%s\", "
+            "account_code = \"%s\", "
+            "status = \"%s\", "
+
+            "status_desc = \"%s\","
+
+            "%s = \"%s\" "
+
+            "where uuid = \"%s\";",
+
+            json_string_value(json_object_get(j_recv, "Channel")),
+            json_string_value(json_object_get(j_recv, "Exten")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
+            json_string_value(json_object_get(j_recv, "Context")),
+
+            json_string_value(json_object_get(j_recv, "CallerIDNum")),
+            json_string_value(json_object_get(j_recv, "CallerIDName")),
+            json_string_value(json_object_get(j_recv, "Language")),
+            json_string_value(json_object_get(j_recv, "AccountCode")),
+            json_string_value(json_object_get(j_recv, "ChannelState")),
+
+            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
+
+            json_string_value(json_object_get(j_recv, "Variable")),
+            json_string_value(json_object_get(j_recv, "Value")),
+
+            json_string_value(json_object_get(j_recv, "Uniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "could not update evt_newchannel");
+    }
+    return;
+}
+
+/**
+ * @brief Hangup
+ * @param j_recv
+ */
+static void evt_hangup(json_t* j_recv)
+{
+
+//    Raised when a channel is hung up.
+
+//    Event: Hangup
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+//    Cause: <value>
+//    Cause-txt: <value>
+
+
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+//    Cause - A numeric cause code for why the channel was hung up.
+//    Cause-txt - A description of why the channel was hung up.
+
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "update channel set "
+            "name = \"%s\", "
+            "exten = \"%s\", "
+            "connected_line_name = \"%s\", "
+            "connected_line_num = \"%s\", "
+            "context = \"%s\", "
+
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "language = \"%s\", "
+            "account_code = \"%s\", "
+            "status = \"%s\", "
+
+            "status_desc = \"%s\", "
+            "hangup = \"%s\", "
+            "cause_code = \"%s\", "
+            "cause = \"%s\" "
+
+            "where uuid = \"%s\";",
+
+            json_string_value(json_object_get(j_recv, "Channel")),
+            json_string_value(json_object_get(j_recv, "Exten")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
+            json_string_value(json_object_get(j_recv, "Context")),
+
+            json_string_value(json_object_get(j_recv, "CallerIDNum")),
+            json_string_value(json_object_get(j_recv, "CallerIDName")),
+            json_string_value(json_object_get(j_recv, "Language")),
+            json_string_value(json_object_get(j_recv, "AccountCode")),
+            json_string_value(json_object_get(j_recv, "ChannelState")),
+
+            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
+            "yes",
+            json_string_value(json_object_get(j_recv, "Cause")),
+            json_string_value(json_object_get(j_recv, "Cause-txt")),
+
+            json_string_value(json_object_get(j_recv, "Uniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_hangup.");
+    }
+    return;
+}
+
+
+/**
+ * @brief Newstate
+ * @param j_recv
+ */
+static void evt_newstate(json_t* j_recv)
+{
+
+//    Raised when a channel's state changes.
+
+//    Event: Newstate
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+
+
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+
+
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "update channel set "
+            "status = \"%s\", "
+            "status_desc = \"%s\", "
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "connected_line_num = \"%s\", "
+
+            "connected_line_name = \"%s\", "
+            "account_code = \"%s\", "
+            "context = \"%s\", "
+            "exten = \"%s\" "
+
+            "where name = \"%s\";",
+
+            json_string_value(json_object_get(j_recv, "ChannelState")),
+            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "CallerIDNum")),
+            json_string_value(json_object_get(j_recv, "CallerIDName")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "AccountCode")),
+            json_string_value(json_object_get(j_recv, "Context")),
+            json_string_value(json_object_get(j_recv, "Exten")),
+
+            json_string_value(json_object_get(j_recv, "Channel"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_newstate.");
+    }
+    return;
+}
+
+
+/**
+ * @brief DialBegin
+ * @param j_recv
+ */
+static void evt_dialbegin(json_t* j_recv)
+{
+
+//    Raised when a dial action has started.
+
+//    Event: DialBegin
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+//    DestChannel: <value>
+//    DestChannelState: <value>
+//    DestChannelStateDesc: <value>
+//    DestCallerIDNum: <value>
+//    DestCallerIDName: <value>
+//    DestConnectedLineNum: <value>
+//    DestConnectedLineName: <value>
+//    DestAccountCode: <value>
+//    DestContext: <value>
+//    DestExten: <value>
+//    DestPriority: <value>
+//    DestUniqueid: <value>
+//    DialString: <value>
+
+
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+//    DestChannel
+//    DestChannelState - A numeric code for the channel's current state, related to DestChannelStateDesc
+//    DestChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    DestCallerIDNum
+//    DestCallerIDName
+//    DestConnectedLineNum
+//    DestConnectedLineName
+//    DestAccountCode
+//    DestContext
+//    DestExten
+//    DestPriority
+//    DestUniqueid
+//    DialString - The non-technology specific device being dialed.
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "update channel set "
+            "dest_chan_state = \"%s\", "
+            "dest_chan_state_code = \"%s\", "
+            "dest_caller_id_num = \"%s\", "
+            "dest_caller_id_name = \"%s\", "
+            "dest_connected_line_num = \"%s\", "
+
+            "dest_connected_line_name = \"%s\", "
+            "dest_language = \"%s\", "
+            "dest_account_code = \"%s\", "
+            "dest_context = \"%s\", "
+            "dest_exten = \"%s\", "
+
+            "dial_string = \"%s\" "
+
+            "where name = \"%s\";",
+
+            json_string_value(json_object_get(j_recv, "DestChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "DestChannelState")),
+            json_string_value(json_object_get(j_recv, "DestCallerIDNum")),
+            json_string_value(json_object_get(j_recv, "DestCallerIDName")),
+            json_string_value(json_object_get(j_recv, "DestConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "DestConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "DestLanguage")),
+            json_string_value(json_object_get(j_recv, "DestAccountCode")),
+            json_string_value(json_object_get(j_recv, "DestContext")),
+            json_string_value(json_object_get(j_recv, "DestExten")),
+
+            json_string_value(json_object_get(j_recv, "DialString")),
+
+            json_string_value(json_object_get(j_recv, "DestChannel"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_dialbegin.");
+    }
+    return;
+}
+
+/**
+ * @brief DialEnd
+ * @param j_recv
+ */
+static void evt_dialend(json_t* j_recv)
+{
+
+//    Raised when a dial action has completed.
+
+//    Event: DialEnd
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+//    DestChannel: <value>
+//    DestChannelState: <value>
+//    DestChannelStateDesc: <value>
+//    DestCallerIDNum: <value>
+//    DestCallerIDName: <value>
+//    DestConnectedLineNum: <value>
+//    DestConnectedLineName: <value>
+//    DestAccountCode: <value>
+//    DestContext: <value>
+//    DestExten: <value>
+//    DestPriority: <value>
+//    DestUniqueid: <value>
+//    DialStatus: <value>
+//    [Forward:] <value>
+
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+//    DestChannel
+//    DestChannelState - A numeric code for the channel's current state, related to DestChannelStateDesc
+//    DestChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    DestCallerIDNum
+//    DestCallerIDName
+//    DestConnectedLineNum
+//    DestConnectedLineName
+//    DestAccountCode
+//    DestContext
+//    DestExten
+//    DestPriority
+//    DestUniqueid
+//    DialStatus - The result of the dial operation.
+//        ABORT - The call was aborted.
+//        ANSWER - The caller answered.
+//        BUSY - The caller was busy.
+//        CANCEL - The caller cancelled the call.
+//        CHANUNAVAIL - The requested channel is unavailable.
+//        CONGESTION - The called party is congested.
+//        CONTINUE - The dial completed, but the caller elected to continue in the dialplan.
+//        GOTO - The dial completed, but the caller jumped to a dialplan location.
+//        If known, the location the caller is jumping to will be appended to the result following a ":".
+//        NOANSWER - The called party failed to answer.
+//    Forward - If the call was forwarded, where the call was forwarded to.
+
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "update channel set "
+            "dest_chan_state = \"%s\", "
+            "dest_chan_state_code = \"%s\", "
+            "dest_caller_id_num = \"%s\", "
+            "dest_caller_id_name = \"%s\", "
+            "dest_connected_line_num = \"%s\", "
+
+            "dest_connected_line_name = \"%s\", "
+            "dest_language = \"%s\", "
+            "dest_account_code = \"%s\", "
+            "dest_context = \"%s\", "
+            "dest_exten = \"%s\", "
+
+            "dial_status = \"%s\" "
+
+            "where name = \"%s\";",
+
+            json_string_value(json_object_get(j_recv, "DestChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "DestChannelState")),
+            json_string_value(json_object_get(j_recv, "DestCallerIDNum")),
+            json_string_value(json_object_get(j_recv, "DestCallerIDName")),
+            json_string_value(json_object_get(j_recv, "DestConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "DestConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "DestLanguage")),
+            json_string_value(json_object_get(j_recv, "DestAccountCode")),
+            json_string_value(json_object_get(j_recv, "DestContext")),
+            json_string_value(json_object_get(j_recv, "DestExten")),
+
+            json_string_value(json_object_get(j_recv, "DialStatus")),
+
+            json_string_value(json_object_get(j_recv, "DestChannel"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_dialend.");
+    }
+    return;
+}
+
+/**
+ * @brief ParkedCall
+ * @param j_recv
+ */
+static void evt_parkedcall(json_t* j_recv)
+{
+
+//    Raised when a channel is parked.
+
+//    Event: ParkedCall
+//    ParkeeChannel: <value>
+//    ParkeeChannelState: <value>
+//    ParkeeChannelStateDesc: <value>
+//    ParkeeCallerIDNum: <value>
+//    ParkeeCallerIDName: <value>
+//    ParkeeConnectedLineNum: <value>
+//    ParkeeConnectedLineName: <value>
+//    ParkeeAccountCode: <value>
+//    ParkeeContext: <value>
+//    ParkeeExten: <value>
+//    ParkeePriority: <value>
+//    ParkeeUniqueid: <value>
+//    ParkerDialString: <value>
+//    Parkinglot: <value>
+//    ParkingSpace: <value>
+//    ParkingTimeout: <value>
+//    ParkingDuration: <value>
+
+
+//    ParkeeChannel
+//    ParkeeChannelState - A numeric code for the channel's current state, related to ParkeeChannelStateDesc
+//    ParkeeChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    ParkeeCallerIDNum
+//    ParkeeCallerIDName
+//    ParkeeConnectedLineNum
+//    ParkeeConnectedLineName
+//    ParkeeAccountCode
+//    ParkeeContext
+//    ParkeeExten
+//    ParkeePriority
+//    ParkeeUniqueid
+//    ParkerDialString - Dial String that can be used to call back the parker on ParkingTimeout.
+//    Parkinglot - Name of the parking lot that the parkee is parked in
+//    ParkingSpace - Parking Space that the parkee is parked in
+//    ParkingTimeout - Time remaining until the parkee is forcefully removed from parking in seconds
+//    ParkingDuration - Time the parkee has been in the parking bridge (in seconds)
+
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "insert into park("
+            "channel, channel_state, channel_state_desc, caller_id_num, caller_id_name, "
+            "connected_line_num, connected_line_name, language, account_code, context, "
+            "exten, priority, unique_id, dial_string, parking_lot, "
+            "parking_space, parking_timeout, parking_duration"
+            ") values ("
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\""
+            ");",
+            json_string_value(json_object_get(j_recv, "ParkeeChannel")),
+            json_string_value(json_object_get(j_recv, "ParkeeChannelState")),
+            json_string_value(json_object_get(j_recv, "ParkeeChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDNum")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDName")),
+
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineNum")),
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ParkeeLanguage")),
+            json_string_value(json_object_get(j_recv, "ParkeeAccountCode")),
+            json_string_value(json_object_get(j_recv, "ParkeeContext")),
+
+            json_string_value(json_object_get(j_recv, "ParkeeExten")),
+            json_string_value(json_object_get(j_recv, "ParkeePriority")),
+            json_string_value(json_object_get(j_recv, "ParkeeUniqueid")),
+            json_string_value(json_object_get(j_recv, "ParkerDialString")),
+            json_string_value(json_object_get(j_recv, "Parkinglot")),
+
+            json_string_value(json_object_get(j_recv, "ParkingSpace")),
+            json_string_value(json_object_get(j_recv, "ParkingTimeout")),
+            json_string_value(json_object_get(j_recv, "ParkingDuration"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_dialend.");
+    }
+    return;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////              command                 ////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * @brief    Action: SIPpeers
@@ -1020,7 +1783,7 @@ int cmd_sipshowpeer(const char* peer)
 }
 
 /**
- * @brief 	Action: SIPshowregistry
+ * @brief     Action: SIPshowregistry
  * @return  success:true, fail:false
  */
 int cmd_sipshowregistry(void)
@@ -1104,11 +1867,32 @@ int cmd_sipshowregistry(void)
 }
 
 /**
- * @brief	Action: Originate.
- * @return	success:true, fail:false
+ * @brief    Action: Originate.
+ * @return    success:true, fail:false
  */
 int cmd_originate(json_t* j_dial)
 {
+
+//    Generates an outgoing call to a Extension/Context/Priority or Application/Data
+
+//    Action: Originate
+//    ActionID: <value>
+//    Channel: <value>
+//    Exten: <value>
+//    Context: <value>
+//    Priority: <value>
+//    Application: <value>
+//    Data: <value>
+//    Timeout: <value>
+//    CallerID: <value>
+//    Variable: <value>
+//    Account: <value>
+//    EarlyMedia: <value>
+//    Async: <value>
+//    Codecs: <value>
+//    ChannelId: <value>
+//    OtherChannelId: <value>
+
 
 //    ActionID - ActionID for this transaction. Will be returned.
 //    Channel - Channel name to call.
@@ -1127,57 +1911,59 @@ int cmd_originate(json_t* j_dial)
 //    ChannelId - Channel UniqueId to be set on the channel.
 //    OtherChannelId - Channel UniqueId to be set on the second local channel.
 
+
+
 // <Example>
 // Action: Originate
 // Channel: Local/1@dummy
 // Application: ((Asterisk cmd System|System))
 // Data: /path/to/script
 
-	char* cmd;
-	int ret;
-	char* res;
-	const char* tmp;
-	json_t* j_res;
-	json_error_t j_err;
-	json_t* j_tmp;
+    char* cmd;
+    int ret;
+    char* res;
+    const char* tmp;
+    json_t* j_res;
+    json_error_t j_err;
+    json_t* j_tmp;
 
-	ret = asprintf(&cmd, "{\"Action\": \"Originate\", "
-			"\"Channel\": \"%s\", "
-			"\"Application\": \"%s\", "
-			"\"Data\": \"%s\", "
-			"\"Timeout\": \"%s\", "
-			"\"CallerID\": \"%s\", "
+    ret = asprintf(&cmd, "{\"Action\": \"Originate\", "
+            "\"Channel\": \"%s\", "
+            "\"Application\": \"%s\", "
+            "\"Data\": \"%s\", "
+            "\"Timeout\": \"%s\", "
+            "\"CallerID\": \"%s\", "
 
-			"\"Variable\": \"%s\", "
-			"\"Account\": \"%s\", "
-			"\"EarlyMedia\": \"%s\", "
-			"\"Async\": \"%s\", "
-			"\"Codecs\": \"%s\", "
+            "\"Variable\": \"%s\", "
+            "\"Account\": \"%s\", "
+            "\"EarlyMedia\": \"%s\", "
+            "\"Async\": \"%s\", "
+            "\"Codecs\": \"%s\", "
 
-			"\"ChannelId\": \"%s\", "
-			"\"OtherChannelId\": \"%s\","
-			"\"Exten\": \"%s\","
-			"\"Context\": \"%s\","
-			"\"Priority\": \"%s\""
-			"}",
-			json_string_value(json_object_get(j_dial, "Channel")),
-			json_string_value(json_object_get(j_dial, "Application")),
-			json_string_value(json_object_get(j_dial, "Data")),
-			json_string_value(json_object_get(j_dial, "Timeout")),
-			json_string_value(json_object_get(j_dial, "CallerID")),
+            "\"ChannelId\": \"%s\", "
+            "\"OtherChannelId\": \"%s\", "
+            "\"Exten\": \"%s\", "
+            "\"Context\": \"%s\", "
+            "\"Priority\": \"%s\""
+            "}",
+            json_string_value(json_object_get(j_dial, "Channel"))? : "",
+            json_string_value(json_object_get(j_dial, "Application"))? : "",
+            json_string_value(json_object_get(j_dial, "Data"))? : "",
+            json_string_value(json_object_get(j_dial, "Timeout"))? : "",
+            json_string_value(json_object_get(j_dial, "CallerID"))? : "",
 
-			json_string_value(json_object_get(j_dial, "Variable")),
-			json_string_value(json_object_get(j_dial, "Account")),
-			json_string_value(json_object_get(j_dial, "EarlyMedia")),
-			"true",	// Async must be set to "true"
-			json_string_value(json_object_get(j_dial, "Codecs")),
+            json_string_value(json_object_get(j_dial, "Variable"))? : "",
+            json_string_value(json_object_get(j_dial, "Account"))? : "",
+            json_string_value(json_object_get(j_dial, "EarlyMedia"))? : "",
+            "true",    // Async must be set to "true"
+            json_string_value(json_object_get(j_dial, "Codecs"))? : "",
 
-			json_string_value(json_object_get(j_dial, "ChannelId")),
-			json_string_value(json_object_get(j_dial, "OtherChannelId")),
-			json_string_value(json_object_get(j_dial, "Exten")),
-			json_string_value(json_object_get(j_dial, "Context")),
-			json_string_value(json_object_get(j_dial, "Priority"))
-			);
+            json_string_value(json_object_get(j_dial, "ChannelId"))? : "",
+            json_string_value(json_object_get(j_dial, "OtherChannelId"))? : "",
+            json_string_value(json_object_get(j_dial, "Exten"))? : "",
+            json_string_value(json_object_get(j_dial, "Context"))? : "",
+            json_string_value(json_object_get(j_dial, "Priority"))? : ""
+            );
     res = ast_send_cmd(cmd);
     if(res == NULL)
     {
@@ -1202,22 +1988,22 @@ int cmd_originate(json_t* j_dial)
     if(tmp == NULL)
     {
         json_decref(j_res);
-    	return false;
+        return false;
     }
 
     ret = strcmp(tmp, "Success");
     if(ret != 0)
     {
-    	slog(LOG_ERR, "Could not originate call. response[%s], message[%s]",
-    	                json_string_value(json_object_get(j_tmp, "Response")),
-						json_string_value(json_object_get(j_tmp, "Message"))
-    	                );
-    	json_decref(j_res);
-    	return false;
+        slog(LOG_ERR, "Could not originate call. response[%s], message[%s]",
+                        json_string_value(json_object_get(j_tmp, "Response")),
+                        json_string_value(json_object_get(j_tmp, "Message"))
+                        );
+        json_decref(j_res);
+        return false;
     }
     json_decref(j_res);
 
-	return true;
+    return true;
 }
 
 /**

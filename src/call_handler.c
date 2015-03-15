@@ -37,7 +37,7 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
 
 
     // get parked calls
-    mem_pcalls = memdb_query("select * from channel where status=\"parked\" order by tm_dial;");
+    mem_pcalls = memdb_query("select * from channel where status_desc=\"parked\" order by tm_dial;");
     if(mem_pcalls == NULL)
     {
         // error

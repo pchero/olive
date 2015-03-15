@@ -115,7 +115,7 @@ create table plan(
     detail      varchar(1023),          -- description
     dial_mode   varchar(255),           -- dial mode(desktop, power, predictive, robo)
     
-    dial_timeout    int default 30,     -- no answer timeout
+    dial_timeout    int default 30000, -- no answer timeout(30000 ms = 30 second)
     caller_id   varchar(255),           -- show string as an caller
     
     -- retry number
@@ -190,6 +190,8 @@ create table dl_org(
     status      varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
     
     call_detail text,               -- more detail info about call result
+    
+    chan_uuid   varchar(255),       -- dialing channel id.
     
     primary key(seq, uuid)
 );
