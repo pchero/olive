@@ -100,13 +100,11 @@ bool init_slog(
         return false;
     }
 
-
-
     return true;
 }
 
 /**
- *
+ * log interface.
  * @param _FILE
  * @param _LINE
  * @param _func
@@ -141,11 +139,18 @@ void _slog(const char *_FILE, int _LINE, const char *_func, uint64_t level, cons
     s_send(g_slog_zsock, g_logbuf);
 }
 
+/**
+ * Set log level
+ * @param level
+ */
 void slog_set_loglevel(LOG_LEVEL level)
 {
     g_loglevel = level;
 }
 
+/**
+ * Terminate log.
+ */
 void slog_exit(void)
 {
     zmq_close(g_slog_zsock);

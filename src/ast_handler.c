@@ -48,6 +48,9 @@ static void evt_hangup(json_t* j_recv);
 static void evt_newstate(json_t* j_recv);
 static void evt_dialbegin(json_t* j_recv);
 static void evt_dialend(json_t* j_recv);
+static void evt_parkedcalltimeout(json_t* j_recv);
+static void evt_parkedcallgiveup(json_t* j_recv);
+
 
 
 /**
@@ -213,6 +216,20 @@ static void ast_recv_handler(json_t* j_evt)
         {
             slog(LOG_DEBUG, "ParkedCall.");
             evt_parkedcall(j_evt);
+        }
+        break;
+
+        case ParkedCallGiveUp:
+        {
+            slog(LOG_DEBUG, "ParkedCallGiveUp.");
+            evt_parkedcallgiveup(j_evt);
+        }
+        break;
+
+        case ParkedCallTimeOut:
+        {
+            slog(LOG_DEBUG, "ParkedCallTimeOut.");
+            evt_parkedcalltimeout(j_evt);
         }
         break;
 
@@ -1409,6 +1426,231 @@ static void evt_parkedcall(json_t* j_recv)
     if(ret == false)
     {
         slog(LOG_ERR, "Could not update evt_dialend.");
+    }
+    return;
+}
+
+/**
+ * @brief ParkedCallTimeOut
+ * @param j_recv
+ */
+static void evt_parkedcalltimeout(json_t* j_recv)
+{
+
+//    Raised when a channel leaves a parking lot due to reaching the time limit of being parked.
+
+//    Event: ParkedCallTimeOut
+//    ParkeeChannel: <value>
+//    ParkeeChannelState: <value>
+//    ParkeeChannelStateDesc: <value>
+//    ParkeeCallerIDNum: <value>
+//    ParkeeCallerIDName: <value>
+//    ParkeeConnectedLineNum: <value>
+//    ParkeeConnectedLineName: <value>
+//    ParkeeAccountCode: <value>
+//    ParkeeContext: <value>
+//    ParkeeExten: <value>
+//    ParkeePriority: <value>
+//    ParkeeUniqueid: <value>
+//    ParkerChannel: <value>
+//    ParkerChannelState: <value>
+//    ParkerChannelStateDesc: <value>
+//    ParkerCallerIDNum: <value>
+//    ParkerCallerIDName: <value>
+//    ParkerConnectedLineNum: <value>
+//    ParkerConnectedLineName: <value>
+//    ParkerAccountCode: <value>
+//    ParkerContext: <value>
+//    ParkerExten: <value>
+//    ParkerPriority: <value>
+//    ParkerUniqueid: <value>
+//    ParkerDialString: <value>
+//    Parkinglot: <value>
+//    ParkingSpace: <value>
+//    ParkingTimeout: <value>
+//    ParkingDuration: <value>
+
+
+//    ParkeeChannel
+//    ParkeeChannelState - A numeric code for the channel's current state, related to ParkeeChannelStateDesc
+//    ParkeeChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    ParkeeCallerIDNum
+//    ParkeeCallerIDName
+//    ParkeeConnectedLineNum
+//    ParkeeConnectedLineName
+//    ParkeeAccountCode
+//    ParkeeContext
+//    ParkeeExten
+//    ParkeePriority
+//    ParkeeUniqueid
+//    ParkerChannel
+//    ParkerChannelState - A numeric code for the channel's current state, related to ParkerChannelStateDesc
+//    ParkerChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    ParkerCallerIDNum
+//    ParkerCallerIDName
+//    ParkerConnectedLineNum
+//    ParkerConnectedLineName
+//    ParkerAccountCode
+//    ParkerContext
+//    ParkerExten
+//    ParkerPriority
+//    ParkerUniqueid
+//    ParkerDialString - Dial String that can be used to call back the parker on ParkingTimeout.
+//    Parkinglot - Name of the parking lot that the parkee is parked in
+//    ParkingSpace - Parking Space that the parkee is parked in
+//    ParkingTimeout - Time remaining until the parkee is forcefully removed from parking in seconds
+//    ParkingDuration - Time the parkee has been in the parking bridge (in seconds)
+
+
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "delete from park where "
+            "channel = \"%s\""
+            ";",
+            json_string_value(json_object_get(j_recv, "ParkeeChannel"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_parkedcalltimeout.");
+    }
+    return;
+}
+
+/**
+ * @brief ParkedCallTimeOut
+ * @param j_recv
+ */
+static void evt_parkedcallgiveup(json_t* j_recv)
+{
+
+//    Raised when a channel leaves a parking lot because it hung up without being answered.
+
+//    Event: ParkedCallGiveUp
+//    ParkeeChannel: <value>
+//    ParkeeChannelState: <value>
+//    ParkeeChannelStateDesc: <value>
+//    ParkeeCallerIDNum: <value>
+//    ParkeeCallerIDName: <value>
+//    ParkeeConnectedLineNum: <value>
+//    ParkeeConnectedLineName: <value>
+//    ParkeeAccountCode: <value>
+//    ParkeeContext: <value>
+//    ParkeeExten: <value>
+//    ParkeePriority: <value>
+//    ParkeeUniqueid: <value>
+//    ParkerChannel: <value>
+//    ParkerChannelState: <value>
+//    ParkerChannelStateDesc: <value>
+//    ParkerCallerIDNum: <value>
+//    ParkerCallerIDName: <value>
+//    ParkerConnectedLineNum: <value>
+//    ParkerConnectedLineName: <value>
+//    ParkerAccountCode: <value>
+//    ParkerContext: <value>
+//    ParkerExten: <value>
+//    ParkerPriority: <value>
+//    ParkerUniqueid: <value>
+//    ParkerDialString: <value>
+//    Parkinglot: <value>
+//    ParkingSpace: <value>
+//    ParkingTimeout: <value>
+//    ParkingDuration: <value>
+
+
+//    ParkeeChannel
+//    ParkeeChannelState - A numeric code for the channel's current state, related to ParkeeChannelStateDesc
+//    ParkeeChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    ParkeeCallerIDNum
+//    ParkeeCallerIDName
+//    ParkeeConnectedLineNum
+//    ParkeeConnectedLineName
+//    ParkeeAccountCode
+//    ParkeeContext
+//    ParkeeExten
+//    ParkeePriority
+//    ParkeeUniqueid
+//    ParkerChannel
+//    ParkerChannelState - A numeric code for the channel's current state, related to ParkerChannelStateDesc
+//    ParkerChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    ParkerCallerIDNum
+//    ParkerCallerIDName
+//    ParkerConnectedLineNum
+//    ParkerConnectedLineName
+//    ParkerAccountCode
+//    ParkerContext
+//    ParkerExten
+//    ParkerPriority
+//    ParkerUniqueid
+//    ParkerDialString - Dial String that can be used to call back the parker on ParkingTimeout.
+//    Parkinglot - Name of the parking lot that the parkee is parked in
+//    ParkingSpace - Parking Space that the parkee is parked in
+//    ParkingTimeout - Time remaining until the parkee is forcefully removed from parking in seconds
+//    ParkingDuration - Time the parkee has been in the parking bridge (in seconds)
+
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "delete from park where "
+            "channel = \"%s\""
+            ";",
+            json_string_value(json_object_get(j_recv, "ParkeeChannel"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_parkedcallgiveup.");
     }
     return;
 }
