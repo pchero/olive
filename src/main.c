@@ -130,7 +130,7 @@ int main(int argc, char** argv)
     slog(LOG_INFO, "Initiated database");
 
     // init memory db
-    ret = init_memdb();
+    ret = init_memdb("test.db");
     if(ret != true)
     {
         fprintf(stderr, "Could not initiate memory db. ret[%d]\n", ret);
@@ -168,6 +168,8 @@ int main(int argc, char** argv)
 
     // start loop.
     event_base_loop(g_app->ev_base, 0);
+
+    memdb_term();
 
 //    // Release http/https events
 //    evhtp_unbind_socket(evhtp);

@@ -90,7 +90,7 @@ char* SQL_CREATE_PEER = "create table peer(\n"
         "addr_port int, \n"
 
         "can_reinvite text, \n"
-        "device_state text, \n"
+        "device_state text, -- UNKNOWN, NOT_INUSE, INUSE, BUSY, INVALID, UNAVAILABLE, RINGING, RINGINUSE, ONHOLD\n"
 
         "primary key(name)"
 

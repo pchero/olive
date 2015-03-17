@@ -21,12 +21,11 @@ sqlite3* g_memdb;        ///< memory db
  * initiate memdb.
  * @return  succes:true, fail:false
  */
-int memdb_init(void)
+int memdb_init(char* db_name)
 {
     int ret;
 
-//    ret = sqlite3_open(":memory:", &g_app->db);
-    ret = sqlite3_open("test.db", &g_memdb);
+    ret = sqlite3_open(db_name, &g_memdb);
     if(ret != 0)
     {
         slog(LOG_ERR, "Could not open memory database. err[%d:%s]", errno, strerror(errno));
@@ -35,6 +34,21 @@ int memdb_init(void)
 
     return true;
 }
+
+/**
+ * terminate memdb.
+ */
+void memdb_term(void)
+{
+    int ret;
+
+    ret = sqlite3_close(g_memdb);
+    if(ret != SQLITE_OK)
+    {
+        slog(LOG_ERR, "Could not close database. err[%s]", sqlite3_errmsg(g_memdb));
+    }
+}
+
 
 /**
  * use for exeucte query.
@@ -69,7 +83,7 @@ memdb_res* memdb_query(char* sql)
     ret = sqlite3_prepare_v2(g_memdb, sql, -1, &mem_res->res, NULL);
     if(ret != SQLITE_OK)
     {
-        slog(LOG_ERR, "Could not prepare query. sql[%s], err[%d:%s]", sql, errno, strerror(errno));
+        slog(LOG_ERR, "Could not prepare query. sql[%s], err[%s]", sql, sqlite3_errmsg(g_memdb));
         return NULL;
     }
 
@@ -93,7 +107,7 @@ json_t* memdb_get_result(memdb_res* mem_res)
     {
         if(ret != SQLITE_DONE)
         {
-            slog(LOG_ERR, "Could not patch memdb. ret[%d], err[%d:%s]", ret, errno, strerror(errno));
+            slog(LOG_ERR, "Could not patch memdb. ret[%d], err[%s]", ret, sqlite3_errmsg(g_memdb));
         }
         return NULL;
     }
@@ -102,7 +116,7 @@ json_t* memdb_get_result(memdb_res* mem_res)
     j_res = json_object();
     for(i = 0; i < cols; i++)
     {
-        json_object_set_new(j_res, sqlite3_column_name(mem_res->res, i), json_string((char*)sqlite3_column_text(mem_res->res, i)));
+        json_object_set_new(j_res, sqlite3_column_name(mem_res->res, i), json_string((const char*)sqlite3_column_text(mem_res->res, i)));
     }
 
     return j_res;

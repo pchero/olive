@@ -1523,8 +1523,6 @@ static void evt_parkedcalltimeout(json_t* j_recv)
 //    ParkingTimeout - Time remaining until the parkee is forcefully removed from parking in seconds
 //    ParkingDuration - Time the parkee has been in the parking bridge (in seconds)
 
-
-
     int ret;
     char* sql;
 
