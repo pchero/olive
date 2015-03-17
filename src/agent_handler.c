@@ -62,3 +62,43 @@ bool load_table_agent(void)
     return true;
 
 }
+
+/**
+ * Update agent info
+ * @param j_agent
+ * @return
+ */
+int agent_update(json_t* j_agent)
+{
+
+    return true;
+}
+
+/**
+ * Create agent info
+ * @param j_agent
+ * @return
+ */
+int agent_create(json_t* j_agent)
+{
+    return true;
+}
+
+int agent_delete(json_t* j_agent)
+{
+    return true;
+}
+
+/**
+ * Search agent info
+ * @param uuid
+ * @return
+ */
+json_t* agent_search(const char* uuid)
+{
+    json_t* j_agent;
+
+    j_agent = NULL;
+
+    return j_agent;
+}

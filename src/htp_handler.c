@@ -247,6 +247,11 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
     // DELETE : Delete specified campaign.
 }
 
+void htpcb_agent_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    return;
+}
+
 /**
  * Check authenticate user or not
  * @param req
@@ -260,17 +265,17 @@ static bool is_auth(evhtp_request_t* req)
     char username[1024], password[1024];
     char* query;
     char* result;
-    db_ctx_t* ctx;
+    db_ctx_t* db_res;
     int  i, ret;
+    json_t* j_res;
 
-//    fprintf(stderr, "is_auth!!\n");
     slog(LOG_DEBUG, "is_auth.");
     conn = evhtp_request_get_connection(req);
     if(conn->request->headers_in == NULL)
     {
         evhtp_headers_add_header(
                 req->headers_out,
-                evhtp_header_new("WWW-Authenticate", "Basic realm=\"pchero21.com\"", 0, 0)
+                evhtp_header_new("WWW-Authenticate", "Basic realm=\"olive auth\"", 0, 0)
                 );
         evhtp_send_reply(req, EVHTP_RES_UNAUTH);
         slog(LOG_WARN, "Unauthorized user.")
@@ -283,7 +288,7 @@ static bool is_auth(evhtp_request_t* req)
     {
         evhtp_headers_add_header(
                 req->headers_out,
-                evhtp_header_new("WWW-Authenticate", "Basic realm=\"localhost interface\"", 0, 0)
+                evhtp_header_new("WWW-Authenticate", "Basic realm=\"olive auth\"", 0, 0)
                 );
         evhtp_send_reply(req, EVHTP_RES_UNAUTH);
         slog(LOG_WARN, "Unauthorized user.")
@@ -314,7 +319,7 @@ static bool is_auth(evhtp_request_t* req)
     free(outstr);
     slog(LOG_DEBUG, "User info[%s:%s]", username, password);
 
-    ret = asprintf(&query, "select * from agent where id = '%s' and password = '%s'", username, password);
+    ret = asprintf(&query, "select * from agent where id = \"%s\" and password = \"%s\"", username, password);
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not get query. user[%s:%s]", username, password);
@@ -322,24 +327,23 @@ static bool is_auth(evhtp_request_t* req)
         return false;
     }
 
-    ctx = db_query(query);
-    if(ctx == NULL)
+    db_res = db_query(query);
+    free(query);
+    if(db_res == NULL)
     {
-        slog(LOG_ERR, "Could not query. query[%s], user[%s:%s]", query, username, password);
+        slog(LOG_ERR, "Could not get user info. user[%s], pass[%s]", query, username, password);
         evhtp_send_reply(req, EVHTP_RES_SERVERR);
-        free(query);
         return false;
     }
-    free(query);
 
-    db_result_record(ctx, &result);
-    db_free(ctx);
-    if(result == NULL)
+    j_res = db_get_record(db_res);
+    if(j_res == NULL)
     {
+        // Could not match
         evhtp_send_reply(req, EVHTP_RES_UNAUTH);
         return false;
     }
-    free(result);
+    json_decref(j_res);
 
     return true;
 }

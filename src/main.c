@@ -130,7 +130,7 @@ int main(int argc, char** argv)
     slog(LOG_INFO, "Initiated database");
 
     // init memory db
-    ret = init_memdb("test.db");
+    ret = init_memdb();
     if(ret != true)
     {
         fprintf(stderr, "Could not initiate memory db. ret[%d]\n", ret);
@@ -484,67 +484,149 @@ static int init_callback(void)
 }
 
 /**
- * initiate memdb.
+ * Initiate memdb.
+ * Check first table existence. If non-exists, create.
  * @return  succes:true, fail:false
  */
 static int init_memdb(void)
 {
     int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
 
-    ret = memdb_init();
+//    ret = memdb_init(":memory:");
+    ret = memdb_init("test.db");
     if(ret == false)
     {
         slog(LOG_ERR, "Could not initiate memory database.");
         return false;
     }
 
-    // create peer table.
-    ret = memdb_exec(SQL_CREATE_PEER);
-    if(ret == false)
+    // check peer table existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"peer\";");
+    if(mem_res == NULL)
     {
-        slog(LOG_ERR, "Could not create table peer.");
+        slog(LOG_ERR, "Could not get peer table info.");
         return false;
     }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create peer table.
+        ret = memdb_exec(SQL_CREATE_PEER);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table peer.");
+            return false;
+        }
+    }
+    json_decref(j_res);
 
-    // registry table
-    ret = memdb_exec(SQL_CREATE_REGISTRY);
-    if(ret == false)
+    // check registry table existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"registry\";");
+    if(mem_res == NULL)
     {
-        slog(LOG_ERR, "Could not create table peer.");
+        slog(LOG_ERR, "Could not get registry table info.");
         return false;
     }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create registry table.
+        ret = memdb_exec(SQL_CREATE_REGISTRY);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table registry.");
+            return false;
+        }
+    }
+    json_decref(j_res);
 
-    // agent table
-    ret = memdb_exec(SQL_CREATE_AGENT);
-    if(ret == false)
+    // check agent table existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"agent\";");
+    if(mem_res == NULL)
     {
-        slog(LOG_ERR, "Could not create table agent.");
+        slog(LOG_ERR, "Could not get agent table info.");
         return false;
     }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create agent table.
+        ret = memdb_exec(SQL_CREATE_AGENT);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table agent.");
+            return false;
+        }
+    }
+    json_decref(j_res);
 
-    // trunk group table
-    ret = memdb_exec(SQL_CREATE_TRUNK_GROUP);
-    if(ret == false)
+    // check trunk_group table existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"trunk_group\";");
+    if(mem_res == NULL)
     {
-        slog(LOG_ERR, "Could not create table trunk_group.");
+        slog(LOG_ERR, "Could not get trunk_group table info.");
         return false;
     }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create trunk_group table.
+        ret = memdb_exec(SQL_CREATE_TRUNK_GROUP);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table trunk_group.");
+            return false;
+        }
+    }
+    json_decref(j_res);
 
-    // channel table
-    ret = memdb_exec(SQL_CREATE_CHANNEL);
-    if(ret == false)
+    // check channel table existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"channel\";");
+    if(mem_res == NULL)
     {
-        slog(LOG_ERR, "Could not create table channel.");
+        slog(LOG_ERR, "Could not get channel table info.");
         return false;
     }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create channel table.
+        ret = memdb_exec(SQL_CREATE_CHANNEL);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table channel.");
+            return false;
+        }
+    }
+    json_decref(j_res);
 
-    // park table
-    ret = memdb_exec(SQL_CREATE_PARK);
-    if(ret == false)
+    // check channel park existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"park\";");
+    if(mem_res == NULL)
     {
-        slog(LOG_ERR, "Could not create table park.");
+        slog(LOG_ERR, "Could not get park table info.");
         return false;
     }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create park table.
+        ret = memdb_exec(SQL_CREATE_PARK);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table park.");
+            return false;
+        }
+    }
+    json_decref(j_res);
 
     return true;
 }

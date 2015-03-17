@@ -23,5 +23,6 @@ memdb_res* memdb_query(char* sql);
 json_t* memdb_get_result(memdb_res* mem_res);
 int memdb_exec(char* sql);
 int memdb_init(char* db_name);
+void memdb_term(void);
 
 #endif /* SRC_MEMDB_HANDLER_H_ */
