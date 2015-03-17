@@ -130,7 +130,7 @@ int main(int argc, char** argv)
     slog(LOG_INFO, "Initiated database");
 
     // init memory db
-    ret = init_memdb("test.db");
+    ret = init_memdb();
     if(ret != true)
     {
         fprintf(stderr, "Could not initiate memory db. ret[%d]\n", ret);
@@ -491,7 +491,7 @@ static int init_memdb(void)
 {
     int ret;
 
-    ret = memdb_init();
+    ret = memdb_init("test.db");
     if(ret == false)
     {
         slog(LOG_ERR, "Could not initiate memory database.");
