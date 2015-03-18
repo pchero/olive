@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define slog(...) { _slog(__FILE__, __LINE__, __func__, ##__VA_ARGS__); }
+#define slog(...)  _slog(__FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 
 typedef enum _LOG_LEVEL

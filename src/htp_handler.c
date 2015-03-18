@@ -247,8 +247,53 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
     // DELETE : Delete specified campaign.
 }
 
-void htpcb_agent_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
+    int ret;
+
+    ret = is_auth(req);
+    if(ret == false)
+    {
+        return;
+    }
+
+    return;
+}
+
+void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    int req_method;
+
+    ret = is_auth(req);
+    if(ret == false)
+    {
+        return;
+    }
+
+    req_method = evhtp_request_get_method(req);
+
+    switch(req_method)
+    {
+        // POST : Not support
+
+        // GET : Return specified campaign info.
+
+        // PUT : Update specified campaign info.
+
+        // DELETE : Delete specified campaign.
+
+        default:
+        {
+            slog(LOG_ERR, "Not support method. method[%d]", req_method);
+            // need some reply method
+            // return EVHTP_RES_FORBIDDEN
+            return;
+        }
+        break;
+    }
+
+
     return;
 }
 
@@ -263,38 +308,30 @@ static bool is_auth(evhtp_request_t* req)
     char *auth_hdr, *auth_b64;
     char *outstr;
     char username[1024], password[1024];
-    char* query;
-    char* result;
+    char* sql;
+//    char* result;
     db_ctx_t* db_res;
     int  i, ret;
     json_t* j_res;
 
     slog(LOG_DEBUG, "is_auth.");
     conn = evhtp_request_get_connection(req);
-    if(conn->request->headers_in == NULL)
-    {
-        evhtp_headers_add_header(
-                req->headers_out,
-                evhtp_header_new("WWW-Authenticate", "Basic realm=\"olive auth\"", 0, 0)
-                );
-        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
-        slog(LOG_WARN, "Unauthorized user.")
-    }
-    fprintf(stderr, "get connection\n");
 
     // get Authorization
-    auth_hdr = (char*)evhtp_kv_find(conn->request->headers_in, "Authorization");
-    if(auth_hdr == NULL)
+    if((conn->request->headers_in == NULL)
+            || ((auth_hdr = (char*)evhtp_kv_find(conn->request->headers_in, "Authorization")) == NULL)
+            )
     {
         evhtp_headers_add_header(
                 req->headers_out,
                 evhtp_header_new("WWW-Authenticate", "Basic realm=\"olive auth\"", 0, 0)
                 );
         evhtp_send_reply(req, EVHTP_RES_UNAUTH);
-        slog(LOG_WARN, "Unauthorized user.")
+        slog(LOG_WARN, "Unauthorized user.");
         return false;
     }
 
+    // decode base_64
     auth_b64 = auth_hdr;
     while(*auth_b64++ != ' ');  // Something likes.. "Basic cGNoZXJvOjEyMzQ="
     base64decode(auth_b64, &outstr);
@@ -306,6 +343,7 @@ static bool is_auth(evhtp_request_t* req)
     }
     slog(LOG_DEBUG, "Decoded userinfo. info[%s]", outstr);
 
+    // parsing user:pass
     for(i = 0; i < strlen(outstr); i++)
     {
         if(outstr[i] == ':')
@@ -319,7 +357,8 @@ static bool is_auth(evhtp_request_t* req)
     free(outstr);
     slog(LOG_DEBUG, "User info[%s:%s]", username, password);
 
-    ret = asprintf(&query, "select * from agent where id = \"%s\" and password = \"%s\"", username, password);
+    // get user info
+    ret = asprintf(&sql, "select * from agent where id = \"%s\" and password = \"%s\"", username, password);
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not get query. user[%s:%s]", username, password);
@@ -327,16 +366,17 @@ static bool is_auth(evhtp_request_t* req)
         return false;
     }
 
-    db_res = db_query(query);
-    free(query);
+    db_res = db_query(sql);
+    free(sql);
     if(db_res == NULL)
     {
-        slog(LOG_ERR, "Could not get user info. user[%s], pass[%s]", query, username, password);
+        slog(LOG_ERR, "Could not get user info.");
         evhtp_send_reply(req, EVHTP_RES_SERVERR);
         return false;
     }
 
     j_res = db_get_record(db_res);
+    db_free(db_res);
     if(j_res == NULL)
     {
         // Could not match

@@ -11,9 +11,13 @@
 #include <stdbool.h>
 #include <jansson.h>
 #include <string.h>
+#include <time.h>
 
 #include "memdb_handler.h"
 #include "slog.h"
+
+#define MAX_MEMDB_LOCK_RELEASE_TRY 100
+
 
 sqlite3* g_memdb;        ///< memory db
 
@@ -21,7 +25,7 @@ sqlite3* g_memdb;        ///< memory db
  * initiate memdb.
  * @return  succes:true, fail:false
  */
-int memdb_init(char* db_name)
+int memdb_init(const char* db_name)
 {
     int ret;
 
@@ -53,7 +57,7 @@ void memdb_term(void)
 /**
  * use for exeucte query.
  */
-int memdb_exec(char* sql)
+int memdb_exec(const char* sql)
 {
     int ret;
     char* err;
@@ -73,7 +77,7 @@ int memdb_exec(char* sql)
  * use for exeucte query. returns memdb_res
  * select only.
  */
-memdb_res* memdb_query(char* sql)
+memdb_res* memdb_query(const char* sql)
 {
     int ret;
     memdb_res* mem_res;
@@ -133,4 +137,73 @@ void memdb_free(memdb_res* mem_res)
 }
 
 
+
+/**
+ * Do the database lock.
+ * Keep try MAX_DB_ACCESS_TRY.
+ * Each try has 100 ms delay.
+ */
+bool memdb_lock(void)
+{
+    int ret;
+    int i;
+
+    for(i = 0; i < MAX_MEMDB_LOCK_RELEASE_TRY; i++)
+    {
+        ret = memdb_exec("BEGIN IMMEDIATE");
+        if(ret == true)
+        {
+            break;
+        }
+        msleep(100);
+    }
+
+    return ret;
+}
+
+
+/**
+ * Release database lock.
+ * Keep try MAX_MEMDB_LOCK_RELEASE_TRY.
+ * Each try has 100 ms delay.
+ */
+bool memdb_release(void)
+{
+    int ret;
+    int i;
+
+    // release lock
+    for(i = 0; i < MAX_MEMDB_LOCK_RELEASE_TRY; i++)
+    {
+        ret = memdb_exec("COMMIT");
+        if(ret == true)
+        {
+            break;
+        }
+
+        msleep(100);    // 100 ms delay
+    }
+
+    return ret;
+}
+
+/**
+ * Millisecond sleep.
+ * @param milisec
+ */
+void msleep(unsigned long milisec)
+{
+    struct timespec req = {0, 0};
+    time_t sec = (int)(milisec/1000);
+    milisec = milisec - (sec * 1000);
+
+    req.tv_sec = sec;
+    req.tv_nsec = milisec * 1000000L;
+
+    while(nanosleep(&req, &req) == -1)
+    {
+        continue;
+    }
+    return;
+}
 
