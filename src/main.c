@@ -640,6 +640,7 @@ void testcb(evhtp_request_t *req, __attribute__((unused)) void *arg)
     slog(LOG_DEBUG, "testcb called!");
     evhtp_send_reply(req, EVHTP_RES_OK);
 }
+
 /*!
   SIGTERM callback
 
