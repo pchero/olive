@@ -10,7 +10,8 @@
 
 bool load_table_agent(void);
 
-
+int agent_update(json_t* j_agent);
+int agent_create(json_t* j_agent);
 
 
 #endif /* SRC_AGENT_HANDLER_H_ */

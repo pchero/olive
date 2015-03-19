@@ -238,6 +238,8 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
         return;
     }
 
+    // get json
+
     // POST : Not support
 
     // GET : Return specified campaign info.
@@ -256,6 +258,15 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     {
         return;
     }
+
+    // POST : new campaign.
+
+    // GET : return campaign list
+
+    // PUT : update several campaign info
+
+    // DELETE : Not support.
+
 
     return;
 }
