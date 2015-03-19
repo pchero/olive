@@ -19,6 +19,9 @@
 #define MAX_MEMDB_LOCK_RELEASE_TRY 100
 
 
+#define MAX_MEMDB_LOCK_RELEASE_TRY 100
+
+
 sqlite3* g_memdb;        ///< memory db
 
 /**
