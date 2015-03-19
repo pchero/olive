@@ -70,6 +70,31 @@ bool load_table_agent(void)
  */
 int agent_update(json_t* j_agent)
 {
+    char* sql;
+    int ret;
+
+    ret = asprintf(&sql, "update into agent set "
+            "password = \"%s\", "
+            "name = \"%s\", "
+            "desc_admin = \"%s\", "
+            "desc_user = \"%s\", "
+
+            "info_update_time = \"%s\", "
+            "info_update_user = \"%s\" "
+
+            "where uuid = \"%s\";",
+
+            json_string_value(json_object_get(j_agent, "password")),
+            json_string_value(json_object_get(j_agent, "name")),
+            json_string_value(json_object_get(j_agent, "desc_admin")),
+            json_string_value(json_object_get(j_agent, "desc_user")),
+
+            json_string_value(json_object_get(j_agent, "")),
+            json_string_value(json_object_get(j_agent, "")),
+
+            json_string_value(json_object_get(j_agent, "uuid"))
+
+            );
 
     return true;
 }

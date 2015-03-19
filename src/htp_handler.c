@@ -238,6 +238,8 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
         return;
     }
 
+    // get json
+
     // POST : Not support
 
     // GET : Return specified campaign info.
