@@ -27,8 +27,6 @@ static json_t* create_common_result(json_t* j_res);
 
 static bool is_auth(evhtp_request_t* req);
 
-
-
 static char* get_uuid(char* buf);
 static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
 static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer);
