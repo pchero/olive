@@ -69,10 +69,12 @@ bool load_table_agent(void)
  * @param j_agent
  * @return
  */
-int agent_update(json_t* j_agent)
+json_t* agent_update(json_t* j_agent)
 {
     char* sql;
     int ret;
+    json_t* j_res;
+    db_ctx_t* db_res;
 
     ret = asprintf(&sql, "update agent set "
             "password = \"%s\", "
@@ -103,10 +105,21 @@ int agent_update(json_t* j_agent)
         slog(LOG_ERR, "Could not update agent info. uuid[%s]",
                 json_string_value(json_object_get(j_agent, "uuid"))
                 );
-        return false;
+        return NULL;
     }
 
-    return true;
+    ret = asprintf(&sql, "select * from agent where uuid = \"%s\";", json_string_value(json_object_get(j_agent, "uuid")));
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get agent info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+
+    return j_res;
 }
 
 /**
@@ -114,7 +127,7 @@ int agent_update(json_t* j_agent)
  * @param j_agent
  * @return
  */
-int agent_create(json_t* j_agent)
+json_t* agent_create(json_t* j_agent)
 {
     char* sql;
     db_ctx_t* db_res;
@@ -123,6 +136,7 @@ int agent_create(json_t* j_agent)
     char* tmp;
     char* agent_uuid;
     uuid_t uuid;
+    json_t* j_res;
 
     // check id.
     ret = asprintf(&sql, "select * from agent where id = \"%s\";",
@@ -133,7 +147,7 @@ int agent_create(json_t* j_agent)
     if(db_res == NULL)
     {
         slog(LOG_ERR, "Could not get agent id info. id[%s]", json_string_value(json_object_get(j_agent, "id")));
-        return false;
+        return NULL;
     }
 
     j_tmp = db_get_record(db_res);
@@ -142,7 +156,7 @@ int agent_create(json_t* j_agent)
     {
         json_decref(j_tmp);
         slog(LOG_ERR, "Already exist user. id[%s]", json_string_value(json_object_get(j_agent, "id")));
-        return false;
+        return NULL;
     }
 
     // make uuid
@@ -186,21 +200,36 @@ int agent_create(json_t* j_agent)
 
             "utc_timestamp()"
             );
-    free(agent_uuid);
 
     ret = db_exec(sql);
     free(sql);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not create agent info.");
-        return false;
+        free(agent_uuid);
+        return NULL;
     }
 
-    return true;
+    ret = asprintf(&sql, "select * from agent where uuid = \"%s\";", agent_uuid);
+    free(agent_uuid);
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get inserted agent info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    return j_res;
 }
 
 int agent_delete(json_t* j_agent)
 {
+    // Not delete actually.
+    // Just set delete flag.
+    // Because of statistics
     return true;
 }
 
@@ -212,8 +241,67 @@ int agent_delete(json_t* j_agent)
 json_t* agent_search(const char* uuid)
 {
     json_t* j_agent;
+    char* sql;
+    unused__ int ret;
+    db_ctx_t* db_res;
 
-    j_agent = NULL;
+    ret = asprintf(&sql, "select * from agent where uuid = \"%s\";", uuid);
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get agent info.");
+        return NULL;
+    }
+
+    j_agent = db_get_record(db_res);
+    db_free(db_res);
 
     return j_agent;
+}
+
+
+json_t* agent_status_get(const json_t* j_agent)
+{
+    json_t* j_res;
+    char* sql;
+    unused__ int ret;
+    db_ctx_t* db_res;
+
+    ret = asprintf(&sql, "select uuid, id, status from agent where uuid = \"%s\";", json_string_value(json_object_get(j_agent, "uuid")));
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get agent info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not find agent info. uuid[%s]", json_string_value(json_object_get(j_agent, "uuid")));
+        return NULL;
+    }
+
+    return j_res;
+}
+
+int agent_status_update(const json_t* j_agent)
+{
+    char* sql;
+    int ret;
+
+    ret = asprintf(&sql, "update agent set status = \"%s\" where uuid = \"%s\";",
+            json_string_value(json_object_get(j_agent, "status")),
+            json_string_value(json_object_get(j_agent, "uuid"))
+            );
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        return false;
+    }
+    return true;
 }

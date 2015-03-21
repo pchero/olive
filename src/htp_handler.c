@@ -18,9 +18,12 @@
 #include "htp_handler.h"
 #include "base64.h"
 #include "db_handler.h"
+#include "agent_handler.h"
+
 
 
 static bool is_auth(evhtp_request_t* req);
+static char* get_uuid(char* buf);
 static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
 static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer);
 
@@ -41,8 +44,8 @@ int init_evhtp(void)
     int ret;
 
     evhtp_ssl_cfg_t ssl_cfg = {
-        .pemfile            = "" PREFIX "/etc/ssl/olive.server.pem",
-        .privfile           = "" PREFIX "/etc/ssl/olive.server.pem",
+        .pemfile            = (char*)json_string_value(json_object_get(g_app->j_conf, "pem_filename")),
+        .privfile           = (char*)json_string_value(json_object_get(g_app->j_conf, "pem_filename")),
         .cafile             = NULL,
         .capath             = NULL,
         .ciphers            = "RC4+RSA:HIGH:+MEDIUM:+LOW",
@@ -109,12 +112,13 @@ int init_evhtp(void)
 //    evhtp_set_regex_cb(evhtp, "^/simple", testcb, NULL);
 
     // campaigns
-    evhtp_set_regex_cb(evhtp_ssl, "^/campaigns", htpcb_campaigns, NULL);
-    evhtp_set_regex_cb(evhtp_ssl, "^/campaigns/*", htpcb_campaigns_specific, NULL);
+    evhtp_set_cb(evhtp_ssl, "/campaigns", htpcb_campaigns, NULL);
+    evhtp_set_glob_cb(evhtp_ssl, "/campaigns/*", htpcb_campaigns_specific, NULL);
 
 //    // agents
-//    evhtp_set_regex_cb(evhtp_ssl, "^/agents", htpcb_agents, NULL);
-//    evhtp_set_regex_cb(evhtp_ssl, "^/agents/*", htpcb_agents_specific, NULL);
+    evhtp_set_cb(evhtp_ssl, "/agents", htpcb_agents, NULL);
+    evhtp_set_glob_cb(evhtp_ssl, "/agents/*/status", htpcb_agents_specific_status, NULL);
+    evhtp_set_glob_cb(evhtp_ssl, "/agents/*", htpcb_agents_specific, NULL);
 
 //    // dial-lists
 //    evhtp_set_regex_cb(evhtp_ssl, "^/dial-lists", htpcb_dial_lists, NULL);
@@ -308,6 +312,64 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
     return;
 }
 
+void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    htp_method req_method;
+    char* uuid;
+    json_t* j_res;
+
+    ret = is_auth(req);
+    if(ret == false)
+    {
+        return;
+    }
+
+    uuid = get_uuid(req->uri->path->full);
+    if(uuid == NULL)
+    {
+        // Send error.
+        return;
+    }
+
+    req_method = evhtp_request_get_method(req);
+
+    switch(req_method)
+    {
+        // POST : Not support
+
+        // GET : Return specified agent status info.
+        case htp_method_GET:
+        {
+            j_res = agent_status_get(uuid);
+        }
+        break;
+
+        // PUT : Update specified agent status info.
+
+        // DELETE : Not support.
+
+        default:
+        {
+            slog(LOG_ERR, "Not support method. method[%d]", req_method);
+            // need some reply method
+            // return EVHTP_RES_FORBIDDEN
+        }
+        break;
+    }
+
+    free(uuid);
+
+    if(j_res == NULL)
+    {
+        // do something.
+    }
+
+
+    return;
+}
+
+
 /**
  * Check authenticate user or not
  * @param req
@@ -397,4 +459,41 @@ static bool is_auth(evhtp_request_t* req)
     json_decref(j_res);
 
     return true;
+}
+
+
+/**
+ * Extract uuid
+ * "/service_name/uuid"
+ * @param buf
+ * @return
+ */
+static char* get_uuid(char* buf)
+{
+    char* tmp;
+    char* org;
+    char* sep;
+    char* uuid;
+    char* remain;
+    int i;
+    unused__ int ret;
+
+    tmp = strdup(buf);
+    org = tmp;
+    sep = "/";
+
+    for(i = 0; i < 3; i++)
+    {
+        remain = strsep(&tmp, sep);
+    }
+
+    if(remain == NULL)
+    {
+        return NULL;
+    }
+
+    ret = asprintf(&uuid, "%s", remain);
+
+    free(org);
+    return uuid;
 }
