@@ -252,6 +252,8 @@ void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg)
         json_decref(j_camp);
     }
 
+    db_free(db_res);
+
     return;
 }
 
@@ -343,6 +345,8 @@ void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void 
         json_decref(j_camp);
     }
 
+    db_free(db_res);
+
     return;
 }
 
@@ -414,6 +418,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     }
 
     j_avail_agent = db_get_record(db_res);
+    db_free(db_res);
     if(j_avail_agent == NULL)
     {
         // No available agent
@@ -421,7 +426,6 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
         return;
     }
     json_decref(j_avail_agent);
-    db_free(db_res);
 
     // get dial list
     ret = asprintf(&sql, "select "
@@ -675,7 +679,7 @@ bool load_table_trunk_group(void)
         free(sql);
         if(ret == false)
         {
-            slog(LOG_ERR, "Could not insert trunk_group.")
+            slog(LOG_ERR, "Could not insert trunk_group.");
             flg_err = true;
             break;
         }

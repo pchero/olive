@@ -8,10 +8,16 @@
 #ifndef SRC_AGENT_HANDLER_H_
 #define SRC_AGENT_HANDLER_H_
 
+#include <jansson.h>
+
 bool load_table_agent(void);
 
-int agent_update(json_t* j_agent);
-int agent_create(json_t* j_agent);
+json_t* agent_all_get(void);
+json_t* agent_update(const json_t* j_agent);
+json_t* agent_create(const json_t* j_agent);
+
+json_t* agent_status_get(const char* uuid);
+int agent_status_update(const json_t* j_agent);
 
 
 #endif /* SRC_AGENT_HANDLER_H_ */

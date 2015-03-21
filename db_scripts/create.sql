@@ -202,7 +202,7 @@ create table peer(
     name    varchar(255)    not null unique,
 
     mode    varchar(255)    not null,           -- "peer", "trunk"
-    agent_uuid varchar(255),                    -- agnet uuid
+    agent_uuid varchar(255),                    -- agent uuid
     
     primary key(name)
 );

@@ -24,6 +24,17 @@
     #define PREFIX "."
 #endif
 
+#ifndef PROGNAME
+    #define PROGNAME "OLIVE"
+#endif
+
+#ifndef API_VER
+    #define API_VER "1.0"
+#endif
+
+#ifndef SERVER_VER
+    #define SERVER_VER PROGNAME"/"API_VER
+#endif
 
 /**
  @brief global values.
@@ -40,5 +51,8 @@ typedef struct
 } app_;
 
 extern app_* g_app;
+
+char* get_utc_timestamp(void);
+
 
 #endif /* COMMON_H_ */
