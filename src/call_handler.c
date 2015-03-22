@@ -99,6 +99,7 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
                 json_string_value(json_object_get(j_camp, "plan"))
                 );
         db_tmp = db_query(sql);
+        free(sql);
         if(db_tmp == NULL)
         {
             slog(LOG_ERR, "Could not get plan info.");
@@ -152,9 +153,8 @@ void cb_call_timeout(unused__ evutil_socket_t fd, unused__ short what, unused__ 
 static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_call)
 {
     db_ctx_t* db_res;
-    db_ctx_t* db_tmp;
+    memdb_res* mem_res;
 
-//    json_t* j_agma; // agent master
     json_t* j_agent;    // ready agent
     json_t* j_agent_peer;   // agent owned peer
     json_t* j_peer;     // peer info to transfer(memdb)
@@ -164,10 +164,11 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_call)
 
     // get ready agent
     ret = asprintf(&sql, "select * from agent where "
-            "uuid = (select uuid_agent from agent_group where uuid_group = \"%s\")"
-            "and status = \"%s\""
-            "order by status_update_time"
+            "uuid = (select uuid_agent from agent_group where uuid_group = \"%s\") "
+            "and status = \"%s\" "
+            "order by status_update_time "
             "limit 1",
+
             json_string_value(json_object_get(j_camp, "agent_group")),
             "ready"
             );
@@ -217,10 +218,16 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_call)
                 "NOT_INUSE"
                 );
         json_decref(j_agent_peer);
-        db_tmp = db_query(sql);
+        mem_res = memdb_query(sql);
         free(sql);
+        if(mem_res == NULL)
+        {
+            slog(LOG_ERR, "Could not get agent_peer info.");
+            break;
+        }
 
-        j_peer = db_get_record(db_tmp);
+        j_peer = memdb_get_result(mem_res);
+        memdb_free(mem_res);
         if(j_peer != NULL)
         {
             break;
@@ -233,10 +240,11 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_call)
             json_string_value(json_object_get(j_peer, "name"))
             );
 
-    j_redirect = json_pack("{s:s, s:s, s:s}",
+    j_redirect = json_pack("{s:s, s:s, s:s, s:s}",
             "Channel", json_string_value(json_object_get(j_call, "name")),
             "Exten", json_string_value(json_object_get(j_peer, "name")),
-            "Context", "transfer_peer_olive"
+            "Context", "transfer_peer_olive",
+            "Priority", "1"
             );
     ret = cmd_redirect(j_redirect);
     json_decref(j_redirect);
