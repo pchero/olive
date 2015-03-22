@@ -23,9 +23,10 @@
 
 static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
 static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg);
-static json_t* create_common_result(json_t* j_res);
+static bool create_common_result(evhtp_request_t *r, json_t* j_res);
 
 static bool is_auth(evhtp_request_t* req);
+static json_t* get_receivedata(evhtp_request_t *r);
 
 static char* get_uuid(char* buf);
 static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
@@ -166,10 +167,12 @@ static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused))
     return EVHTP_RES_OK;
 }
 
-static json_t* create_common_result(json_t* j_res)
+
+static bool create_common_result(evhtp_request_t *r, json_t* j_res)
 {
     json_t* j_out;
     char* timestamp;
+    char* tmp;
 
     timestamp = get_utc_timestamp();
 
@@ -179,13 +182,41 @@ static json_t* create_common_result(json_t* j_res)
             );
     free(timestamp);
 
-    return j_out;
+    evhtp_headers_add_header(r->headers_out, evhtp_header_new("Content-Type", "application/json", 0, 0));
+    tmp = json_dumps(j_out, JSON_ENCODE_ANY);
+    json_decref(j_out);
+    slog(LOG_DEBUG, "Result buf. res[%s]", tmp);
+
+    evbuffer_add_printf(r->buffer_out, "%s", tmp);
+    free(tmp);
+
+    return true;
 }
 
+/**
+ * Ger received data
+ * @param r
+ * @return
+ */
 static json_t* get_receivedata(evhtp_request_t *r)
 {
-    // todo get received data from r.
-    return;
+    size_t len;
+    json_t* j_res;
+    char* buf;
+    json_error_t j_err;
+
+    len = evbuffer_get_length(r->buffer_in);
+    buf = (char*)evbuffer_pullup(r->buffer_in, len);
+
+    j_res = json_loads(buf, strlen(buf), &j_err);
+    if(j_res == NULL)
+    {
+        slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",
+                j_err.column, j_err.line, j_err.position, j_err.source, j_err.text
+                );
+        return NULL;
+    }
+    return j_res;
 }
 
 static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store) {
@@ -307,8 +338,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
     json_t* j_res;
-    json_t* j_out;
-    char* tmp;
+    json_t* j_recv;
     htp_method method;
 
     ret = is_auth(req);
@@ -323,7 +353,17 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     {
 
         // POST : new agent.
-
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                j_res = json_null();
+                break;
+            }
+            j_res = agent_create(j_recv);
+        }
+        break;
 
         // PUT : update several agents info
 
@@ -346,18 +386,9 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     }
 
     // create result
-    j_out = create_common_result(j_res);
+    ret = create_common_result(req, j_res);
     json_decref(j_res);
-
-    evhtp_headers_add_header(req->headers_out, evhtp_header_new("Content-Type", "application/json", 0, 0));
-    tmp = json_dumps(j_out, JSON_ENCODE_ANY);
-    json_decref(j_out);
-    slog(LOG_DEBUG, "Result buf. res[%s]", tmp);
-
-    evbuffer_add_printf(req->buffer_out, "%s", tmp);
-    free(tmp);
     evhtp_send_reply(req, EVHTP_RES_OK);
-
 
     return;
 }
@@ -405,6 +436,8 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
     htp_method req_method;
     char* uuid;
     json_t* j_res;
+    json_t* j_recv;
+    int htp_ret;
 
     ret = is_auth(req);
     if(ret == false)
@@ -429,10 +462,20 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
         case htp_method_GET:
         {
             j_res = agent_status_get(uuid);
+            htp_ret = EVHTP_RES_OK;
         }
         break;
 
         // PUT : Update specified agent status info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            ret = agent_status_update(j_recv);
+            json_decref(j_recv);
+            j_res = json_null();
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
 
         // DELETE : Not support.
 
@@ -441,17 +484,17 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
             slog(LOG_ERR, "Not support method. method[%d]", req_method);
             // need some reply method
             // return EVHTP_RES_FORBIDDEN
+            htp_ret = EVHTP_RES_FORBIDDEN;
         }
         break;
     }
 
     free(uuid);
 
-    if(j_res == NULL)
-    {
-        // do something.
-    }
-
+    // create result
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
 
     return;
 }
@@ -469,7 +512,6 @@ static bool is_auth(evhtp_request_t* req)
     char *outstr;
     char username[1024], password[1024];
     char* sql;
-//    char* result;
     db_ctx_t* db_res;
     int  i, ret;
     json_t* j_res;

@@ -229,8 +229,8 @@ json_t* agent_create(const json_t* j_agent)
             "status_update_time"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\""
+            "\"%s\", %s, \"%s\", %s, \"%s\", "
+            "%s"
             ");",
 
             agent_uuid,
@@ -269,6 +269,7 @@ json_t* agent_create(const json_t* j_agent)
     }
 
     j_res = db_get_record(db_res);
+    db_free(db_res);
     return j_res;
 }
 

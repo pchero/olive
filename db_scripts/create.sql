@@ -247,6 +247,9 @@ insert into peer(name, mode) values ("trunk-sample_01", "trunk");
 insert into trunk_group_ma(uuid, name, detail) values ("trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56", "sample trunk group", "sample"); 
 insert into trunk_group(group_uuid, trunk_name) values ("trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56", "trunk-sample_01");
 
+-- insert test peer
+insert into peer(name, mode, agent_uuid) values ("test-01", "peer", "agent-56b02510-66d2-478d-aa5e-e703247c029c");
+
 -- insert plan
 insert into plan(uuid, name, dial_mode) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan", "predictive");
 
