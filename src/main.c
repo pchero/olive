@@ -607,7 +607,7 @@ static int init_memdb(void)
     }
     json_decref(j_res);
 
-    // check channel park existence.
+    // check park table existence.
     mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"park\";");
     if(mem_res == NULL)
     {
@@ -623,6 +623,27 @@ static int init_memdb(void)
         if(ret == false)
         {
             slog(LOG_ERR, "Could not create table park.");
+            return false;
+        }
+    }
+    json_decref(j_res);
+
+    // check dialing table existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"dialing\";");
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dialing table info.");
+        return false;
+    }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create park table.
+        ret = memdb_exec(SQL_CREATE_DIALING);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table dialing.");
             return false;
         }
     }

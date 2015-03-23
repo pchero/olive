@@ -143,39 +143,43 @@ char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
  */
 char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "-- identity\n"
-        "uuid        text,   -- channel uuid(channel-..., made by olive, Uniqueid)\n"
-        "camp_uuid   text,   -- campaign uuid\n"
-        "dl_uuid text,       -- dl list uuid\n"
+//        "uuid        text,   -- channel uuid(channel-..., made by olive, Uniqueid)\n"
+//        "camp_uuid   text,   -- campaign uuid\n"
+//        "dl_uuid text,       -- dl list uuid\n"
+        "channel text,       -- Channel. channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
+        "uniq_id text,       -- Uniqueid\n"
 
-        "-- status\n"
+        "-- timestamp\n"
         "tm_dial     text,   -- dialing start time. \n"
-        "tm_answer   text,   -- dial list answered time.\n"
+        "tm_dial_end text,   -- dial list answered time.\n"
         "tm_transfer text,   -- transfer start time.(to agent)\n"
-        "tm_transfered text, -- transfer end time(if agent answered)\n"
+        "tm_transfer_end text,   -- transfer end time(if agent answered)\n"
 
         "dial_timeout    text,   -- dial timeout.(to be)\n"
         "voice_detection text,   -- voice answer detection result.\n"
         "agent_transfer  text,   -- transfered agent uuid\n"
 
-        "-- set by asterisk\n"
-        "name text,                     -- channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
-        "exten text,                    -- extension \n"
-        "connected_line_name text,      -- ConnectedLineName\n"
-        "connected_line_num text,       -- ConnectedLineNum\n"
-        "context text,                  -- Context\n"
-        "caller_id_num  text,           -- CallerIDNum\n"
-        "caller_id_name text,           -- CallerIDName\n"
-        "language   text,               -- Language\n"
-        "account_code text,             -- AccountCode\n"
+        "-- status\n"
         "status text,                   -- ChannelState code\n"
         "status_desc text,              -- ChannelStateDesc\n"
+        "cause text,               -- Hangup cause code\n"
+        "cause_desc text,                   -- Hangup cause\n"
+
+        "-- set by asterisk\n"
+        "exten text,                    -- extension \n"
+        "connected_line_num text,       -- ConnectedLineNum\n"
+        "connected_line_name text,      -- ConnectedLineName\n"
+        "context text,                  -- Context\n"
+        "priority text,                 -- Priority\n"
+        "caller_id_num  text,           -- CallerIDNum\n"
+        "caller_id_name text,           -- CallerIDName\n"
+        "language text,                 -- Language\n"
+        "account_code text,             -- AccountCode\n"
         "hangup text default \"no\",    -- yes/no\n"
-        "cause_code text,               -- Hangup cause code\n"
-        "cause  text,                   -- Hangup cause\n"
 
         "-- destination info\n"
-        "dest_chan_state text,          -- DestChannelStateDesc\n"
-        "dest_chan_state_code text,     -- DestChannelState\n"
+        "dest_chan_state text,          -- DestChannelState\n"
+        "dest_chan_state_desc text,     -- DestChannelStateDesc\n"
         "dest_caller_id_num text,       -- DestCallerIDNum\n"
         "dest_caller_id_name text,      -- DestCallerIDName\n"
         "dest_connected_line_num text,  -- DestConnectedLineNum\n"
@@ -192,7 +196,7 @@ char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "AMDSTATUS text,    -- AMDSTATUS\n"
         "AMDCAUSE  text,    -- AMDCAUSE\n"
 
-        "primary key(uuid)\n"
+        "primary key(channel, uniq_id)\n"
         ");";
 
 /**
@@ -222,10 +226,35 @@ char* SQL_CREATE_PARK = "create table park(\n"
         ");";
 
 /**
- * Not use yet.
+ * dialing call info table.
  */
-char* SQL_CREATE_CAMPAIGN = "create table campaign(\n"
-        ""
+char* SQL_CREATE_DIALING = "create table dialing(\n"
+        "-- idenetity\n"
+        "dl_uuid text,      -- dl list uuid\n"
+        "chan_uuid text,    -- channel uniq_id\n"
+        "camp_uuid text,    -- campaign uuid\n"
+
+        "-- status\n"
+        "status text,        -- dailing status. dialing, transfer, ...\n"
+
+        "-- timestamp\n"
+        "tm_dial_request text,       -- dialing request time\n"
+
+        "-- tel info\n"
+        "tel_index int,      -- tel number index\n"
+        "tel_number text,    -- tel number\n"
+        "tel_trycnt int,     -- tel try count\n"
+
+        "-- result\n"
+        "res_dial text,      -- result dialing\n"
+        "res_detect text,    -- result detection\n"
+        "res_transfer text,  -- result transfer\n"
+
+        "-- transfer\n"
+        "tr_trycnt int,         -- tranfer try count\n"
+        "tr_agent text,      -- transfered agent\n"
+
+        "primary key(dl_uuid, chan_uuid)\n"
         ");";
 
 

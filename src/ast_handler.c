@@ -701,37 +701,30 @@ static void evt_newchannel(json_t* j_recv)
     int ret;
     char* sql;
 
-    ret = asprintf(&sql, "update channel set "
-            "name = \"%s\", "
-            "exten = \"%s\", "
-            "connected_line_name = \"%s\", "
-            "connected_line_num = \"%s\", "
-            "context = \"%s\", "
-
-            "caller_id_num = \"%s\", "
-            "caller_id_name = \"%s\", "
-            "language = \"%s\", "
-            "account_code = \"%s\", "
-            "status= \"%s\", "
-
-            "status_desc = \"%s\""
-
-            "where uuid = \"%s\";",
+    ret = asprintf(&sql, "insert into channel("
+            "channel, status, status_desc, caller_id_num, caller_id_name, "
+            "connected_line_num, connected_line_name, account_code, context, exten, "
+            "language, priority, uniq_id"
+            ") values ("
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\" "
+            ");",
 
             json_string_value(json_object_get(j_recv, "Channel")),
-            json_string_value(json_object_get(j_recv, "Exten")),
-            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
-            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
-            json_string_value(json_object_get(j_recv, "Context")),
-
+            json_string_value(json_object_get(j_recv, "ChannelState")),
+            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
             json_string_value(json_object_get(j_recv, "CallerIDNum")),
             json_string_value(json_object_get(j_recv, "CallerIDName")),
-            json_string_value(json_object_get(j_recv, "Language")),
+
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
             json_string_value(json_object_get(j_recv, "AccountCode")),
-            json_string_value(json_object_get(j_recv, "ChannelState")),
+            json_string_value(json_object_get(j_recv, "Context")),
+            json_string_value(json_object_get(j_recv, "Exten")),
 
-            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
-
+            json_string_value(json_object_get(j_recv, "Language")),
+            json_string_value(json_object_get(j_recv, "Priority")),
             json_string_value(json_object_get(j_recv, "Uniqueid"))
             );
 

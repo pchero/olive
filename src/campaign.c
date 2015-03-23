@@ -45,6 +45,7 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
     char*       sql;
 
     // query start campaign
+    // 1 campaign at once.
     ret = asprintf(&sql, "select * from campaign where status = \"%s\" order by rand() limit 1;",
             "start"
             );
@@ -397,7 +398,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     memdb_res* mem_res;
     int dial_num_point;
 
-//    slog(LOG_DEBUG, "dial_predictive");
+    // Need some module for compare currently dialing calls and currently ready agent.
 
     // get available agent(just figure out how many calls are can go at this moment)
     ret = asprintf(&sql, "select * from agent where "
@@ -524,7 +525,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
         return;
     }
 
-    // create channel id
+    // create uniq id
     tmp = NULL;
     tmp = calloc(100, sizeof(char));
     uuid_generate(uuid);
@@ -577,29 +578,27 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
         return;
     }
 
-    // insert to channel.
-    ret = asprintf(&sql, "insert into channel("
-            "uuid, camp_uuid, dl_uuid, status, tm_dial, "
-            "tm_answer, tm_transfer, dial_timeout, voice_detection"
-            ")values("
+    // insert into dialing
+    ret = asprintf(&sql, "insert into dialing("
+            "dl_uuid, chan_uuid, camp_uuid, status, tm_dial_request, "
+            "tel_index, tel_number, tel_trycnt"
+            ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", %s, "
-            "\"%s\", \"%s\", "
-            "strftime(\"%%s\", \"now\") + %d, "
-            "\"%s\""
+            "%d, \"%s\", %d"
             ");",
+
+            json_string_value(json_object_get(j_dlist, "uuid")),
             json_string_value(json_object_get(j_dial, "ChannelId")),
             json_string_value(json_object_get(j_camp, "uuid")),
-            json_string_value(json_object_get(j_dlist, "uuid")),
             "dialing",
             "datetime(\"now\")",
 
-            "NULL",
-            "NULL",
+            dial_num_point,
+            json_string_value(json_object_get(j_dial, "Channel")),
+            cur_trycnt
 
-            (int)json_integer_value(json_object_get(j_plan, "dial_timeout")),
-
-            "NULL"
             );
+
     ret = memdb_exec(sql);
     if(ret == false)
     {
