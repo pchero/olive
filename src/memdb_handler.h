@@ -8,7 +8,7 @@
 #ifndef SRC_MEMDB_HANDLER_H_
 #define SRC_MEMDB_HANDLER_H_
 
-
+#include <stdbool.h>
 #include <sqlite3.h>
 #include <jansson.h>
 

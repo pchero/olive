@@ -513,6 +513,35 @@ static void evt_shutdown(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "Shutdown"))
             );
 
+    int ret;
+    char* sql;
+    char* tmp;
+
+    tmp = json_dumps(j_recv, JSON_ENCODE_ANY);
+
+    ret = asprintf(&sql, "insert into command("
+            "tm_cmd_request, cmd, cmd_param"
+            ") values ("
+            "%s, "
+            "\"%s\", "
+            "\"%s\""
+            ");",
+
+            "datetime(\"now\")",
+            "shutdown",
+            tmp
+            );
+    ret = memdb_exec(sql);
+    free(sql);
+    free(tmp);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not insert reload info.");
+        return;
+    }
+    return;
+
+
     return;
 }
 
@@ -580,26 +609,31 @@ static void evt_reload(json_t* j_recv)
 //    Status: 2
 
     int ret;
+    char* sql;
+    char* tmp;
 
-    if(strcmp(json_string_value(json_object_get(j_recv, "Module")), "chan_sip.so") == 0)
+    tmp = json_dumps(j_recv, JSON_ENCODE_ANY);
+
+    ret = asprintf(&sql, "insert into command("
+            "tm_cmd_request, cmd, cmd_param"
+            ") values ("
+            "%s, "
+            "\"%s\", "
+            "\"%s\""
+            ");",
+
+            "datetime(\"now\")",
+            "reload",
+            tmp
+            );
+    ret = memdb_exec(sql);
+    free(sql);
+    free(tmp);
+    if(ret == false)
     {
-        // chan_sip reloaded.
-        slog(LOG_INFO, "Module reloaded. chan_sip.so.");
-
-        ret = ast_load_peers();
-        if(ret != true)
-        {
-            slog(LOG_ERR, "Could not load peer information.");
-        }
-        slog(LOG_DEBUG, "Complete load peer information");
-
-        ret = ast_load_registry();
-        if(ret != true)
-        {
-            slog(LOG_ERR, "Could not load registry information");
-        }
+        slog(LOG_ERR, "Could not insert reload info.");
+        return;
     }
-
     return;
 }
 
@@ -704,11 +738,11 @@ static void evt_newchannel(json_t* j_recv)
     ret = asprintf(&sql, "insert into channel("
             "channel, status, status_desc, caller_id_num, caller_id_name, "
             "connected_line_num, connected_line_name, account_code, context, exten, "
-            "language, priority, uniq_id"
+            "language, priority, uniq_id, tm_create"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\" "
+            "\"%s\", \"%s\", \"%s\", %s "
             ");",
 
             json_string_value(json_object_get(j_recv, "Channel")),
@@ -717,15 +751,16 @@ static void evt_newchannel(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "CallerIDNum")),
             json_string_value(json_object_get(j_recv, "CallerIDName")),
 
-            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
             json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
             json_string_value(json_object_get(j_recv, "AccountCode")),
             json_string_value(json_object_get(j_recv, "Context")),
             json_string_value(json_object_get(j_recv, "Exten")),
 
             json_string_value(json_object_get(j_recv, "Language")),
             json_string_value(json_object_get(j_recv, "Priority")),
-            json_string_value(json_object_get(j_recv, "Uniqueid"))
+            json_string_value(json_object_get(j_recv, "Uniqueid")),
+            "datetime(\"now\")"
             );
 
     ret = memdb_exec(sql);
@@ -793,14 +828,8 @@ static void evt_varset(json_t* j_recv)
     char* sql;
 
     // check variable
-//    if(strcmp(json_string_value(json_object_get(j_recv, "Variable")), "SIPCALLID") != 0)
-//    {
-//        slog(LOG_INFO, "No support variable set.");
-//        return;
-//    }
-
     ret = asprintf(&sql, "update channel set "
-            "name = \"%s\", "
+            "channel = \"%s\", "
             "exten = \"%s\", "
             "connected_line_name = \"%s\", "
             "connected_line_num = \"%s\", "
@@ -816,7 +845,7 @@ static void evt_varset(json_t* j_recv)
 
             "%s = \"%s\" "
 
-            "where uuid = \"%s\";",
+            "where uniq_id = \"%s\";",
 
             json_string_value(json_object_get(j_recv, "Channel")),
             json_string_value(json_object_get(j_recv, "Exten")),
@@ -904,7 +933,7 @@ static void evt_hangup(json_t* j_recv)
     char* sql;
 
     ret = asprintf(&sql, "update channel set "
-            "name = \"%s\", "
+            "channel = \"%s\", "
             "exten = \"%s\", "
             "connected_line_name = \"%s\", "
             "connected_line_num = \"%s\", "
@@ -917,11 +946,11 @@ static void evt_hangup(json_t* j_recv)
             "status = \"%s\", "
 
             "status_desc = \"%s\", "
-            "hangup = \"%s\", "
             "cause_code = \"%s\", "
-            "cause = \"%s\" "
+            "cause = \"%s\", "
+            "tm_hangup = %s"
 
-            "where uuid = \"%s\";",
+            "where uniq_id = \"%s\";",
 
             json_string_value(json_object_get(j_recv, "Channel")),
             json_string_value(json_object_get(j_recv, "Exten")),
@@ -936,9 +965,9 @@ static void evt_hangup(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "ChannelState")),
 
             json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
-            "yes",
             json_string_value(json_object_get(j_recv, "Cause")),
             json_string_value(json_object_get(j_recv, "Cause-txt")),
+            "datetime(\"now\")",
 
             json_string_value(json_object_get(j_recv, "Uniqueid"))
             );
@@ -1018,7 +1047,7 @@ static void evt_newstate(json_t* j_recv)
             "context = \"%s\", "
             "exten = \"%s\" "
 
-            "where name = \"%s\";",
+            "where channel = \"%s\";",
 
             json_string_value(json_object_get(j_recv, "ChannelState")),
             json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
@@ -1145,9 +1174,13 @@ static void evt_dialbegin(json_t* j_recv)
             "dest_context = \"%s\", "
             "dest_exten = \"%s\", "
 
-            "dial_string = \"%s\" "
+            "dial_string = \"%s\", "
+            "tm_dial = %s "
 
-            "where name = \"%s\";",
+            "where "
+            "channel = \"%s\" "
+            "and uniq_id = \"%s\" "
+            ";",
 
             json_string_value(json_object_get(j_recv, "DestChannelStateDesc")),
             json_string_value(json_object_get(j_recv, "DestChannelState")),
@@ -1162,8 +1195,10 @@ static void evt_dialbegin(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "DestExten")),
 
             json_string_value(json_object_get(j_recv, "DialString")),
+            "datetime(\"now\")",
 
-            json_string_value(json_object_get(j_recv, "DestChannel"))
+            json_string_value(json_object_get(j_recv, "DestChannel")),
+            json_string_value(json_object_get(j_recv, "DestUniqueid"))
             );
 
     ret = memdb_exec(sql);
@@ -1288,9 +1323,12 @@ static void evt_dialend(json_t* j_recv)
             "dest_context = \"%s\", "
             "dest_exten = \"%s\", "
 
-            "dial_status = \"%s\" "
+            "dial_status = \"%s\", "
+            "tm_dial_end = %s "
 
-            "where name = \"%s\";",
+            "where channel = \"%s\" "
+            "and uniq_id = \"%s\" "
+            ";",
 
             json_string_value(json_object_get(j_recv, "DestChannelStateDesc")),
             json_string_value(json_object_get(j_recv, "DestChannelState")),
@@ -1305,8 +1343,10 @@ static void evt_dialend(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "DestExten")),
 
             json_string_value(json_object_get(j_recv, "DialStatus")),
+            "datetime(\"now\")",
 
-            json_string_value(json_object_get(j_recv, "DestChannel"))
+            json_string_value(json_object_get(j_recv, "DestChannel")),
+            json_string_value(json_object_get(j_recv, "DestUniqueid"))
             );
 
     ret = memdb_exec(sql);
@@ -1384,12 +1424,12 @@ static void evt_parkedcall(json_t* j_recv)
             "channel, channel_state, channel_state_desc, caller_id_num, caller_id_name, "
             "connected_line_num, connected_line_name, language, account_code, context, "
             "exten, priority, unique_id, dial_string, parking_lot, "
-            "parking_space, parking_timeout, parking_duration"
+            "parking_space, parking_timeout, parking_duration, tm_parkedin"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", \"%s\", \"%s\""
+            "\"%s\", \"%s\", \"%s\", %s"
             ");",
             json_string_value(json_object_get(j_recv, "ParkeeChannel")),
             json_string_value(json_object_get(j_recv, "ParkeeChannelState")),
@@ -1411,7 +1451,8 @@ static void evt_parkedcall(json_t* j_recv)
 
             json_string_value(json_object_get(j_recv, "ParkingSpace")),
             json_string_value(json_object_get(j_recv, "ParkingTimeout")),
-            json_string_value(json_object_get(j_recv, "ParkingDuration"))
+            json_string_value(json_object_get(j_recv, "ParkingDuration")),
+            "datetime(\"now\")"
             );
 
     ret = memdb_exec(sql);
@@ -1519,10 +1560,52 @@ static void evt_parkedcalltimeout(json_t* j_recv)
     int ret;
     char* sql;
 
-    ret = asprintf(&sql, "delete from park where "
-            "channel = \"%s\""
+    ret = asprintf(&sql, "update park set "
+            "channel_state = \"%s\", \n"
+            "channel_state_desc = \"%s\", \n"
+            "caller_id_num = \"%s\", \n"
+            "caller_id_name = \"%s\", \n"
+            "connected_line_num = \"%s\", \n"
+
+            "connected_line_name = \"%s\", \n"
+            "language = \"%s\", \n"
+            "account_code = \"%s\", \n"
+            "context = \"%s\", \n"
+            "exten = \"%s\", \n"
+
+            "priority = \"%s\", \n"
+            "dial_string = \"%s\", \n"
+            "parking_lot = \"%s\", \n"
+            "parking_space = \"%s\", \n"
+            "parking_timeout = \"%s\", \n"
+
+            "parking_duration = \"%s\", \n"
+            "tm_parkedout = %s"
+
+            "where unique_id = \"%s\""
             ";",
-            json_string_value(json_object_get(j_recv, "ParkeeChannel"))
+            json_string_value(json_object_get(j_recv, "ParkeeChannelState")),
+            json_string_value(json_object_get(j_recv, "ParkeeChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDNum")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDName")),
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ParkeeLanguage")),
+            json_string_value(json_object_get(j_recv, "ParkeeAccountCode")),
+            json_string_value(json_object_get(j_recv, "ParkeeContext")),
+            json_string_value(json_object_get(j_recv, "ParkeeExten")),
+
+            json_string_value(json_object_get(j_recv, "ParkeePriority")),
+            json_string_value(json_object_get(j_recv, "ParkerDialString")),
+            json_string_value(json_object_get(j_recv, "Parkinglot")),
+            json_string_value(json_object_get(j_recv, "ParkingSpace")),
+            json_string_value(json_object_get(j_recv, "ParkingTimeout")),
+
+            json_string_value(json_object_get(j_recv, "ParkingDuration")),
+            "datetime(\"now\")",
+
+            json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
             );
 
     ret = memdb_exec(sql);
@@ -1635,6 +1718,54 @@ static void evt_parkedcallgiveup(json_t* j_recv)
             "channel = \"%s\""
             ";",
             json_string_value(json_object_get(j_recv, "ParkeeChannel"))
+            );
+
+    ret = asprintf(&sql, "update park set "
+            "channel_state = \"%s\", \n"
+            "channel_state_desc = \"%s\", \n"
+            "caller_id_num = \"%s\", \n"
+            "caller_id_name = \"%s\", \n"
+            "connected_line_num = \"%s\", \n"
+
+            "connected_line_name = \"%s\", \n"
+            "language = \"%s\", \n"
+            "account_code = \"%s\", \n"
+            "context = \"%s\", \n"
+            "exten = \"%s\", \n"
+
+            "priority = \"%s\", \n"
+            "dial_string = \"%s\", \n"
+            "parking_lot = \"%s\", \n"
+            "parking_space = \"%s\", \n"
+            "parking_timeout = \"%s\", \n"
+
+            "parking_duration = \"%s\", \n"
+            "tm_parkedout = %s"
+
+            "where unique_id = \"%s\""
+            ";",
+            json_string_value(json_object_get(j_recv, "ParkeeChannelState")),
+            json_string_value(json_object_get(j_recv, "ParkeeChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDNum")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDName")),
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ParkeeLanguage")),
+            json_string_value(json_object_get(j_recv, "ParkeeAccountCode")),
+            json_string_value(json_object_get(j_recv, "ParkeeContext")),
+            json_string_value(json_object_get(j_recv, "ParkeeExten")),
+
+            json_string_value(json_object_get(j_recv, "ParkeePriority")),
+            json_string_value(json_object_get(j_recv, "ParkerDialString")),
+            json_string_value(json_object_get(j_recv, "Parkinglot")),
+            json_string_value(json_object_get(j_recv, "ParkingSpace")),
+            json_string_value(json_object_get(j_recv, "ParkingTimeout")),
+
+            json_string_value(json_object_get(j_recv, "ParkingDuration")),
+            "datetime(\"now\")",
+
+            json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
             );
 
     ret = memdb_exec(sql);

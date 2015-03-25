@@ -39,7 +39,6 @@ bool load_table_agent(void)
         return false;
     }
 
-
     while(1)
     {
         j_res = db_get_record(db_res);

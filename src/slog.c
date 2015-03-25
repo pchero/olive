@@ -117,7 +117,7 @@ void _slog(const char *_FILE, int _LINE, const char *_func, uint64_t level, cons
     int len;
 
     // Exit early before we do any processing, if we have nothing to log
-    if (level > g_loglevel)
+    if(level > g_loglevel)
     {
         return;
     }

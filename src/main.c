@@ -31,6 +31,7 @@
 #include "memdb_handler.h"
 #include "call_handler.h"
 #include "agent_handler.h"
+#include "cmd_handler.h"
 
 
 #define DEF_SERVERIP "127.0.0.1"
@@ -479,6 +480,9 @@ static int init_callback(void)
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_forcestop, NULL);
     event_add(ev, &tm_slow);
 
+    // cmd handler
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_cmd_handler, NULL);
+    event_add(ev, &tm_slow);
 
     return true;
 }

@@ -340,6 +340,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     json_t* j_res;
     json_t* j_recv;
     htp_method method;
+    int htp_ret;
 
     ret = is_auth(req);
     if(ret == false)
@@ -358,10 +359,11 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
             j_recv = get_receivedata(req);
             if(j_recv == NULL)
             {
-                j_res = json_null();
+                htp_ret = EVHTP_RES_BADREQ;
                 break;
             }
             j_res = agent_create(j_recv);
+            htp_ret = EVHTP_RES_OK;
         }
         break;
 
@@ -373,12 +375,18 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
         case htp_method_GET:
         {
             j_res = agent_all_get();
+            if(j_res == NULL)
+            {
+                htp_ret = EVHTP_RES_SERVERR;
+                break;
+            }
+            htp_ret = EVHTP_RES_OK;
         }
         break;
 
         default:
         {
-            // do nothing
+            htp_ret = EVHTP_RES_FORBIDDEN;
             j_res = json_null();
         }
         break;
@@ -388,7 +396,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     // create result
     ret = create_common_result(req, j_res);
     json_decref(j_res);
-    evhtp_send_reply(req, EVHTP_RES_OK);
+    evhtp_send_reply(req, htp_ret);
 
     return;
 }
