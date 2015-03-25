@@ -31,6 +31,7 @@
 #include "memdb_handler.h"
 #include "call_handler.h"
 #include "agent_handler.h"
+#include "cmd_handler.h"
 
 
 #define DEF_SERVERIP "127.0.0.1"
@@ -479,6 +480,9 @@ static int init_callback(void)
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_forcestop, NULL);
     event_add(ev, &tm_slow);
 
+    // cmd handler
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_cmd_handler, NULL);
+    event_add(ev, &tm_slow);
 
     return true;
 }
@@ -639,11 +643,32 @@ static int init_memdb(void)
     memdb_free(mem_res);
     if(j_res == NULL)
     {
-        // create park table.
+        // create dialing table.
         ret = memdb_exec(SQL_CREATE_DIALING);
         if(ret == false)
         {
             slog(LOG_ERR, "Could not create table dialing.");
+            return false;
+        }
+    }
+    json_decref(j_res);
+
+    // check command table existence.
+    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"command\";");
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get command table info.");
+        return false;
+    }
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        // create command table.
+        ret = memdb_exec(SQL_CREATE_COMMAND);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not create table command.");
             return false;
         }
     }

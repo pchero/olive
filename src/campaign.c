@@ -580,7 +580,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 
     // insert into dialing
     ret = asprintf(&sql, "insert into dialing("
-            "dl_uuid, chan_uuid, camp_uuid, status, tm_dial_request, "
+            "dl_uuid, chan_uuid, camp_uuid, status, tm_dial_req, "
             "tel_index, tel_number, tel_trycnt"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", %s, "
