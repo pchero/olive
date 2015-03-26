@@ -290,7 +290,6 @@ char* SQL_CREATE_COMMAND = "create table command(\n"
         "cmd_param text,    -- cmd parameters\n"
         "cmd_result text    -- cmd result.\n"
 
-//        "primary key(seq)\n"
         ");";
 
 
