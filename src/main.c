@@ -469,7 +469,7 @@ static int init_callback(void)
 
     // slow
     // call_timeout
-    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_call_timeout, NULL);
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_call_hangup, NULL);
     event_add(ev, &tm_slow);
 
     // campaign_stop

@@ -34,22 +34,36 @@ create table campaign(
 drop table if exists campaign_result;
 create table campaign_result(
 -- campaign result table.
+    -- identity
     seq         int(10)         unsigned auto_increment,
-    cp_uuid     varchar(255)    not null,   -- campaign uuid
-    dl_list     varchar(255)    not null,   -- dl_list table name
-    dl_seq      int(10)         not null,   -- dl_list sequence number in the dl_list table.
+    camp_uuid   varchar(255)    not null,   -- campaign uuid
+    chan_uuid   varchar(255)    not null,   -- channel unique id
+    dial_uuid   varchar(255)    not null,   -- dl_list table uuid
     
-    used_chaanel    varchar(255),       -- used channel id
-    used_registry   varchar(255),       -- used registry
-
-    result_dial     varchar(255),       -- dial result
-    result_result   varchar(255) default NULL,  -- route result
-    routed_agent    varchar(255) default NULL,  -- routetd agent uuid
+    -- timestamp
+    tm_dial_req         datetime,   -- dialing request timestamp
+    tm_dial_start       datetime,   -- dialing start timestamp
+    tm_dial_end         datetime,   -- dialing end timestamp
+    tm_parked_in        datetime,   -- parked in timestamp
+    tm_parked_out       datetime,   -- parked out timestamp
+    tm_transfer_req     datatime,   -- transfer request timestamp
+    tm_transfer_start   datetime,   -- transfer start timestamp
+    tm_transfer_end     datetime,   -- transfer end timestamp
+    tm_hangup           datetime,   -- hangup timestamp
     
-    tm_dial_start   datetime,       -- dialing start time
-    tm_dial_stop    datetime,       -- dialing stop time
-    tm_route_start  datetime,       -- route start time
-    tm_route_stop   datetime,       -- route stop time    
+    -- dial result
+    res_voice               varchar(255),   -- AMD(Answerring machine detect) result. If it used.
+    res_voice_desc          varchar(255),   -- AMD result description.
+    res_dial                varchar(255),   -- dial result
+    res_transfer            varchar(255),   -- transferred result
+    res_transferred_agent   varchar(255),   -- transferred agent uuid
+    
+    -- dial information
+    dial_number     varchar(255),   -- call number
+    dial_idx_number varchar(255),   -- call number index
+    dial_idx_count  varchar(255),   -- call number count
+    dial_string     varchar(255),   -- dialed string
+    dial_sip_callid varchar(255),   -- dial sip call id. if exists.
     
     primary key(seq)
     

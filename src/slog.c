@@ -7,12 +7,15 @@
 
  */
 
+#define _GNU_SOURCE
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <jansson.h>
 
 
 #include <zmq.h>
@@ -23,7 +26,7 @@
 
 static void* g_slog_zctx    = NULL;  //!< zmq context
 static void* g_slog_zsock   = NULL;   //!< zmq sockets
-static char g_logbuf[MAX_LOGBUFFER_SIZE];
+//static char g_logbuf[MAX_LOGBUFFER_SIZE];
 
 static LOG_LEVEL    g_loglevel = LOG_INFO;  //!< log level
 
@@ -111,10 +114,14 @@ bool init_slog(
  * @param level
  * @param fmt
  */
-void _slog(const char *_FILE, int _LINE, const char *_func, uint64_t level, const char *fmt, ...)
+void _slog(const char *_FILE, int _LINE, const char *_func, LOG_LEVEL level, const char *fmt, ...)
 {
     va_list ap;
-    int len;
+//    int len;
+    char* buf;
+    json_t* j_log;
+    char *level_str;
+    __attribute__((unused)) int ret;
 
     // Exit early before we do any processing, if we have nothing to log
     if(level > g_loglevel)
@@ -122,21 +129,66 @@ void _slog(const char *_FILE, int _LINE, const char *_func, uint64_t level, cons
         return;
     }
 
-    memset(g_logbuf, 0x00, sizeof(g_logbuf));
-    va_start(ap, fmt);
-
-    snprintf(g_logbuf, MAX_LOGBUFFER_SIZE, "[%s:%d, %s] ", _FILE, _LINE, _func);
-    len = strlen(g_logbuf);
-    vsnprintf(g_logbuf + len, MAX_LOGBUFFER_SIZE - len, fmt, ap);
-    va_end(ap);
-
-    if(g_slog_zsock == NULL)
+    // log level string
+    if(level == LOG_ERR)
     {
-        fprintf(stderr, "[ERR] Log socket error. msg[%s]\n", g_logbuf);
-        return;
+        ret = asprintf(&level_str, "LOG_ERR");
+    }
+    else if(level == LOG_WARN)
+    {
+        ret = asprintf(&level_str, "LOG_WARN");
+    }
+    else if(level == LOG_INFO)
+    {
+        ret = asprintf(&level_str, "LOG_INFO");
+    }
+    else if(level == LOG_DEBUG)
+    {
+        ret = asprintf(&level_str, "LOG_DEBUG");
+    }
+    else
+    {
+        ret = asprintf(&level_str, "LEV[%d]", level);
     }
 
-    s_send(g_slog_zsock, g_logbuf);
+    ret = asprintf(&buf, fmt, ap);
+    j_log = json_pack("{s:s, s:s, s:s, s:s}",
+            "file", _FILE,
+            "line", _LINE,
+            "level", level_str,
+            "log", buf
+            );
+    free(buf);
+    free(level_str);
+
+    // create send buf
+    buf = json_dumps(j_log, JSON_ENCODE_ANY);
+
+    // check zlog sock.
+    if(g_slog_zsock == NULL)
+    {
+        fprintf(stderr, "[ERR] Log socket error. msg[%s]\n", buf);
+        return;
+    }
+    s_send(g_slog_zsock, buf);
+    free(buf);
+
+
+//    memset(g_logbuf, 0x00, sizeof(g_logbuf));
+//    va_start(ap, fmt);
+//
+//    snprintf(g_logbuf, MAX_LOGBUFFER_SIZE, "[%s:%d, %s] ", _FILE, _LINE, _func);
+//    len = strlen(g_logbuf);
+//    vsnprintf(g_logbuf + len, MAX_LOGBUFFER_SIZE - len, fmt, ap);
+//    va_end(ap);
+//
+//    if(g_slog_zsock == NULL)
+//    {
+//        fprintf(stderr, "[ERR] Log socket error. msg[%s]\n", g_logbuf);
+//        return;
+//    }
+//
+//    s_send(g_slog_zsock, g_logbuf);
 }
 
 /**

@@ -21,7 +21,7 @@
 
 static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dial);
 static void call_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call);
-
+static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing);
 
 /**
  * Distribute parked call to agent
@@ -162,15 +162,79 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
 }
 
 
-void cb_call_timeout(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
+/**
+ * Check hanged up calls.
+ */
+void cb_call_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
-//    memdb_res* mem_timeout;
+    char* sql;
+    int ret;
+    memdb_res* mem_res_hangup;
+    memdb_res* mem_res;
+    json_t* j_hangup;   // memdb [channel] hangup set info..
+    json_t* j_park;     // memdb [park]
+    json_t* j_dialing;  // memdb [dialing]
 
-//    memdb_query("select * from channel where")
-    // check timeout call
+    ret = asprintf(&sql, "select * from channel where cause is not null;");
+    mem_res_hangup = memdb_query(sql);
+    free(sql);
+    if(mem_res_hangup == NULL)
+    {
+        slog(LOG_ERR, "Could not get hangup channel info.");
+        return;
+    }
 
-    // send hangup AMI
+    while(1)
+    {
+        j_hangup = memdb_get_result(mem_res_hangup);
+        if(j_hangup == NULL)
+        {
+            // No more hangup channel.
+            break;
+        }
 
+        // get park table record.
+        ret = asprintf(&sql, "select * from park where unique_id = \"%s\";",
+                json_string_value(json_object_get(j_hangup, "unique_id"))
+                );
+        mem_res = memdb_query(sql);
+        free(sql);
+        if(mem_res == NULL)
+        {
+            slog(LOG_ERR, "Could not get park info.");
+            json_decref(j_hangup);
+            continue;
+        }
+
+        // we don't care j_park is NULL or not at this point.
+        j_park = memdb_get_result(mem_res);
+
+        // get dialing table record.
+        ret = asprintf(&sql, "select * from dialing where chan_uuid = \"%s\";",
+                json_string_value(json_object_get(j_hangup, "unique_id"))
+                );
+        mem_res = memdb_query(sql);
+        free(sql);
+        if(mem_res == NULL)
+        {
+            slog(LOG_ERR, "Could not get dialing info.");
+            json_decref(j_hangup);
+            json_decref(j_park);
+            continue;
+        }
+
+        // we don't care j_dialing is NULL or not at this point.
+        j_dialing = memdb_get_result(mem_res);
+
+        // process result.
+        call_result(j_hangup, j_park, j_dialing);
+
+        json_decref(j_dialing);
+        json_decref(j_park);
+        json_decref(j_hangup);
+    }
+
+    memdb_free(mem_res_hangup);
 
     return;
 }
@@ -355,3 +419,125 @@ static void call_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call)
 {
     return;
 }
+
+/**
+ * Insert call result.
+ * @param j_chan
+ * @param j_park
+ * @param j_dialing
+ */
+static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing)
+{
+    int ret;
+    char* sql;
+
+    // not our call.
+    if(j_dialing == NULL)
+    {
+        // just delete from table.
+        if(j_park != NULL)
+        {
+            ret = asprintf(&sql, "delete from park where unique_id = \"%s\";",
+                    json_object_get(j_chan, "unique_id")
+                    );
+            ret = memdb_exec(sql);
+            free(sql);
+            if(ret == false)
+            {
+                slog(LOG_ERR, "Could not delete park info.");
+                return;
+            }
+        }
+
+        ret = asprintf(&sql, "delete from channel where unique_id = \"%s\";",
+                json_object_get(j_chan, "unique_id")
+                );
+        ret = memdb_exec(sql);
+        free(sql);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete channel info.");
+            return;
+        }
+
+        return;
+    }
+
+
+    // insert info into campaign_result
+    ret = asprintf(&sql, "insert into campaign_result("
+
+            // identity
+            "camp_uuid, chan_uuid, dial_uuid,"
+
+            // timestamp
+            "tm_dial_req, tm_dial_start, tm_dial_end, tm_parked_in, tm_parked_out, "
+            "tm_transfer_req, tm_transfer_start, tm_transfer_end, tm_hangup,"
+
+            // dial result
+            "res_voice, res_voice_desc, res_dial, res_transfer, res_transferred_agent,"
+
+            // dial information
+            "dial_number, dial_idx_number, dial_idx_count, dial_string, dial_sip_callid"
+
+            ") values ("
+
+            // identity
+            "\"%s\", \"%s\", \"%s\", "
+
+            // timestamp
+            "str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), "
+            "str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), "
+
+            // dial result
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+
+            // dial information
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
+            ");",
+
+            // identity
+            json_string_value(json_object_get(j_dialing, "camp_uuid")),
+            json_string_value(json_object_get(j_dialing, "chan_uuid")),
+            json_string_value(json_object_get(j_dialing, "dl_uuid")),
+
+            // timestamp
+            json_string_value(json_object_get(j_dialing, "tm_dial_req")),
+            json_string_value(json_object_get(j_chan, "tm_dial")),
+            json_string_value(json_object_get(j_chan, "tm_dial_end")),
+            json_string_value(json_object_get(j_park, "tm_parkedin")),
+            json_string_value(json_object_get(j_park, "tm_parkedout")),
+
+            json_string_value(json_object_get(j_dialing, "tm_transfer_req")),
+            json_string_value(json_object_get(j_chan, "tm_transfer")),
+            json_string_value(json_object_get(j_chan, "tm_transfer_end")),
+            json_string_value(json_object_get(j_chan, "tm_hangup")),
+
+            // dial result
+            json_string_value(json_object_get(j_chan, "AMDSTATUS")),
+            json_string_value(json_object_get(j_chan, "AMDCAUSE")),
+            json_string_value(json_object_get(j_chan, "dial_status")),
+            json_string_value(json_object_get(j_chan, "dial_status")),
+
+            json_string_value(json_object_get(j_dialing, "dl_uuid"))
+            );
+    ret = db_exec(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not insert result info.");
+        return;
+    }
+
+    // update dl_list table status and result.
+
+    // delete channel table info.
+
+    // delete park table info.
+
+    // delete dialing table info.
+
+
+
+    return;
+}
+

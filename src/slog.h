@@ -26,7 +26,7 @@ typedef enum _LOG_LEVEL
 
 bool init_slog(void* zctx, char* addr);
 void slog_set_loglevel(LOG_LEVEL level);
-void _slog(const char *_FILE, int _LINE, const char *_func, uint64_t level, const char *fmt, ...);
+void _slog(const char *_FILE, int _LINE, const char *_func, LOG_LEVEL level, const char *fmt, ...);
 void slog_exit(void);
 
 
