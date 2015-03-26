@@ -826,8 +826,31 @@ static void evt_varset(json_t* j_recv)
 
     int ret;
     char* sql;
+    const char* var;
 
     // check variable
+    var = json_string_value(json_object_get(j_recv, "Variable"));
+    if(strcmp(var, "SIPCALLID") == 0)
+    {
+        // Go further.
+    }
+    else if(strcmp(var, "AMDSTATUS") == 0)
+    {
+        // Go further.
+    }
+    else if(strcmp(var, "AMDCAUSE") == 0)
+    {
+        // Go further.
+    }
+    else
+    {
+        slog(LOG_DEBUG, "Unsupported VarSet. var[%s], value[%s]",
+                json_string_value(json_object_get(j_recv, "Variable")),
+                json_string_value(json_object_get(j_recv, "Value"))
+                );
+        return;
+    }
+
     ret = asprintf(&sql, "update channel set "
             "channel = \"%s\", "
             "exten = \"%s\", "
@@ -1718,6 +1741,54 @@ static void evt_parkedcallgiveup(json_t* j_recv)
             "channel = \"%s\""
             ";",
             json_string_value(json_object_get(j_recv, "ParkeeChannel"))
+            );
+
+    ret = asprintf(&sql, "update park set "
+            "channel_state = \"%s\", \n"
+            "channel_state_desc = \"%s\", \n"
+            "caller_id_num = \"%s\", \n"
+            "caller_id_name = \"%s\", \n"
+            "connected_line_num = \"%s\", \n"
+
+            "connected_line_name = \"%s\", \n"
+            "language = \"%s\", \n"
+            "account_code = \"%s\", \n"
+            "context = \"%s\", \n"
+            "exten = \"%s\", \n"
+
+            "priority = \"%s\", \n"
+            "dial_string = \"%s\", \n"
+            "parking_lot = \"%s\", \n"
+            "parking_space = \"%s\", \n"
+            "parking_timeout = \"%s\", \n"
+
+            "parking_duration = \"%s\", \n"
+            "tm_parkedout = %s"
+
+            "where unique_id = \"%s\""
+            ";",
+            json_string_value(json_object_get(j_recv, "ParkeeChannelState")),
+            json_string_value(json_object_get(j_recv, "ParkeeChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDNum")),
+            json_string_value(json_object_get(j_recv, "ParkeeCallerIDName")),
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "ParkeeLanguage")),
+            json_string_value(json_object_get(j_recv, "ParkeeAccountCode")),
+            json_string_value(json_object_get(j_recv, "ParkeeContext")),
+            json_string_value(json_object_get(j_recv, "ParkeeExten")),
+
+            json_string_value(json_object_get(j_recv, "ParkeePriority")),
+            json_string_value(json_object_get(j_recv, "ParkerDialString")),
+            json_string_value(json_object_get(j_recv, "Parkinglot")),
+            json_string_value(json_object_get(j_recv, "ParkingSpace")),
+            json_string_value(json_object_get(j_recv, "ParkingTimeout")),
+
+            json_string_value(json_object_get(j_recv, "ParkingDuration")),
+            "datetime(\"now\")",
+
+            json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
             );
 
     ret = asprintf(&sql, "update park set "

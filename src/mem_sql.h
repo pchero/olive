@@ -122,7 +122,7 @@ char* SQL_CREATE_REGISTRY = "create table registry(\n"
 char* SQL_CREATE_AGENT = "create table agent(\n"
         "uuid text,                 -- uuid\n"
         "status text default \"logout\",    -- \"logout\", \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
-        "status_update_time text,   -- last status update time\n"
+        "tm_status_update text,   -- last status update time\n"
 
         "primary key(uuid)\n"
         ");";
@@ -249,7 +249,7 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
         "camp_uuid text,    -- campaign uuid\n"
 
         "-- status\n"
-        "status text,        -- dailing status. dialing, transfer, ...\n"
+        "status text,        -- dailing status. dialing, transferred, ...\n"
 
         "-- timestamp\n"
         "tm_dial_req text,      -- dialing request time\n"
@@ -290,7 +290,6 @@ char* SQL_CREATE_COMMAND = "create table command(\n"
         "cmd_param text,    -- cmd parameters\n"
         "cmd_result text    -- cmd result.\n"
 
-//        "primary key(seq)\n"
         ");";
 
 

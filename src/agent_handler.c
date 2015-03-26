@@ -128,7 +128,7 @@ json_t* agent_update(const json_t* j_agent)
             "desc_admin = \"%s\", "
             "desc_user = \"%s\", "
 
-            "info_update_time = %s, "
+            "tm_info_update = %s, "
             "info_update_user = \"%s\" "
 
             "where uuid = \"%s\";",
@@ -220,12 +220,12 @@ json_t* agent_create(const json_t* j_agent)
             "desc_admin, "
 
             "desc_user, "
-            "create_time, "
+            "tm_create, "
             "create_user, "
-            "info_update_time, "
+            "tm_info_update, "
             "info_update_user, "
 
-            "status_update_time"
+            "tm_status_update"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
             "\"%s\", %s, \"%s\", %s, \"%s\", "

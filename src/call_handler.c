@@ -30,7 +30,7 @@ static void call_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call);
  */
 void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
-    memdb_res* mem_res_chan;
+    memdb_res* mem_res_chan;    // channel select result
     memdb_res* mem_res;
     db_ctx_t*  db_tmp;
     json_t* j_chan;     // memdb. channel info to distribute
@@ -40,8 +40,8 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     char* sql;
     unused__ int ret;
 
-    // get call channel which is parked and dialing now.(For distribute)
-    mem_res_chan = memdb_query("select * from channel where uniq_id = "
+    // get call channel which is parked and Up and exists in dialing table now.(For distribute)
+    mem_res_chan = memdb_query("select * from channel where status_desc = \"Up\" and uniq_id = "
             "(select chan_uuid from dialing where tm_transfer_req is null and chan_uuid = "
                 "(select unique_id from park where tm_parkedout is null)"
             ");"
@@ -177,10 +177,10 @@ void cb_call_timeout(unused__ evutil_socket_t fd, unused__ short what, unused__ 
 
 /**
  * call distribute for predictive
- * @param j_camp    db campaign table info
- * @param j_plan    db plan table info
- * @param j_call    mem channel table info.
- * @param
+ * @param j_camp    db [campaign] record info.
+ * @param j_plan    db [plan] record info.
+ * @param j_call    memdb [channel] record info.
+ * @param j_dial    memdb [dialing] record info.
  * @return
  */
 static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dial)
@@ -199,7 +199,7 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     ret = asprintf(&sql, "select * from agent where "
             "uuid = (select uuid_agent from agent_group where uuid_group = \"%s\") "
             "and status = \"%s\" "
-            "order by status_update_time "
+            "order by tm_status_update "
             "limit 1",
 
             json_string_value(json_object_get(j_camp, "agent_group")),
@@ -239,13 +239,14 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     while(1)
     {
         j_agent_peer = db_get_record(db_res);
-        db_free(db_res);
         if(j_agent_peer == NULL)
         {
-            // No own peer info.
+            // No more own peer info.
             break;
         }
 
+        // get the "available" peer info.
+        // check peer status from memdb.
         ret = asprintf(&sql, "select * from peer where name = \"%s\" and device_state = \"%s\" limit 1;",
                 json_string_value(json_object_get(j_agent_peer, "name")),
                 "NOT_INUSE"
@@ -266,6 +267,7 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
             break;
         }
     }
+    db_free(db_res);
 
     // create redirect json
     slog(LOG_INFO, "Call transfer. channel[%s], peer[%s]",
@@ -296,13 +298,15 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     ret = asprintf(&sql, "update dialing set "
             "tm_transfer_req = %s, "
             "tr_agent = \"%s\", "
-            "tr_trycnt = %s "
+            "tr_trycnt = %s,"
+            "status = \"%s\" "
             "where chan_uuid = \"%s\""
             ";",
 
             "datetime(\"now\"), ",
             json_string_value(json_object_get(j_agent, "uuid")),
             "tr_trycnt + 1",
+            "transferred",
             json_string_value(json_object_get(j_chan, "uniq_id"))
             );
     ret = memdb_exec(sql);
@@ -311,6 +315,29 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     {
         slog(LOG_ERR, "Could not update dialig info for call distribute.");
 
+        json_decref(j_peer);
+        json_decref(j_agent);
+
+        return;
+    }
+
+    // update agent info.
+    // update status, timestamp.
+    ret = asprintf(&sql, "update agent set "
+            "status = \"%s\", "
+            "tm_status_update = %s"
+            "where uuid=\"%s\""
+            ";",
+
+            "busy",
+            "utc_timestamp()",
+            json_string_value(json_object_get(j_agent, "uuid"))
+            );
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update agent status info.");
         json_decref(j_peer);
         json_decref(j_agent);
 

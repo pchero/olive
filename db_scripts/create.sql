@@ -71,16 +71,18 @@ create table agent(
     status      varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work)    
     desc_admin  varchar(1023),      -- description(for administrator)
     desc_user   varchar(1023),      -- description(for agent itself)
-    create_time datetime,           -- create datetime
     create_user varchar(255),       -- create user
-    info_update_time   datetime,       -- last agent info modified time
     info_update_user   varchar(255),   -- last agent info modified user
     
+    -- timestamp
+    tm_info_update      datetime,   -- last agent info modified time
+    tm_create           datetime,   -- created time
+    tm_status_update    datetime,   -- last status changed time.    
     
-    -- agent level (permission)
+    -- agent level (permission). -- to-be
     
     -- agent performance
-    status_update_time datetime,  -- last status changed time.
+    -- busy time, how many calls got.. Um?
     
     primary key(seq, uuid)
 );
