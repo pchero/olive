@@ -168,7 +168,7 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
 void cb_call_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
     char* sql;
-    int ret;
+    unused__ int ret;
     memdb_res* mem_res_hangup;
     memdb_res* mem_res;
     json_t* j_hangup;   // memdb [channel] hangup set info..
@@ -438,7 +438,7 @@ static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing)
         if(j_park != NULL)
         {
             ret = asprintf(&sql, "delete from park where unique_id = \"%s\";",
-                    json_object_get(j_chan, "unique_id")
+                    json_string_value(json_object_get(j_chan, "unique_id"))
                     );
             ret = memdb_exec(sql);
             free(sql);
@@ -450,7 +450,7 @@ static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing)
         }
 
         ret = asprintf(&sql, "delete from channel where unique_id = \"%s\";",
-                json_object_get(j_chan, "unique_id")
+                json_string_value(json_object_get(j_chan, "unique_id"))
                 );
         ret = memdb_exec(sql);
         free(sql);
@@ -464,69 +464,69 @@ static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing)
     }
 
 
-    // insert info into campaign_result
-    ret = asprintf(&sql, "insert into campaign_result("
-
-            // identity
-            "camp_uuid, chan_uuid, dial_uuid,"
-
-            // timestamp
-            "tm_dial_req, tm_dial_start, tm_dial_end, tm_parked_in, tm_parked_out, "
-            "tm_transfer_req, tm_transfer_start, tm_transfer_end, tm_hangup,"
-
-            // dial result
-            "res_voice, res_voice_desc, res_dial, res_transfer, res_transferred_agent,"
-
-            // dial information
-            "dial_number, dial_idx_number, dial_idx_count, dial_string, dial_sip_callid"
-
-            ") values ("
-
-            // identity
-            "\"%s\", \"%s\", \"%s\", "
-
-            // timestamp
-            "str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), "
-            "str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), "
-
-            // dial result
-            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-
-            // dial information
-            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
-            ");",
-
-            // identity
-            json_string_value(json_object_get(j_dialing, "camp_uuid")),
-            json_string_value(json_object_get(j_dialing, "chan_uuid")),
-            json_string_value(json_object_get(j_dialing, "dl_uuid")),
-
-            // timestamp
-            json_string_value(json_object_get(j_dialing, "tm_dial_req")),
-            json_string_value(json_object_get(j_chan, "tm_dial")),
-            json_string_value(json_object_get(j_chan, "tm_dial_end")),
-            json_string_value(json_object_get(j_park, "tm_parkedin")),
-            json_string_value(json_object_get(j_park, "tm_parkedout")),
-
-            json_string_value(json_object_get(j_dialing, "tm_transfer_req")),
-            json_string_value(json_object_get(j_chan, "tm_transfer")),
-            json_string_value(json_object_get(j_chan, "tm_transfer_end")),
-            json_string_value(json_object_get(j_chan, "tm_hangup")),
-
-            // dial result
-            json_string_value(json_object_get(j_chan, "AMDSTATUS")),
-            json_string_value(json_object_get(j_chan, "AMDCAUSE")),
-            json_string_value(json_object_get(j_chan, "dial_status")),
-            json_string_value(json_object_get(j_chan, "dial_status")),
-
-            json_string_value(json_object_get(j_dialing, "dl_uuid"))
-            );
-    ret = db_exec(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not insert result info.");
-        return;
-    }
+//    // insert info into campaign_result
+//    ret = asprintf(&sql, "insert into campaign_result("
+//
+//            // identity
+//            "camp_uuid, chan_uuid, dial_uuid,"
+//
+//            // timestamp
+//            "tm_dial_req, tm_dial_start, tm_dial_end, tm_parked_in, tm_parked_out, "
+//            "tm_transfer_req, tm_transfer_start, tm_transfer_end, tm_hangup,"
+//
+//            // dial result
+//            "res_voice, res_voice_desc, res_dial, res_transfer, res_transferred_agent,"
+//
+//            // dial information
+//            "dial_number, dial_idx_number, dial_idx_count, dial_string, dial_sip_callid"
+//
+//            ") values ("
+//
+//            // identity
+//            "\"%s\", \"%s\", \"%s\", "
+//
+//            // timestamp
+//            "str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), "
+//            "str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), str_to_date(\"%s\", \"\%Y-\%m-\%d \%H:\%i:\%s\"), "
+//
+//            // dial result
+//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+//
+//            // dial information
+//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
+//            ");",
+//
+//            // identity
+//            json_string_value(json_object_get(j_dialing, "camp_uuid")),
+//            json_string_value(json_object_get(j_dialing, "chan_uuid")),
+//            json_string_value(json_object_get(j_dialing, "dl_uuid")),
+//
+//            // timestamp
+//            json_string_value(json_object_get(j_dialing, "tm_dial_req")),
+//            json_string_value(json_object_get(j_chan, "tm_dial")),
+//            json_string_value(json_object_get(j_chan, "tm_dial_end")),
+//            json_string_value(json_object_get(j_park, "tm_parkedin")),
+//            json_string_value(json_object_get(j_park, "tm_parkedout")),
+//
+//            json_string_value(json_object_get(j_dialing, "tm_transfer_req")),
+//            json_string_value(json_object_get(j_chan, "tm_transfer")),
+//            json_string_value(json_object_get(j_chan, "tm_transfer_end")),
+//            json_string_value(json_object_get(j_chan, "tm_hangup")),
+//
+//            // dial result
+//            json_string_value(json_object_get(j_chan, "AMDSTATUS")),
+//            json_string_value(json_object_get(j_chan, "AMDCAUSE")),
+//            json_string_value(json_object_get(j_chan, "dial_status")),
+//            json_string_value(json_object_get(j_chan, "dial_status")),
+//
+//            json_string_value(json_object_get(j_dialing, "dl_uuid"))
+//            );
+//    ret = db_exec(sql);
+//    if(ret == false)
+//    {
+//        slog(LOG_ERR, "Could not insert result info.");
+//        return;
+//    }
 
     // update dl_list table status and result.
 
