@@ -2611,7 +2611,6 @@ int cmd_blindtransfer(
 //    Context: <value>
 //    Exten: <value>
 
-
 //    Channel
 //    Context
 //    Exten
@@ -2843,6 +2842,36 @@ int cmd_devicestatelist(void)
     return true;
 }
 
+int cmd_bridge(json_t* j_bridge)
+{
+//    Bridge two channels already in the PBX.
+
+//    Action: Bridge
+//    ActionID: <value>
+//    Channel1: <value>
+//    Channel2: <value>
+//    Tone: <value>
+
+//    ActionID - ActionID for this transaction. Will be returned.
+//    Channel1 - Channel to Bridge to Channel2.
+//    Channel2 - Channel to Bridge to Channel1.
+//    Tone - Play courtesy tone to Channel 2.
+//        no
+//        Channel1
+//        Channel2
+//        Both
+
+    json_t* j_cmd;
+
+    j_cmd = json_pack("{s:s, s:s, s:s, s:s}",
+            "Action", "Bridge",
+            "Channel1", json_string_value(json_object_get(j_bridge, "Channel1")),
+            "Channel2", json_string_value(json_object_get(j_bridge, "Channel2")),
+            "Tone", json_string_value(json_object_get(j_bridge, "Tone"))? :"Both"
+            );
+
+    return true;
+}
 
 
 /**
