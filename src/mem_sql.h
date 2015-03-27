@@ -237,9 +237,10 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
         "-- status\n"
         "status text,        -- dailing status. dialing, transferred, ...\n"
 
-        "-- timestamp\n"
+        "-- timestamp. all timestamps are UTC.\n"
         "tm_dial_req text,      -- dialing request time\n"
         "tm_transfer_req text,  -- transfer request time\n"
+        "tm_redirect_req text,  -- redirect request time\n"
 
         "-- tel info\n"
         "tel_index int,      -- tel number index\n"
