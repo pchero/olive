@@ -147,12 +147,12 @@ char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "uniq_id    text,   -- Uniqueid\n"
 
         "-- timestamp. used in olive only.\n"
-        "tm_create   text,          -- channel created time. UTC timestamp.\n"
-        "tm_dial     text,          -- dialing start time. UTC timestamp.\n"
-        "tm_dial_end text,          -- dialing end time. UTC timestamp.\n"
-        "tm_transfer text,          -- transfer start time.(to agent) UTC timestamp.\n"
-        "tm_transfer_end text,      -- transfer end time(if agent answered) UTC timestamp.\n"
-        "tm_hangup text,            -- hangup time. UTC timestamp.\n"
+        "tm_create          text,          -- channel created time. UTC timestamp.\n"
+        "tm_dial            text,          -- dialing start time. UTC timestamp.\n"
+        "tm_dial_end        text,          -- dialing end time. UTC timestamp.\n"
+        "tm_transfer        text,          -- transfer start time.(to agent) UTC timestamp.\n"
+        "tm_transfer_end    text,      -- transfer end time(if agent answered) UTC timestamp.\n"
+        "tm_hangup          text,            -- hangup time. UTC timestamp.\n"
 
         "-- status\n"
         "status         text,   -- ChannelState code\n"
@@ -186,9 +186,14 @@ char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "dial_status text,              -- DialStatus. (BUSY, ANSWER, ...)\n"
 
         "-- VarSet values\n"
-        "SIPCALLID text,    -- SIPCALLID\n"
-        "AMDSTATUS text,    -- AMDSTATUS\n"
-        "AMDCAUSE  text,    -- AMDCAUSE\n"
+        "SIPCALLID          text,   -- SIPCALLID\n"
+        "AMDSTATUS          text,   -- AMDSTATUS\n"
+        "AMDCAUSE           text,   -- AMDCAUSE\n"
+        "BRIDGEPVTCALLID    text,   -- BRIDGEPVTCALLID\n"
+        "BRIDGEPEER         text,   -- BRIDGEPEER\n"
+
+        "-- olive set info.\n"
+        "bridge_id  text, -- bridge unique id.\n"
 
         "primary key(uniq_id)\n"
         ");";
@@ -235,23 +240,18 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
         "camp_uuid text,    -- campaign uuid\n"
 
         "-- status\n"
-        "status text,        -- dailing status. dialing, transferred, ...\n"
+        "status text,        -- dailing status. dialing, redirected, bridged,  ...\n"
 
         "-- timestamp. all timestamps are UTC.\n"
-        "tm_dial_req text,      -- dialing request time\n"
-        "tm_transfer_req text,  -- transfer request time\n"
-        "tm_redirect_req text,  -- redirect request time\n"
+        "tm_dial_req        text,   -- dialing request time\n"
+        "tm_transfer_req    text,   -- transfer request time\n"
+        "tm_redirect_req    text,   -- redirect time\n"
+        "tm_bridge_req      text,   -- bridge request time\n"
 
         "-- tel info\n"
         "tel_index int,      -- tel number index\n"
         "tel_number text,    -- tel number\n"
         "tel_trycnt int,     -- tel try count\n"
-
-//      result informations are in the channel table.
-//        "-- result\n"
-//        "res_dial text,      -- result dialing\n"
-//        "res_detect text,    -- result detection\n"
-//        "res_transfer text,  -- result transfer\n"
 
         "-- transfer\n"
         "tr_trycnt int default 0,   -- transfer try count\n"
@@ -276,6 +276,58 @@ char* SQL_CREATE_COMMAND = "create table command(\n"
         "cmd text,          -- cmd\n"
         "cmd_param text,    -- cmd parameters\n"
         "cmd_result text    -- cmd result.\n"
+
+        ");";
+
+/**
+ * bridge master table
+ */
+char* SQL_CREATE_BRIDGE_MA = "create table bridge_ma(\n"
+
+        "-- identity\n"
+        "unique_id      text,    -- BridgeUniqueid\n"
+
+        "-- timestamp. UTC\n"
+        "tm_create      text,   -- create time\n"
+        "tm_detroy      text,   -- destroy time\n"
+
+        "-- Bridge info\n"
+        "type           text,   -- BridgeType\n"
+        "tech           text,   -- BridgeTechnology\n"
+        "creator        text,   -- BridgeCreator\n"
+        "name           text,   -- BridgeName\n"
+        "num_channels   text    -- BridgeNumChannels\n"
+
+
+        ");";
+
+/**
+ * entered/leaved to/from bridge channels
+ */
+char* SQL_CREATE_BRIDGE = "create table bridge(\n"
+        "seq integer primary key autoincrement, -- \n"
+
+        "-- identity.\n"
+        "brid_uuid  text,   -- bridge unique id\n"
+        "channel    text,   -- channel\n"
+        "chan_uuid  text,   -- channel unique id. Uniqueid.\n"
+
+        "-- timestamp. UTC.\n"
+        "tm_enter text, -- entered timestamp\n"
+        "tm_leave text, -- leaved timestamp\n"
+
+        "-- channel info.\n"
+        "state                  text,   -- ChannelState.\n"
+        "state_desc             text,   -- ChannelStateDesc.\n"
+        "caller_id_num          text,   -- CallerIDNum.\n"
+        "caller_id_name         text,   -- CallerIDName.\n"
+        "connected_line_num     text,   -- ConnectedLineNum.\n"
+        "connected_line_name    text,   -- ConnectedLineName.\n"
+        "account_code           text,   -- AccountCode.\n"
+        "context                text,   -- Context.\n"
+        "exten                  text,   -- Exten.\n"
+        "priority               text,   -- Priority.\n"
+        "swap_unique_id         text   -- SwapUniqueid\n"
 
         ");";
 
