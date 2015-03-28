@@ -599,7 +599,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             json_string_value(json_object_get(j_dial, "ChannelId")),
             json_string_value(json_object_get(j_camp, "uuid")),
             "dialing",
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             dial_num_point,
             json_string_value(json_object_get(j_dial, "Channel")),
@@ -867,7 +867,7 @@ static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             json_string_value(json_object_get(j_dial, "ChannelId")),
             json_string_value(json_object_get(j_camp, "uuid")),
             "dialing",
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             dial_num_point,
             json_string_value(json_object_get(j_dial, "Channel")),

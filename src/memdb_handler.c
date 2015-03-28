@@ -5,6 +5,9 @@
  *      Author: pchero
  */
 
+
+#define _GNU_SOURCE
+
 #include <sqlite3.h>
 #include <stdio.h>
 #include <errno.h>
@@ -208,5 +211,39 @@ void msleep(unsigned long milisec)
         continue;
     }
     return;
+}
+
+/**
+ * Return existence of table.
+ * true:exsit, false:non exist.
+ * If error occurred, return -1.
+ * @param table table name.
+ * @return  Exsit:true, Non-exist:false, Error:-1
+ */
+int memdb_table_existence(const char* table)
+{
+    memdb_res* mem_res;
+    char* sql;
+    __attribute__((unused)) int ret;
+    json_t* j_res;
+
+    ret = asprintf(&sql, "select name from sqlite_master where type = \"table\" and name = \"%s\";", table);
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get table existence info. table[%s]", table);
+        return -1;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+    if(j_res == NULL)
+    {
+        return false;
+    }
+
+    json_decref(j_res);
+    return true;
 }
 

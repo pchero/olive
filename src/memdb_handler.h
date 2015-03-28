@@ -27,6 +27,7 @@ int memdb_init(const char* db_name);
 void memdb_term(void);
 bool memdb_release(void);
 bool memdb_lock(void);
+int memdb_table_existence(const char* table);
 
 
 #endif /* SRC_MEMDB_HANDLER_H_ */

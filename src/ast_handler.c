@@ -50,6 +50,10 @@ static void evt_dialbegin(json_t* j_recv);
 static void evt_dialend(json_t* j_recv);
 static void evt_parkedcalltimeout(json_t* j_recv);
 static void evt_parkedcallgiveup(json_t* j_recv);
+static void evt_bridgecreate(json_t* j_recv);
+static void evt_bridgedestory(json_t* j_recv);
+static void evt_bridgeenter(json_t* j_recv);
+static void evt_bridgeleave(json_t* j_recv);
 
 
 
@@ -163,6 +167,35 @@ static void ast_recv_handler(json_t* j_evt)
 
     switch(type)
     {
+        case BridgeCreate:
+        {
+            slog(LOG_DEBUG, "BridgeCreate.");
+            evt_bridgecreate(j_evt);
+        }
+        break;
+
+        case BridgeDestroy:
+        {
+            slog(LOG_DEBUG, "BridgeDestroy");
+            evt_bridgedestory(j_evt);
+        }
+        break;
+
+        case BridgeEnter:
+        {
+            slog(LOG_DEBUG, "BridgeEnter");
+            evt_bridgeenter(j_evt);
+        }
+        break;
+
+        case BridgeLeave:
+        {
+            slog(LOG_DEBUG, "BridgeLeave");
+            evt_bridgeleave(j_evt);
+
+        }
+        break;
+
         case DeviceStateChange:
         {
             slog(LOG_DEBUG, "DeviceStateChange.");
@@ -527,7 +560,7 @@ static void evt_shutdown(json_t* j_recv)
             "\"%s\""
             ");",
 
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
             "shutdown",
             tmp
             );
@@ -622,7 +655,7 @@ static void evt_reload(json_t* j_recv)
             "\"%s\""
             ");",
 
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
             "reload",
             tmp
             );
@@ -738,7 +771,7 @@ static void evt_newchannel(json_t* j_recv)
     ret = asprintf(&sql, "insert into channel("
             "channel, status, status_desc, caller_id_num, caller_id_name, "
             "connected_line_num, connected_line_name, account_code, context, exten, "
-            "language, priority, uniq_id, tm_create"
+            "language, priority, unique_id, tm_create"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
             "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
@@ -760,7 +793,7 @@ static void evt_newchannel(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "Language")),
             json_string_value(json_object_get(j_recv, "Priority")),
             json_string_value(json_object_get(j_recv, "Uniqueid")),
-            "datetime(\"now\")"
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')"
             );
 
     ret = memdb_exec(sql);
@@ -868,7 +901,7 @@ static void evt_varset(json_t* j_recv)
 
             "%s = \"%s\" "
 
-            "where uniq_id = \"%s\";",
+            "where unique_id = \"%s\";",
 
             json_string_value(json_object_get(j_recv, "Channel")),
             json_string_value(json_object_get(j_recv, "Exten")),
@@ -973,7 +1006,7 @@ static void evt_hangup(json_t* j_recv)
             "cause_desc = \"%s\", "
             "tm_hangup = %s"
 
-            "where uniq_id = \"%s\";",
+            "where unique_id = \"%s\";",
 
             json_string_value(json_object_get(j_recv, "Channel")),
             json_string_value(json_object_get(j_recv, "Exten")),
@@ -990,7 +1023,7 @@ static void evt_hangup(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
             json_string_value(json_object_get(j_recv, "Cause")),
             json_string_value(json_object_get(j_recv, "Cause-txt")),
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             json_string_value(json_object_get(j_recv, "Uniqueid"))
             );
@@ -1202,7 +1235,7 @@ static void evt_dialbegin(json_t* j_recv)
 
             "where "
             "channel = \"%s\" "
-            "and uniq_id = \"%s\" "
+            "and unique_id = \"%s\" "
             ";",
 
             json_string_value(json_object_get(j_recv, "DestChannelState")),
@@ -1218,7 +1251,7 @@ static void evt_dialbegin(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "DestExten")),
 
             json_string_value(json_object_get(j_recv, "DialString")),
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             json_string_value(json_object_get(j_recv, "DestChannel")),
             json_string_value(json_object_get(j_recv, "DestUniqueid"))
@@ -1350,7 +1383,7 @@ static void evt_dialend(json_t* j_recv)
             "tm_dial_end = %s "
 
             "where channel = \"%s\" "
-            "and uniq_id = \"%s\" "
+            "and unique_id = \"%s\" "
             ";",
 
             json_string_value(json_object_get(j_recv, "DestChannelState")),
@@ -1366,7 +1399,7 @@ static void evt_dialend(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "DestExten")),
 
             json_string_value(json_object_get(j_recv, "DialStatus")),
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             json_string_value(json_object_get(j_recv, "DestChannel")),
             json_string_value(json_object_get(j_recv, "DestUniqueid"))
@@ -1475,7 +1508,7 @@ static void evt_parkedcall(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "ParkingSpace")),
             json_string_value(json_object_get(j_recv, "ParkingTimeout")),
             json_string_value(json_object_get(j_recv, "ParkingDuration")),
-            "datetime(\"now\")"
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')"
             );
 
     ret = memdb_exec(sql);
@@ -1584,25 +1617,25 @@ static void evt_parkedcalltimeout(json_t* j_recv)
     char* sql;
 
     ret = asprintf(&sql, "update park set "
-            "channel_state = \"%s\", \n"
-            "channel_state_desc = \"%s\", \n"
-            "caller_id_num = \"%s\", \n"
-            "caller_id_name = \"%s\", \n"
-            "connected_line_num = \"%s\", \n"
+            "channel_state = \"%s\", "
+            "channel_state_desc = \"%s\", "
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "connected_line_num = \"%s\", "
 
-            "connected_line_name = \"%s\", \n"
-            "language = \"%s\", \n"
-            "account_code = \"%s\", \n"
-            "context = \"%s\", \n"
-            "exten = \"%s\", \n"
+            "connected_line_name = \"%s\", "
+            "language = \"%s\", "
+            "account_code = \"%s\", "
+            "context = \"%s\", "
+            "exten = \"%s\", "
 
-            "priority = \"%s\", \n"
-            "dial_string = \"%s\", \n"
-            "parking_lot = \"%s\", \n"
-            "parking_space = \"%s\", \n"
-            "parking_timeout = \"%s\", \n"
+            "priority = \"%s\", "
+            "dial_string = \"%s\", "
+            "parking_lot = \"%s\", "
+            "parking_space = \"%s\", "
+            "parking_timeout = \"%s\", "
 
-            "parking_duration = \"%s\", \n"
+            "parking_duration = \"%s\", "
             "tm_parkedout = %s"
 
             "where unique_id = \"%s\""
@@ -1626,7 +1659,7 @@ static void evt_parkedcalltimeout(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "ParkingTimeout")),
 
             json_string_value(json_object_get(j_recv, "ParkingDuration")),
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
             );
@@ -1641,7 +1674,7 @@ static void evt_parkedcalltimeout(json_t* j_recv)
 }
 
 /**
- * @brief ParkedCallTimeOut
+ * @brief ParkedCallGiveUp
  * @param j_recv
  */
 static void evt_parkedcallgiveup(json_t* j_recv)
@@ -1737,32 +1770,26 @@ static void evt_parkedcallgiveup(json_t* j_recv)
     int ret;
     char* sql;
 
-    ret = asprintf(&sql, "delete from park where "
-            "channel = \"%s\""
-            ";",
-            json_string_value(json_object_get(j_recv, "ParkeeChannel"))
-            );
-
     ret = asprintf(&sql, "update park set "
-            "channel_state = \"%s\", \n"
-            "channel_state_desc = \"%s\", \n"
-            "caller_id_num = \"%s\", \n"
-            "caller_id_name = \"%s\", \n"
-            "connected_line_num = \"%s\", \n"
+            "channel_state = \"%s\", "
+            "channel_state_desc = \"%s\", "
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "connected_line_num = \"%s\", "
 
-            "connected_line_name = \"%s\", \n"
-            "language = \"%s\", \n"
-            "account_code = \"%s\", \n"
-            "context = \"%s\", \n"
-            "exten = \"%s\", \n"
+            "connected_line_name = \"%s\", "
+            "language = \"%s\", "
+            "account_code = \"%s\", "
+            "context = \"%s\", "
+            "exten = \"%s\", "
 
-            "priority = \"%s\", \n"
-            "dial_string = \"%s\", \n"
-            "parking_lot = \"%s\", \n"
-            "parking_space = \"%s\", \n"
-            "parking_timeout = \"%s\", \n"
+            "priority = \"%s\", "
+            "dial_string = \"%s\", "
+            "parking_lot = \"%s\", "
+            "parking_space = \"%s\", "
+            "parking_timeout = \"%s\", "
 
-            "parking_duration = \"%s\", \n"
+            "parking_duration = \"%s\", "
             "tm_parkedout = %s"
 
             "where unique_id = \"%s\""
@@ -1786,31 +1813,31 @@ static void evt_parkedcallgiveup(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "ParkingTimeout")),
 
             json_string_value(json_object_get(j_recv, "ParkingDuration")),
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
             );
 
     ret = asprintf(&sql, "update park set "
-            "channel_state = \"%s\", \n"
-            "channel_state_desc = \"%s\", \n"
-            "caller_id_num = \"%s\", \n"
-            "caller_id_name = \"%s\", \n"
-            "connected_line_num = \"%s\", \n"
+            "channel_state = \"%s\", "
+            "channel_state_desc = \"%s\", "
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "connected_line_num = \"%s\", "
 
-            "connected_line_name = \"%s\", \n"
-            "language = \"%s\", \n"
-            "account_code = \"%s\", \n"
-            "context = \"%s\", \n"
-            "exten = \"%s\", \n"
+            "connected_line_name = \"%s\", "
+            "language = \"%s\", "
+            "account_code = \"%s\", "
+            "context = \"%s\", "
+            "exten = \"%s\", "
 
-            "priority = \"%s\", \n"
-            "dial_string = \"%s\", \n"
-            "parking_lot = \"%s\", \n"
-            "parking_space = \"%s\", \n"
-            "parking_timeout = \"%s\", \n"
+            "priority = \"%s\", "
+            "dial_string = \"%s\", "
+            "parking_lot = \"%s\", "
+            "parking_space = \"%s\", "
+            "parking_timeout = \"%s\", "
 
-            "parking_duration = \"%s\", \n"
+            "parking_duration = \"%s\", "
             "tm_parkedout = %s"
 
             "where unique_id = \"%s\""
@@ -1834,7 +1861,7 @@ static void evt_parkedcallgiveup(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "ParkingTimeout")),
 
             json_string_value(json_object_get(j_recv, "ParkingDuration")),
-            "datetime(\"now\")",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
             json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
             );
@@ -1847,6 +1874,444 @@ static void evt_parkedcallgiveup(json_t* j_recv)
     }
     return;
 }
+
+/**
+ * @brief BridgeCreate
+ * @param j_recv
+ */
+static void evt_bridgecreate(json_t* j_recv)
+{
+
+//    Raised when a bridge is created.
+
+//    Event: BridgeCreate
+//    BridgeUniqueid: <value>
+//    BridgeType: <value>
+//    BridgeTechnology: <value>
+//    BridgeCreator: <value>
+//    BridgeName: <value>
+//    BridgeNumChannels: <value>
+
+
+//    BridgeUniqueid
+//    BridgeType - The type of bridge
+//    BridgeTechnology - Technology in use by the bridge
+//    BridgeCreator - Entity that created the bridge if applicable
+//    BridgeName - Name used to refer to the bridge by its BridgeCreator if applicable
+//    BridgeNumChannels - Number of channels in the bridge
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "insert into bridge_ma("
+            // identity
+            "unique_id, "
+
+            // timestamp
+            "tm_create, "
+
+            // bridge info.
+            "type, tech, creator, name, num_channels "
+            ") values ("
+            "\"%s\", "
+
+            "%s, "
+
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
+            ");",
+            json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
+
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+
+            json_string_value(json_object_get(j_recv, "BridgeType")),
+            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
+            json_string_value(json_object_get(j_recv, "BridgeCreator")),
+            json_string_value(json_object_get(j_recv, "BridgeName")),
+            json_string_value(json_object_get(j_recv, "BridgeNumChannels"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_bridgecreate.");
+    }
+    return;
+}
+
+/**
+ * @brief BridgeDestroy
+ * @param j_recv
+ */
+static void evt_bridgedestory(json_t* j_recv)
+{
+
+//    Raised when a bridge is destroyed.
+
+//    Event: BridgeDestroy
+//    BridgeUniqueid: <value>
+//    BridgeType: <value>
+//    BridgeTechnology: <value>
+//    BridgeCreator: <value>
+//    BridgeName: <value>
+//    BridgeNumChannels: <value>
+
+
+//    BridgeUniqueid
+//    BridgeType - The type of bridge
+//    BridgeTechnology - Technology in use by the bridge
+//    BridgeCreator - Entity that created the bridge if applicable
+//    BridgeName - Name used to refer to the bridge by its BridgeCreator if applicable
+//    BridgeNumChannels - Number of channels in the bridge
+
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "update bridge_ma set "
+            // timestamp
+            "tm_detroy = %s, "
+
+            // info
+            "type = \"%s\", "
+            "tech = \"%s\", "
+            "creator = \"%s\", "
+            "name = \"%s\", "
+            "num_channels = \"%s\" "
+
+            // identity
+            "where unique_id = \"%s\" "
+            ";",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+
+            json_string_value(json_object_get(j_recv, "BridgeType")),
+            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
+            json_string_value(json_object_get(j_recv, "BridgeCreator")),
+            json_string_value(json_object_get(j_recv, "BridgeName")),
+            json_string_value(json_object_get(j_recv, "BridgeNumChannels")),
+
+            json_string_value(json_object_get(j_recv, "BridgeUniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_bridgedestory.");
+    }
+    return;
+}
+
+/**
+ * @brief BridgeEnter
+ * @param j_recv
+ */
+static void evt_bridgeenter(json_t* j_recv)
+{
+
+//    Raised when a channel enters a bridge.
+
+//    Event: BridgeEnter
+//    BridgeUniqueid: <value>
+//    BridgeType: <value>
+//    BridgeTechnology: <value>
+//    BridgeCreator: <value>
+//    BridgeName: <value>
+//    BridgeNumChannels: <value>
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+//    SwapUniqueid: <value>
+
+
+//    BridgeUniqueid
+//    BridgeType - The type of bridge
+//    BridgeTechnology - Technology in use by the bridge
+//    BridgeCreator - Entity that created the bridge if applicable
+//    BridgeName - Name used to refer to the bridge by its BridgeCreator if applicable
+//    BridgeNumChannels - Number of channels in the bridge
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+//    SwapUniqueid - The uniqueid of the channel being swapped out of the bridge
+
+    int ret;
+    char* sql;
+
+    // update bridge_ma
+    ret = asprintf(&sql, "update bridge_ma set "
+            // timestamp
+            "tm_update = %s, "
+
+            // info
+            "type = \"%s\", "
+            "tech = \"%s\", "
+            "creator = \"%s\", "
+            "name = \"%s\", "
+            "num_channels = \"%s\" "
+
+            // identity
+            "where unique_id = \"%s\" "
+            ";",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+
+            json_string_value(json_object_get(j_recv, "BridgeType")),
+            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
+            json_string_value(json_object_get(j_recv, "BridgeCreator")),
+            json_string_value(json_object_get(j_recv, "BridgeName")),
+            json_string_value(json_object_get(j_recv, "BridgeNumChannels")),
+
+            json_string_value(json_object_get(j_recv, "BridgeUniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_bridgeenter.");
+    }
+
+    // insert bridge.
+    ret = asprintf(&sql, "insert into bridge("
+            // identity
+            "brid_uuid, channel, chan_uuid, "
+
+            // timestamp
+            "tm_enter, "
+
+            // channel info.
+            "state, state_desc, caller_id_num, caller_id_name, connected_line_num, "
+            "connected_line_name, account_code, context, exten, priority, "
+            "swap_unique_id"
+            ") values ("
+            "\"%s\", \"%s\", \"%s\", "
+
+            "%s, "
+
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
+            "\"%s\""
+            ");",
+
+            // identity
+            json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
+            json_string_value(json_object_get(j_recv, "Channel")),
+            json_string_value(json_object_get(j_recv, "Uniqueid")),
+
+            // timestamp
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+
+            // channel info
+            json_string_value(json_object_get(j_recv, "ChannelState")),
+            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "CallerIDNum")),
+            json_string_value(json_object_get(j_recv, "CallerIDName")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "AccountCode")),
+            json_string_value(json_object_get(j_recv, "Context")),
+            json_string_value(json_object_get(j_recv, "Exten")),
+            json_string_value(json_object_get(j_recv, "Priority")),
+
+            json_string_value(json_object_get(j_recv, "SwapUniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_bridgeenter.");
+    }
+
+    return;
+}
+
+/**
+ * @brief BridgeLeave
+ * @param j_recv
+ */
+static void evt_bridgeleave(json_t* j_recv)
+{
+
+//    Raised when a channel leaves a bridge.
+
+//    Event: BridgeLeave
+//    BridgeUniqueid: <value>
+//    BridgeType: <value>
+//    BridgeTechnology: <value>
+//    BridgeCreator: <value>
+//    BridgeName: <value>
+//    BridgeNumChannels: <value>
+//    Channel: <value>
+//    ChannelState: <value>
+//    ChannelStateDesc: <value>
+//    CallerIDNum: <value>
+//    CallerIDName: <value>
+//    ConnectedLineNum: <value>
+//    ConnectedLineName: <value>
+//    AccountCode: <value>
+//    Context: <value>
+//    Exten: <value>
+//    Priority: <value>
+//    Uniqueid: <value>
+
+
+
+//    BridgeUniqueid
+//    BridgeType - The type of bridge
+//    BridgeTechnology - Technology in use by the bridge
+//    BridgeCreator - Entity that created the bridge if applicable
+//    BridgeName - Name used to refer to the bridge by its BridgeCreator if applicable
+//    BridgeNumChannels - Number of channels in the bridge
+//    Channel
+//    ChannelState - A numeric code for the channel's current state, related to ChannelStateDesc
+//    ChannelStateDesc
+//        Down
+//        Rsrvd
+//        OffHook
+//        Dialing
+//        Ring
+//        Ringing
+//        Up
+//        Busy
+//        Dialing Offhook
+//        Pre-ring
+//        Unknown
+//    CallerIDNum
+//    CallerIDName
+//    ConnectedLineNum
+//    ConnectedLineName
+//    AccountCode
+//    Context
+//    Exten
+//    Priority
+//    Uniqueid
+
+
+    int ret;
+    char* sql;
+
+    // update bridge_ma
+    ret = asprintf(&sql, "update bridge_ma set "
+            // timestamp
+            "tm_update = %s, "
+
+            // info
+            "type = \"%s\", "
+            "tech = \"%s\", "
+            "creator = \"%s\", "
+            "name = \"%s\", "
+            "num_channels = \"%s\" "
+
+            // identity
+            "where unique_id = \"%s\" "
+            ";",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+
+            json_string_value(json_object_get(j_recv, "BridgeType")),
+            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
+            json_string_value(json_object_get(j_recv, "BridgeCreator")),
+            json_string_value(json_object_get(j_recv, "BridgeName")),
+            json_string_value(json_object_get(j_recv, "BridgeNumChannels")),
+
+            json_string_value(json_object_get(j_recv, "BridgeUniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_bridgeleave.");
+        return;
+    }
+
+    // insert bridge.
+    ret = asprintf(&sql, "update bridge set "
+            // identity
+            "channel = \"%s\", "
+
+            // timestamp
+            "tm_leave = %s, "
+
+            // channel info.
+            "state = \"%s\", "
+            "state_desc = \"%s\", "
+            "caller_id_num = \"%s\", "
+            "caller_id_name = \"%s\", "
+            "connected_line_num = \"%s\", "
+
+            "connected_line_name = \"%s\", "
+            "account_code = \"%s\", "
+            "context = \"%s\", "
+            "exten = \"%s\", "
+            "priority = \"%s\" "
+
+            "where brid_uuid = \"%s\" "
+            "and chan_uuid = \"%s\" "
+            ";",
+
+            // identity
+            json_string_value(json_object_get(j_recv, "Channel")),
+
+            // timestamp
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+
+            // channel info
+            json_string_value(json_object_get(j_recv, "ChannelState")),
+            json_string_value(json_object_get(j_recv, "ChannelStateDesc")),
+            json_string_value(json_object_get(j_recv, "CallerIDNum")),
+            json_string_value(json_object_get(j_recv, "CallerIDName")),
+            json_string_value(json_object_get(j_recv, "ConnectedLineNum")),
+
+            json_string_value(json_object_get(j_recv, "ConnectedLineName")),
+            json_string_value(json_object_get(j_recv, "AccountCode")),
+            json_string_value(json_object_get(j_recv, "Context")),
+            json_string_value(json_object_get(j_recv, "Exten")),
+            json_string_value(json_object_get(j_recv, "Priority")),
+
+            json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
+            json_string_value(json_object_get(j_recv, "Uniqueid"))
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update evt_bridgeleave.");
+    }
+
+    return;
+}
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1875,7 +2340,7 @@ int cmd_sippeers(void)
     res = ast_send_cmd(cmd);
     if(res == NULL)
     {
-        slog(LOG_ERR, "Could not send Action:SIPpeers\n");
+        slog(LOG_ERR, "Could not send Action:SIPpeers");
         return false;
     }
 
@@ -2238,7 +2703,7 @@ int cmd_sipshowregistry(void)
     res = ast_send_cmd(cmd);
     if(res == NULL)
     {
-        slog(LOG_ERR, "Could not send Action:SIPshowregistry\n");
+        slog(LOG_ERR, "Could not send Action:SIPshowregistry");
         return false;
     }
 //    slog(LOG_DEBUG, "Received msg. msg[%s]", res);
@@ -2402,7 +2867,7 @@ int cmd_originate(json_t* j_dial)
     res = ast_send_cmd(cmd);
     if(res == NULL)
     {
-        slog(LOG_ERR, "Could not send Action:Originate. cmd[%s]\n", cmd);
+        slog(LOG_ERR, "Could not send Action:Originate. c[%s]", cmd);
         free(cmd);
         return false;
     }
@@ -2795,7 +3260,7 @@ int cmd_devicestatelist(void)
     res = ast_send_cmd(cmd);
     if(res == NULL)
     {
-        slog(LOG_ERR, "Could not send Action:DeviceStateList\n");
+        slog(LOG_ERR, "Could not send Action:DeviceStateList");
         return false;
     }
 
@@ -2862,6 +3327,13 @@ int cmd_bridge(json_t* j_bridge)
 //        Both
 
     json_t* j_cmd;
+    json_t* j_res;
+    json_t* j_res_org;
+    json_error_t j_err;
+    char* res;
+    char* cmd;
+    const char* tmp;
+    int ret;
 
     j_cmd = json_pack("{s:s, s:s, s:s, s:s}",
             "Action", "Bridge",
@@ -2869,6 +3341,43 @@ int cmd_bridge(json_t* j_bridge)
             "Channel2", json_string_value(json_object_get(j_bridge, "Channel2")),
             "Tone", json_string_value(json_object_get(j_bridge, "Tone"))? :"Both"
             );
+    if(j_cmd == NULL)
+    {
+        slog(LOG_ERR, "Could not make bridge cmd.");
+        return false;
+    }
+
+    cmd = json_dumps(j_cmd, JSON_ENCODE_ANY);
+
+    res = ast_send_cmd(cmd);
+    free(cmd);
+    if(res == NULL)
+    {
+        slog(LOG_ERR, "Could not ger response.");
+        return false;
+    }
+
+    j_res_org = json_loads(res, 0, &j_err);
+    j_res = json_array_get(j_res_org, 0);
+
+    tmp = json_string_value(json_object_get(j_res, "Response"));
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Invalid response.");
+        json_decref(j_res_org);
+        return false;
+    }
+
+    ret = strcmp(tmp, "Success");
+    json_decref(j_res_org);
+    if(ret != 0)
+    {
+        slog(LOG_ERR, "Could not Redirect. response[%s], message[%s]",
+                        json_string_value(json_object_get(j_res, "Response")),
+                        json_string_value(json_object_get(j_res, "Message"))
+                        );
+        return false;
+    }
 
     return true;
 }

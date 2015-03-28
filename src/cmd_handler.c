@@ -85,7 +85,7 @@ static void cmd_reload(json_t* j_cmd)
     }
 
     // update start time
-    ret = asprintf(&sql, "update command set tm_cmd = datetime(\"now\") where seq = %d",
+    ret = asprintf(&sql, "update command set tm_cmd = strftime('%%Y-%%m-%%d %%H:%%m:%%f', 'now') where seq = %d",
             (int)json_integer_value(json_object_get(j_cmd, "seq"))
             );
     ret = memdb_exec(sql);

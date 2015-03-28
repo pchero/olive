@@ -41,7 +41,7 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     unused__ int ret;
 
     // get call channel which is parked and Up and exists in dialing table now.(For distribute)
-    mem_res_chan = memdb_query("select * from channel where status_desc = \"Up\" and uniq_id = "
+    mem_res_chan = memdb_query("select * from channel where status_desc = \"Up\" and unique_id = "
             "(select chan_uuid from dialing where tm_transfer_req is null and chan_uuid = "
                 "(select unique_id from park where tm_parkedout is null)"
             ");"
@@ -87,7 +87,7 @@ void cb_call_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
 
         // get dialing info
         ret = asprintf(&sql, "select * from dialing where chan_uuid = \"%s\";",
-                json_string_value(json_object_get(j_chan, "uniq_id"))
+                json_string_value(json_object_get(j_chan, "unique_id"))
                 );
         mem_res = memdb_query(sql);
         free(sql);
@@ -367,11 +367,11 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
             "where chan_uuid = \"%s\""
             ";",
 
-            "datetime(\"now\"), ",
+            "strftime('%Y-%m-%d %H:%m:%f', 'now'), ",
             json_string_value(json_object_get(j_agent, "uuid")),
             "tr_trycnt + 1",
             "transferred",
-            json_string_value(json_object_get(j_chan, "uniq_id"))
+            json_string_value(json_object_get(j_chan, "unique_id"))
             );
     ret = memdb_exec(sql);
     free(sql);

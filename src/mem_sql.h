@@ -144,7 +144,7 @@ char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
 char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "-- identity\n"
         "channel    text,   -- Channel. channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
-        "uniq_id    text,   -- Uniqueid\n"
+        "unique_id    text,   -- Uniqueid\n"
 
         "-- timestamp. used in olive only.\n"
         "tm_create          text,          -- channel created time. UTC timestamp.\n"
@@ -189,13 +189,13 @@ char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "SIPCALLID          text,   -- SIPCALLID\n"
         "AMDSTATUS          text,   -- AMDSTATUS\n"
         "AMDCAUSE           text,   -- AMDCAUSE\n"
-        "BRIDGEPVTCALLID    text,   -- BRIDGEPVTCALLID\n"
-        "BRIDGEPEER         text,   -- BRIDGEPEER\n"
+        "BRIDGEPVTCALLID    text,   -- last bridged pvtcallid. BRIDGEPVTCALLID\n"
+        "BRIDGEPEER         text,   -- last bridged peer. BRIDGEPEER\n"
 
         "-- olive set info.\n"
         "bridge_id  text, -- bridge unique id.\n"
 
-        "primary key(uniq_id)\n"
+        "primary key(unique_id)\n"
         ");";
 
 /**
@@ -236,7 +236,7 @@ char* SQL_CREATE_PARK = "create table park(\n"
 char* SQL_CREATE_DIALING = "create table dialing(\n"
         "-- idenetity\n"
         "dl_uuid text,      -- dl list uuid\n"
-        "chan_uuid text,    -- channel uniq_id\n"
+        "chan_uuid text,    -- channel unique_id\n"
         "camp_uuid text,    -- campaign uuid\n"
 
         "-- status\n"
@@ -288,17 +288,18 @@ char* SQL_CREATE_BRIDGE_MA = "create table bridge_ma(\n"
         "unique_id      text,    -- BridgeUniqueid\n"
 
         "-- timestamp. UTC\n"
-        "tm_create      text,   -- create time\n"
-        "tm_detroy      text,   -- destroy time\n"
+        "tm_create      text,   -- create time.\n"
+        "tm_detroy      text,   -- destroy time.\n"
+        "tm_update      text,   -- last update time.\n"
 
         "-- Bridge info\n"
         "type           text,   -- BridgeType\n"
         "tech           text,   -- BridgeTechnology\n"
         "creator        text,   -- BridgeCreator\n"
         "name           text,   -- BridgeName\n"
-        "num_channels   text    -- BridgeNumChannels\n"
+        "num_channels   text,   -- BridgeNumChannels\n"
 
-
+        "primary key(unique_id)"
         ");";
 
 /**
