@@ -524,26 +524,6 @@ static int init_memdb(void)
         }
     }
 
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"peer\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get peer table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create peer table.
-//        ret = memdb_exec(SQL_CREATE_PEER);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table peer.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
-
     // check registry table existence.
     ret = memdb_table_existence("registry");
     if(ret == -1)
@@ -560,27 +540,6 @@ static int init_memdb(void)
             return false;
         }
     }
-
-
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"registry\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get registry table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create registry table.
-//        ret = memdb_exec(SQL_CREATE_REGISTRY);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table registry.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
 
     // check agent table existence.
     ret = memdb_table_existence("agent");
@@ -599,27 +558,6 @@ static int init_memdb(void)
         }
     }
 
-
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"agent\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get agent table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create agent table.
-//        ret = memdb_exec(SQL_CREATE_AGENT);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table agent.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
-
     // check trunk_group table existence.
     ret = memdb_table_existence("trunk_group");
     if(ret == -1)
@@ -636,27 +574,6 @@ static int init_memdb(void)
             return false;
         }
     }
-
-
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"trunk_group\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get trunk_group table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create trunk_group table.
-//        ret = memdb_exec(SQL_CREATE_TRUNK_GROUP);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table trunk_group.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
 
     // check channel table existence.
     ret = memdb_table_existence("channel");
@@ -675,27 +592,6 @@ static int init_memdb(void)
         }
     }
 
-
-    //    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"channel\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get channel table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create channel table.
-//        ret = memdb_exec(SQL_CREATE_CHANNEL);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table channel.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
-
     // check park table existence.
     ret = memdb_table_existence("park");
     if(ret == -1)
@@ -712,27 +608,6 @@ static int init_memdb(void)
             return false;
         }
     }
-
-
-    //    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"park\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get park table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create park table.
-//        ret = memdb_exec(SQL_CREATE_PARK);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table park.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
 
     // check dialing table existence.
     ret = memdb_table_existence("dialing");
@@ -751,27 +626,6 @@ static int init_memdb(void)
         }
     }
 
-
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"dialing\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get dialing table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create dialing table.
-//        ret = memdb_exec(SQL_CREATE_DIALING);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table dialing.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
-
     // check command table existence.
     ret = memdb_table_existence("command");
     if(ret == -1)
@@ -788,27 +642,6 @@ static int init_memdb(void)
             return false;
         }
     }
-
-
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"command\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get command table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create command table.
-//        ret = memdb_exec(SQL_CREATE_COMMAND);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table command.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
 
     // check bridge_ma table existence.
     ret = memdb_table_existence("bridge_ma");
@@ -827,28 +660,6 @@ static int init_memdb(void)
         }
     }
 
-
-
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"bridge_ma\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get bridge_ma table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create bridge_ma table.
-//        ret = memdb_exec(SQL_CREATE_BRIDGE_MA);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table bridge_ma.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
-
     // check bridge table existence.
     ret = memdb_table_existence("bridge");
     if(ret == -1)
@@ -865,28 +676,6 @@ static int init_memdb(void)
             return false;
         }
     }
-
-
-//    mem_res = memdb_query("select name from sqlite_master where type = \"table\" and name = \"bridge_ma\";");
-//    if(mem_res == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get bridge_ma table info.");
-//        return false;
-//    }
-//    j_res = memdb_get_result(mem_res);
-//    memdb_free(mem_res);
-//    if(j_res == NULL)
-//    {
-//        // create bridge_ma table.
-//        ret = memdb_exec(SQL_CREATE_BRIDGE_MA);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not create table bridge_ma.");
-//            return false;
-//        }
-//    }
-//    json_decref(j_res);
-
 
     return true;
 }

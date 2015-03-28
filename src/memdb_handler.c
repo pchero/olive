@@ -20,8 +20,6 @@
 #include "slog.h"
 
 #define MAX_MEMDB_LOCK_RELEASE_TRY 100
-
-
 #define MAX_MEMDB_LOCK_RELEASE_TRY 100
 
 

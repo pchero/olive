@@ -19,6 +19,7 @@
 #include "base64.h"
 #include "db_handler.h"
 #include "agent_handler.h"
+#include "campaign.h"
 
 
 static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
@@ -227,8 +228,6 @@ static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer) {
     return 1;
 }
 
-
-
 /**
  * Interface for campaign list
  * @param r
@@ -237,71 +236,57 @@ static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer) {
 void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
-    char *query;
-    json_t *j_out, *j_tmp;
-    db_ctx_t* ctx;
-    char **result;
-    char *tmp_str;
+    json_t* j_res;
+    htp_method method;
+    int htp_ret;
 
-    slog(LOG_DEBUG, "htpcb_campaign_list called!");
+    slog(LOG_DEBUG, "htpcb_campaign_list called.");
 
     ret = is_auth(req);
     if(ret == false)
     {
-        slog(LOG_DEBUG, "authorization failed.");
+        slog(LOG_ERR, "authorization failed.");
         return;
     }
 
-    // POST : new campaign.
+    // get method
+    method = evhtp_request_get_method(req);
 
-    // GET : return campaign list
-
-    // PUT : update several campaign info
-
-    // DELETE : Not support.
-
-
-    // make json
-    ret = asprintf(&query, "select id, name, status, agent_set, plan, diallist, detail from campaign");
-    if(ret == -1)
+    switch(method)
     {
-        evhtp_send_reply(req, EVHTP_RES_SERVERR);
-    }
-
-    ctx = db_query(query);
-    free(query);
-    if(ctx == NULL)
-    {
-        evhtp_send_reply(req, EVHTP_RES_SERVERR);
-    }
-
-    j_out = json_array();
-    while(1)
-    {
-        result = db_result_row(ctx, &ret);
-        if(ret == 0)
+        // GET : return all campaign list
+        case htp_method_GET:
         {
-            break;
+            // get all campaign list
+            j_res = campaign_get_all();
+            if(j_res == NULL)
+            {
+                htp_ret = EVHTP_RES_SERVERR;
+            }
+            else
+            {
+                htp_ret = EVHTP_RES_OK;
+            }
         }
-        j_tmp = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
-                "id",           result[0],
-                "name",         result[1],
-                "status",       result[2],
-                "agent_set",    result[3],
-                "plan",         result[4],
-                "diallist",     result[5],
-                "detail",       result[6]
-                );
-        json_array_append(j_out, j_tmp);
-        json_decref(j_tmp);
+        break;
+
+        // POST : new campaign.
+
+
+        // PUT : update several campaign info
+
+        // DELETE : Not support.
+
+        default:
+        {
+            htp_ret = EVHTP_RES_FORBIDDEN;
+            j_res = json_null();
+        }
     }
 
-    db_free(ctx);
-    tmp_str = json_dumps(j_out, JSON_INDENT(2));
-    evbuffer_add_printf(req->buffer_out, "%s", tmp_str);
-    evhtp_send_reply(req, EVHTP_RES_OK);
-    free(tmp_str);
-    json_decref(j_out);
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
 
     return;
 }
@@ -401,6 +386,11 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     return;
 }
 
+/**
+ * http://host_url/agents/agent_uuid
+ * @param req
+ * @param arg
+ */
 void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;

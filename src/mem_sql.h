@@ -118,11 +118,17 @@ char* SQL_CREATE_REGISTRY = "create table registry(\n"
 /**
  * Create table agent.
  * Only for agent status
+ * Not use yet.
  */
 char* SQL_CREATE_AGENT = "create table agent(\n"
+        "-- identity\n"
         "uuid text,                 -- uuid\n"
-        "status text default \"logout\",    -- \"logout\", \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
+
+        "-- timestamp. utc.\n"
         "tm_status_update text,   -- last status update time\n"
+
+        "-- info.\n"
+        "status text default \"logout\",    -- \"logout\", \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
 
         "primary key(uuid)\n"
         ");";
@@ -210,6 +216,7 @@ char* SQL_CREATE_PARK = "create table park(\n"
         "tm_parkedin    text,       -- Parked in time. UTC timestamp.\n"
         "tm_parkedout   text,       -- Parked out time. TTC timestamp.\n"
 
+        "-- information\n"
         "channel_state text,        -- ParkeeChannelState\n"
         "channel_state_desc text,   -- ParkeeChannelStateDesc\n"
         "caller_id_num text,        -- ParkeeCallerIDNum\n"

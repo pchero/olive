@@ -1033,3 +1033,38 @@ OLIVE_RESULT campaign_delete(json_t* j_camp)
     return OLIVE_OK;
 }
 
+
+/**
+ * Get all campaign list.(summary only)
+ */
+json_t* campaign_get_all(void)
+{
+    json_t* j_res;
+    json_t* j_out;
+    db_ctx_t* db_res;
+    char* sql;
+    unused__ int ret;
+
+    ret = asprintf(&sql, "select * from campaign;");
+    db_res = db_query(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get campaign info.");
+        return NULL;
+    }
+
+    j_out = json_array();
+    while(1)
+    {
+        j_res = db_get_record(db_res);
+        if(j_res == NULL)
+        {
+            break;
+        }
+
+        json_array_append_new(j_out, j_res);
+        json_decref(j_res);
+    }
+
+    return j_out;
+}

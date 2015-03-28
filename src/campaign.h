@@ -43,6 +43,8 @@ bool load_table_trunk_group(void);
 OLIVE_RESULT campaign_update(json_t* j_camp);
 OLIVE_RESULT campaign_create(json_t* j_camp);
 
+json_t* campaign_get_all(void);
+
 
 
 #endif /* CAMPAIGN_H_ */
