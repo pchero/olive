@@ -5,7 +5,7 @@
 PROG=olive
 SRCS=main.c \
 	db_handler.c \
-	campaign.c \
+	camp_handler.c \
 	slog.c \
 	ast_handler.c \
 	htp_handler.c \

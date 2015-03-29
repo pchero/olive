@@ -19,7 +19,7 @@
 #include <uuid/uuid.h>
 
 #include "slog.h"
-#include "campaign.h"
+#include "camp_handler.h"
 #include "db_handler.h"
 #include "common.h"
 #include "memdb_handler.h"

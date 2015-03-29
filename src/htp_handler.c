@@ -19,7 +19,7 @@
 #include "base64.h"
 #include "db_handler.h"
 #include "agent_handler.h"
-#include "campaign.h"
+#include "camp_handler.h"
 
 
 static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);

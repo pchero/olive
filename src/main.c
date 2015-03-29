@@ -24,7 +24,7 @@
 #include "common.h"
 #include "slog.h"
 #include "db_handler.h"
-#include "campaign.h"
+#include "camp_handler.h"
 #include "ast_handler.h"
 #include "htp_handler.h"
 #include "mem_sql.h"
