@@ -56,7 +56,7 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             );
     if(mem_res == NULL)
     {
-        slog(LOG_ERR, "Could not get call channel info.");
+        slog(LOG_ERR, "Could not get channel info.");
         return;
     }
 
@@ -89,6 +89,7 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             // No more available calls.
             break;
         }
+        slog(LOG_DEBUG, "chan distribute.");
 
         // get dialing info
         j_dialing = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
@@ -295,6 +296,7 @@ void cb_chan_transfer(unused__ evutil_socket_t fd, unused__ short what, unused__
             json_decref(j_dialing);
             continue;
         }
+        slog(LOG_INFO, "Bridge complete.");
 
         // update dialing.
         ret = update_dialing_after_transferred(j_dialing);
@@ -335,6 +337,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
         // No available agent.
         return;
     }
+    slog(LOG_DEBUG, "Get ready agent. uuid[%s]", json_string_value(json_object_get(j_camp, "uuid")));
 
     // get available peer info.
     j_peer = sip_get_peer(j_agent, "NOT_INUSE");
@@ -791,7 +794,7 @@ static int update_dialing_after_transferred(json_t* j_dialing)
 
             "strftime('%Y-%m-%d %H:%m:%f', 'now')",
 
-            json_string_value(json_object_get(j_dialing, "unique_id"))
+            json_string_value(json_object_get(j_dialing, "chan_uuid"))
             );
     ret = memdb_exec(sql);
     free(sql);

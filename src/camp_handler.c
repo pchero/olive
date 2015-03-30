@@ -68,7 +68,7 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
         return;
     }
 
-    // get campaign result
+    // get campaign
     j_camp = db_get_record(db_res);
     db_free(db_res);
     if(j_camp == NULL)
@@ -76,13 +76,6 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
         // No available campaign.
         return;
     }
-
-    slog(LOG_INFO, "Dialing campaign info. camp_uuid[%s], camp_name[%s], plan_uuid[%s], dlma_uuid[%s]",
-            json_string_value(json_object_get(j_camp, "uuid")),
-            json_string_value(json_object_get(j_camp, "name")),
-            json_string_value(json_object_get(j_camp, "plan")),
-            json_string_value(json_object_get(j_camp, "dlma_uuid"))
-            );
 
     // get plan
     j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
@@ -406,6 +399,13 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     free(cust_addr);
     json_decref(j_trunk);
 
+    slog(LOG_INFO, "Dialing campaign info. camp_uuid[%s], camp_name[%s], plan_uuid[%s], dlma_uuid[%s]",
+            json_string_value(json_object_get(j_camp, "uuid")),
+            json_string_value(json_object_get(j_camp, "name")),
+            json_string_value(json_object_get(j_camp, "plan")),
+            json_string_value(json_object_get(j_camp, "dlma_uuid"))
+            );
+
     // dial to
     ret = asprintf(&tmp, "%d", (int)json_integer_value(json_object_get(j_plan, "dial_timeout")));
     slog(LOG_DEBUG, "Check info. dial_addr[%s], channel_id[%s], timeout[%s], timeout_org[%d]",
@@ -443,7 +443,15 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     }
 
     // create dialing json info.
-    j_dialing = json_pack("{s:s, s:s, s:s, s:s, s:i, s:s, s:i}"
+    slog(LOG_DEBUG, "Check info. dl_uuid[%s], chan_uuid[%s], camp_uuid[%s], tel_index[%d], tel_number[%s], tel_trycnt[%d]",
+            json_string_value(json_object_get(j_dl_list, "uuid")),
+            json_string_value(json_object_get(j_dial, "ChannelId")),
+            json_string_value(json_object_get(j_camp, "uuid")),
+            dial_num_point,
+            json_string_value(json_object_get(j_dial, "Channel")),
+            cur_trycnt
+            );
+    j_dialing = json_pack("{s:s, s:s, s:s, s:s, s:i, s:s, s:i}",
             "dl_uuid",      json_string_value(json_object_get(j_dl_list, "uuid")),
             "chan_uuid",    json_string_value(json_object_get(j_dial, "ChannelId")),
             "camp_uuid",    json_string_value(json_object_get(j_camp, "uuid")),
@@ -1131,7 +1139,12 @@ static json_t* get_dl_available(json_t* j_dlma, json_t* j_plan)
     return j_res;
 }
 
-
+/**
+ * Get dl_list from database.
+ * @param j_dlma
+ * @param j_plan
+ * @return
+ */
 static json_t* get_dl_available_predictive(json_t* j_dlma, json_t* j_plan)
 {
     char* sql;
@@ -1215,7 +1228,7 @@ static int insert_dialing_info(json_t* j_dialing)
             "dl_uuid, chan_uuid, camp_uuid, "
 
             // info
-            "status, tel_index, tel_number, tel_trycnt"
+            "status, tel_index, tel_number, tel_trycnt, "
 
             // timestamp
             "tm_dial "
@@ -1289,12 +1302,13 @@ static int update_dl_after_dial(json_t* j_dlinfo)
             // info
             "status = \"%s\", "
             "%s = %s + 1, "
-            "chan_uuid = \"%s\" "
+            "chan_uuid = \"%s\", "
 
             // timestamp
-            "tm_last_dial = %s"
+            "tm_last_dial = %s "
 
-            "where uuid =\"%s\"",
+            "where uuid =\"%s\""
+            ";",
 
             json_string_value(json_object_get(j_dlinfo, "dl_table")),
 
@@ -1377,6 +1391,9 @@ static int get_dial_num_count(json_t* j_dl_list, int idx)
 
     ret = asprintf(&tmp, "trycnt_%d", idx);
     ret = json_integer_value(json_object_get(j_dl_list, tmp));
+
+    slog(LOG_DEBUG, "Check info. tmp[%s], trycnt[%d]", tmp, ret);
+    free(tmp);
 
     return ret;
 }

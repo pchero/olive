@@ -114,12 +114,10 @@ create table agent_group_ma(
 
 drop table if exists agent_group;
 create table agent_group(
---    uuid_group    varchar(255)  not null,
     group_uuid    varchar(255)  not null,
---    uuid_agent    varchar(255)  not null,
     agent_uuid    varchar(255)  not null,
     
-    primary key(uuid_group, uuid_agent)
+    primary key(group_uuid, agent_uuid)
 );
 
 drop table if exists plan;
@@ -251,12 +249,12 @@ create table trunk_group(
 -- Add admin user
 insert into agent(uuid, id, password) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "admin", "1234");
 insert into agent_group_ma(uuid, name) values ("agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "master_agent_group");
-insert into agent_group(uuid_agent, uuid_group) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
+insert into agent_group(agent_uuid, group_uuid) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
 
 -- create dial list
 drop table if exists dl_e276d8be;
 create table dl_e276d8be like dl_org;
-insert into dial_list_ma(uuid, name, dl_list) values ("dl-e276d8be-a558-4546-948a-f99913a7fea2", "sample_dial_list", "dl_e276d8be");
+insert into dial_list_ma(uuid, name, dl_table) values ("dl-e276d8be-a558-4546-948a-f99913a7fea2", "sample_dial_list", "dl_e276d8be");
 
 -- insert dial list
 insert into dl_e276d8be(uuid, name, number_1) values ("dl-04f9e9b6-5374-4c77-9a5a-4a9d79ea3937", "test1", "111-111-0001");
@@ -275,7 +273,7 @@ insert into peer(name, mode, agent_uuid) values ("test-01", "peer", "agent-56b02
 insert into plan(uuid, name, dial_mode) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan", "predictive");
 
 -- insert campaign
-insert into campaign(uuid, name, status, agent_group, plan, dial_list, trunk_group) 
+insert into campaign(uuid, name, status, agent_group, plan, dlma_uuid, trunk_group) 
 values (
 "campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7", "sample_campaign", "start", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56",
 "dl-e276d8be-a558-4546-948a-f99913a7fea2", "trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56"

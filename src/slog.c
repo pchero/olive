@@ -146,6 +146,10 @@ void _slog(const char *_FILE, int _LINE, const char *_func, LOG_LEVEL level, con
     {
         ret = asprintf(&level_str, "LOG_DEBUG");
     }
+    else if(level == LOG_EVENT)
+    {
+        ret = asprintf(&level_str, "LOG_EVENT");
+    }
     else
     {
         ret = asprintf(&level_str, "LEV[%d]", level);

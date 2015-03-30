@@ -21,6 +21,7 @@ typedef enum _LOG_LEVEL
     LOG_ERR     = 0,
     LOG_INFO    = 3,
     LOG_WARN    = 5,
+    LOG_EVENT   = 6,
     LOG_DEBUG   = 7,
 } LOG_LEVEL;
 

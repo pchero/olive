@@ -121,7 +121,6 @@ void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, unused__ 
             usleep(100);
             return;
         }
-        slog(LOG_DEBUG, "Recv event.");
 
         ret = zmq_msg_init(&msg);
         ret = zmq_msg_recv(&msg, g_app->zevt, 0);
@@ -130,7 +129,7 @@ void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, unused__ 
         recv_buf = calloc(ret + 1, sizeof(char));
         memcpy(recv_buf, zmq_msg_data(&msg), ret);
         zmq_msg_close(&msg);
-        slog(LOG_DEBUG, "Recv. msg[%s]", recv_buf);
+        slog(LOG_EVENT, "Recv. msg[%s]", recv_buf);
 
         j_recv = json_loads(recv_buf, 0, &j_err);
         free(recv_buf);
@@ -162,35 +161,35 @@ static void ast_recv_handler(json_t* j_evt)
 
     j_tmp = json_object_get(j_evt, "Event");
     tmp = json_string_value(j_tmp);
-    slog(LOG_DEBUG, "Event string. str[%s]", tmp);
+    slog(LOG_EVENT, "Event string. str[%s]", tmp);
     type = ast_get_evt_type(tmp);
 
     switch(type)
     {
         case BridgeCreate:
         {
-            slog(LOG_DEBUG, "BridgeCreate.");
+//            slog(LOG_DEBUG, "BridgeCreate.");
             evt_bridgecreate(j_evt);
         }
         break;
 
         case BridgeDestroy:
         {
-            slog(LOG_DEBUG, "BridgeDestroy");
+//            slog(LOG_DEBUG, "BridgeDestroy");
             evt_bridgedestory(j_evt);
         }
         break;
 
         case BridgeEnter:
         {
-            slog(LOG_DEBUG, "BridgeEnter");
+//            slog(LOG_DEBUG, "BridgeEnter");
             evt_bridgeenter(j_evt);
         }
         break;
 
         case BridgeLeave:
         {
-            slog(LOG_DEBUG, "BridgeLeave");
+//            slog(LOG_DEBUG, "BridgeLeave");
             evt_bridgeleave(j_evt);
 
         }
@@ -198,70 +197,70 @@ static void ast_recv_handler(json_t* j_evt)
 
         case DeviceStateChange:
         {
-            slog(LOG_DEBUG, "DeviceStateChange.");
+//            slog(LOG_DEBUG, "DeviceStateChange.");
             evt_devicestatechange(j_evt);
         }
         break;
 
         case DialBegin:
         {
-            slog(LOG_DEBUG, "DialBegin.");
+//            slog(LOG_DEBUG, "DialBegin.");
             evt_dialbegin(j_evt);
         }
         break;
 
         case DialEnd:
         {
-            slog(LOG_DEBUG, "DialEnd.");
+//            slog(LOG_DEBUG, "DialEnd.");
             evt_dialend(j_evt);
         }
         break;
 
         case FullyBooted:
         {
-            slog(LOG_DEBUG, "FullyBooted.");
+//            slog(LOG_DEBUG, "FullyBooted.");
             evt_fullybooted(j_evt);
         }
         break;
 
         case Hangup:
         {
-            slog(LOG_DEBUG, "Hangup.");
+//            slog(LOG_DEBUG, "Hangup.");
             evt_hangup(j_evt);
         }
         break;
 
         case Newchannel:
         {
-            slog(LOG_DEBUG, "Newchannel.");
+//            slog(LOG_DEBUG, "Newchannel.");
             evt_newchannel(j_evt);
         }
         break;
 
         case Newstate:
         {
-            slog(LOG_DEBUG, "NewState.");
+//            slog(LOG_DEBUG, "NewState.");
             evt_newstate(j_evt);
         }
         break;
 
         case ParkedCall:
         {
-            slog(LOG_DEBUG, "ParkedCall.");
+//            slog(LOG_DEBUG, "ParkedCall.");
             evt_parkedcall(j_evt);
         }
         break;
 
         case ParkedCallGiveUp:
         {
-            slog(LOG_DEBUG, "ParkedCallGiveUp.");
+//            slog(LOG_DEBUG, "ParkedCallGiveUp.");
             evt_parkedcallgiveup(j_evt);
         }
         break;
 
         case ParkedCallTimeOut:
         {
-            slog(LOG_DEBUG, "ParkedCallTimeOut.");
+//            slog(LOG_DEBUG, "ParkedCallTimeOut.");
             evt_parkedcalltimeout(j_evt);
         }
         break;
@@ -269,54 +268,52 @@ static void ast_recv_handler(json_t* j_evt)
         case PeerStatus:
         {
             // Update peer information
-            slog(LOG_DEBUG, "PeerStatus.");
+//            slog(LOG_DEBUG, "PeerStatus.");
             evt_peerstatus(j_evt);
         }
         break;
 
         case Registry:
         {
-            slog(LOG_DEBUG, "Registry.");
+//            slog(LOG_DEBUG, "Registry.");
             evt_registry(j_evt);
         }
         break;
 
         case Reload:
         {
-            slog(LOG_DEBUG, "Reload.");
+//            slog(LOG_DEBUG, "Reload.");
             evt_reload(j_evt);
         }
         break;
 
         case Shutdown:
         {
-            slog(LOG_DEBUG, "Shutdown.");
+//            slog(LOG_DEBUG, "Shutdown.");
             evt_shutdown(j_evt);
         }
         break;
 
         case SuccessfulAuth:
         {
-            slog(LOG_DEBUG, "SuccessfulAuth");
+//            slog(LOG_DEBUG, "SuccessfulAuth");
             evt_successfulauth(j_evt);
         }
         break;
 
         case VarSet:
         {
-            slog(LOG_DEBUG, "VarSet");
+//            slog(LOG_DEBUG, "VarSet");
             evt_varset(j_evt);
         }
         break;
 
         default:
         {
-            slog(LOG_DEBUG, "No match message");
+//            slog(LOG_DEBUG, "No match message");
         }
         break;
     }
-
-//    json_decref(j_tmp);
 
     return;
 }
@@ -877,7 +874,7 @@ static void evt_varset(json_t* j_recv)
     }
     else
     {
-        slog(LOG_DEBUG, "Unsupported VarSet. var[%s], value[%s]",
+        slog(LOG_EVENT, "Unsupported VarSet. var[%s], value[%s]",
                 json_string_value(json_object_get(j_recv, "Variable")),
                 json_string_value(json_object_get(j_recv, "Value"))
                 );
@@ -3369,16 +3366,17 @@ int cmd_bridge(json_t* j_bridge)
     }
 
     ret = strcmp(tmp, "Success");
-    json_decref(j_res_org);
     if(ret != 0)
     {
         slog(LOG_ERR, "Could not Bridge. response[%s], message[%s]",
                         json_string_value(json_object_get(j_res, "Response")),
                         json_string_value(json_object_get(j_res, "Message"))
                         );
+        json_decref(j_res_org);
         return false;
     }
 
+    json_decref(j_res_org);
     return true;
 }
 
