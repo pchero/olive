@@ -149,8 +149,8 @@ char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
  */
 char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "-- identity\n"
-        "channel    text,   -- Channel. channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
-        "unique_id    text,   -- Uniqueid\n"
+        "channel        text,   -- Channel. channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
+        "unique_id      text,   -- Uniqueid\n"
 
         "-- timestamp. used in olive only.\n"
         "tm_create          text,          -- channel created time. UTC timestamp.\n"
@@ -242,18 +242,20 @@ char* SQL_CREATE_PARK = "create table park(\n"
  */
 char* SQL_CREATE_DIALING = "create table dialing(\n"
         "-- idenetity\n"
-        "dl_uuid text,      -- dl list uuid\n"
         "chan_uuid text,    -- channel unique_id\n"
+        "dl_uuid text,      -- dl list uuid\n"
         "camp_uuid text,    -- campaign uuid\n"
 
         "-- status\n"
-        "status text,        -- dailing status. dialing, redirected, bridged,  ...\n"
+        "status text,        -- dailing status. [dialing, transferring, transferred, ...]\n"
 
         "-- timestamp. all timestamps are UTC.\n"
         "tm_dial_req        text,   -- dialing request time\n"
         "tm_transfer_req    text,   -- transfer request time\n"
         "tm_redirect_req    text,   -- redirect time\n"
         "tm_bridge_req      text,   -- bridge request time\n"
+        "tm_agent_dial      text,   -- dialed to agent timestamp.\n"
+        "tm_agent_bridge    text,   -- bridged to agent timestamp.\n"
 
         "-- tel info\n"
         "tel_index int,      -- tel number index\n"
@@ -262,9 +264,10 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
 
         "-- transfer\n"
         "tr_trycnt int default 0,   -- transfer try count\n"
-        "tr_agent text,             -- transfered agent\n"
+        "tr_agent       text,       -- transfered agent\n"
+        "tr_chan_uuid   text,       -- try transfer chan_uuid\n"
 
-        "primary key(dl_uuid, chan_uuid)\n"
+        "primary key(chan_uuid)\n"
         ");";
 
 

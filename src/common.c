@@ -11,9 +11,11 @@
 
 #include <time.h>
 #include <stdio.h>
+#include <uuid/uuid.h>
 
 #include "common.h"
 
+static char* gen_uuid(const char* prefix);
 
 /**
  * return utc time.
@@ -38,3 +40,48 @@ char* get_utc_timestamp(void)
 
     return res;
 }
+
+/**
+ * Generate uuid.
+ * Return value should be free after used.
+ * @param prefix
+ * @return
+ */
+static char* gen_uuid(const char* prefix)
+{
+    char* tmp;
+    uuid_t uuid;
+    char* res;
+    unused__ int ret;
+
+    tmp = NULL;
+    tmp = calloc(100, sizeof(char));
+    uuid_generate(uuid);
+    uuid_unparse_lower(uuid, tmp);
+
+    if(prefix == NULL)
+    {
+        ret = asprintf(&res, "%s", tmp);
+    }
+    else
+    {
+        ret = asprintf(&res, "%s-%s", prefix, tmp);
+    }
+    free(tmp);
+
+    return res;
+}
+
+/**
+ * Generate channel uuid. It has "channel-" prefix.
+ * Return value should be free after used.
+ * @return
+ */
+char* gen_uuid_channel(void)
+{
+    char* res;
+
+    res = gen_uuid("channel");
+    return res;
+}
+

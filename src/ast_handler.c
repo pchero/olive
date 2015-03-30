@@ -3372,7 +3372,7 @@ int cmd_bridge(json_t* j_bridge)
     json_decref(j_res_org);
     if(ret != 0)
     {
-        slog(LOG_ERR, "Could not Redirect. response[%s], message[%s]",
+        slog(LOG_ERR, "Could not Bridge. response[%s], message[%s]",
                         json_string_value(json_object_get(j_res, "Response")),
                         json_string_value(json_object_get(j_res, "Message"))
                         );

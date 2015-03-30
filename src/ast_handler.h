@@ -264,7 +264,7 @@ int cmd_hangup(const char* chan, AST_CAUSE_TYPE cause);
 int cmd_blindtransfer(const char* chan, const char* context, const char* exten);
 int cmd_redirect(json_t* j_redir);
 int cmd_devicestatelist(void);
-
+int cmd_bridge(json_t* j_bridge);
 
 
 

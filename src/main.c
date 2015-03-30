@@ -29,7 +29,7 @@
 #include "htp_handler.h"
 #include "mem_sql.h"
 #include "memdb_handler.h"
-#include "call_handler.h"
+#include "chan_handler.h"
 #include "agent_handler.h"
 #include "cmd_handler.h"
 
@@ -464,12 +464,16 @@ static int init_callback(void)
     event_add(ev, &tm_fast);
 
     // call_distribute
-    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_call_distribute, NULL);
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_distribute, NULL);
+    event_add(ev, &tm_fast);
+
+    // call bridging
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_bridge, NULL);
     event_add(ev, &tm_fast);
 
     // slow
     // call_timeout
-    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_call_hangup, NULL);
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
     event_add(ev, &tm_slow);
 
     // campaign_stop

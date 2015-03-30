@@ -46,7 +46,7 @@ create table campaign_result(
     tm_dial_end         datetime,   -- dialing end timestamp
     tm_parked_in        datetime,   -- parked in timestamp
     tm_parked_out       datetime,   -- parked out timestamp
-    tm_transfer_req     datatime,   -- transfer request timestamp
+    tm_transfer_req     datetime,   -- transfer request timestamp
     tm_transfer_start   datetime,   -- transfer start timestamp
     tm_transfer_end     datetime,   -- transfer end timestamp
     tm_hangup           datetime,   -- hangup timestamp
@@ -215,12 +215,14 @@ create table dl_org(
 drop table if exists peer;
 create table peer(
 -- peer info(static info only)
-    name    varchar(255)    not null unique,
+    name        varchar(255)    not null unique,
+    tech        varchar(255)    not null,           -- "sip", "iax", ...
 
-    mode    varchar(255)    not null,           -- "peer", "trunk"
-    agent_uuid varchar(255),                    -- agent uuid
+    mode        varchar(255)    not null,           -- "peer", "trunk"
+    agent_uuid  varchar(255),                       -- agent uuid
+    favorite    int default 0,                      -- favorite.
     
-    primary key(name)
+    primary key(name, tech)
 );
 
 drop table if exists trunk_group_ma;

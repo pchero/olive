@@ -340,15 +340,71 @@ int agent_status_update(const json_t* j_agent)
     char* sql;
     int ret;
 
-    ret = asprintf(&sql, "update agent set status = \"%s\" where uuid = \"%s\";",
+    ret = asprintf(&sql, "update agent set status = \"%s\", tm_status_update = %s where uuid = \"%s\";",
             json_string_value(json_object_get(j_agent, "status")),
+            "utc_timestamp()",
             json_string_value(json_object_get(j_agent, "uuid"))
             );
     ret = db_exec(sql);
     free(sql);
     if(ret == false)
     {
+        slog(LOG_ERR, "Could not update agent status info. uuid[%s], status[%s]",
+                json_string_value(json_object_get(j_agent, "uuid")),
+                json_string_value(json_object_get(j_agent, "status"))
+                );
         return false;
     }
     return true;
+}
+
+/**
+ * Get agent info.
+ * Return longest agent info who has update time included campaign.
+ * @param j_camp
+ * @param status
+ * @return
+ */
+json_t* get_agent_longest_update(json_t* j_camp, const char* status)
+{
+    json_t* j_agent;
+    unused__ int ret;
+    char* sql;
+    db_ctx_t* db_res;
+
+    if(status == NULL)
+    {
+        return NULL;
+    }
+
+    // get agent
+    ret = asprintf(&sql, "select * from agent where "
+            "uuid = (select uuid_agent from agent_group where uuid_group = \"%s\") "
+            "and status = \"%s\" "
+            "order by tm_status_update "
+            "limit 1",
+
+            json_string_value(json_object_get(j_camp, "agent_group")),
+            status
+            );
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get agent info. camp[%s], status[%s]",
+                json_string_value(json_object_get(j_camp, "uuid")),
+                status
+                );
+        return NULL;
+    }
+
+    j_agent = db_get_record(db_res);
+    db_free(db_res);
+    if(j_agent == NULL)
+    {
+        // No agent.
+        return NULL;
+    }
+
+    return j_agent;
 }

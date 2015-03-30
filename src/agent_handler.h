@@ -19,5 +19,7 @@ json_t* agent_create(const json_t* j_agent);
 json_t* agent_status_get(const char* uuid);
 int agent_status_update(const json_t* j_agent);
 
+json_t* get_agent_longest_update(json_t* j_camp, const char* status);
+
 
 #endif /* SRC_AGENT_HANDLER_H_ */
