@@ -21,15 +21,14 @@
 #include "agent_handler.h"
 #include "sip_handler.h"
 #include "ast_handler.h"
+#include "camp_handler.h"
 
-
-
-
-static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dialing);
-static void call_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dial);
-static void call_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call);
-static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing);
+static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dialing);
+static void chan_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dial);
+static void chan_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call);
+void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing);
 static json_t* get_chan_info(const char* uuid);
+static int delete_chan_info(const char* uuid);
 
 static int update_dialing_after_transferring(json_t* j_chan, json_t* j_agent, json_t* j_dial);
 static int update_dialing_after_transferred(json_t* j_dialing);
@@ -41,27 +40,22 @@ static int update_dialing_after_transferred(json_t* j_dialing);
  */
 void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
-    memdb_res* mem_res_chan;    // channel select result
-    memdb_res* mem_res;
-    db_ctx_t*  db_tmp;
+    memdb_res* mem_res;    // channel select result
     json_t* j_chan;     // memdb. channel info to distribute
-    json_t* j_dial;     // memdb. dialing
+    json_t* j_dialing;     // memdb. dialing
     json_t* j_camp;     // db. campaign info
     json_t* j_plan;     // db. plan
-    char* sql;
     const char* dial_mode;
     unused__ int ret;
 
     // get call channel which is parked and Up and exists in dialing table now.(For distribute)
-    mem_res_chan = memdb_query("select * from channel where status_desc = \"Up\" and unique_id = "
-            "(select chan_uuid from dialing where tm_transfer_req is null and chan_uuid = "
+    mem_res = memdb_query("select * from channel where status_desc = \"Up\" and unique_id = "
+            "(select chan_uuid from dialing where status = \"dialing\" and chan_uuid = "
                 "(select unique_id from park where tm_parkedout is null)"
             ");"
             );
-//    mem_res = memdb_query("select * from channel where channel = (select channel from park);");
-    if(mem_res_chan == NULL)
+    if(mem_res == NULL)
     {
-        // error
         slog(LOG_ERR, "Could not get call channel info.");
         return;
     }
@@ -69,10 +63,9 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     j_chan = NULL;
     j_camp = NULL;
     j_plan = NULL;
-    j_dial = NULL;
+    j_dialing = NULL;
     while(1)
     {
-
         if(j_chan != NULL)
         {
             json_decref(j_chan);
@@ -85,12 +78,12 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
         {
             json_decref(j_plan);
         }
-        if(j_dial != NULL)
+        if(j_dialing != NULL)
         {
-            json_decref(j_dial);
+            json_decref(j_dialing);
         }
 
-        j_chan = memdb_get_result(mem_res_chan);
+        j_chan = memdb_get_result(mem_res);
         if(j_chan == NULL)
         {
             // No more available calls.
@@ -98,63 +91,26 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
         }
 
         // get dialing info
-        ret = asprintf(&sql, "select * from dialing where chan_uuid = \"%s\";",
-                json_string_value(json_object_get(j_chan, "unique_id"))
-                );
-        mem_res = memdb_query(sql);
-        free(sql);
-        if(mem_res == NULL)
+        j_dialing = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
+        if(j_dialing == NULL)
         {
             slog(LOG_ERR, "Could not get dialing info.");
             continue;
         }
 
-        j_dial = memdb_get_result(mem_res);
-        memdb_free(mem_res);
-        if(j_dial == NULL)
-        {
-            slog(LOG_ERR, "Could not get dialing.");
-            continue;
-        }
-
         // get campaign info
-        ret = asprintf(&sql, "select * from campaign where uuid=\"%s\";",
-                json_string_value(json_object_get(j_dial, "camp_uuid"))
-                );
-
-        db_tmp = db_query(sql);
-        free(sql);
-        if(db_tmp == NULL)
-        {
-            slog(LOG_ERR, "Could not get campaign info for call distribute.");
-            continue;
-        }
-
-        j_camp = db_get_record(db_tmp);
-        db_free(db_tmp);
+        j_camp = get_campaign_info(json_string_value(json_object_get(j_dialing, "camp_uuid")));
         if(j_camp == NULL)
         {
-            slog(LOG_ERR, "Could not get campaign info.");
+            slog(LOG_ERR, "Could not get campaign info");
             continue;
         }
 
         // get plan info
-        ret = asprintf(&sql, "select * from plan where uuid = \"%s\";",
-                json_string_value(json_object_get(j_camp, "plan"))
-                );
-        db_tmp = db_query(sql);
-        free(sql);
-        if(db_tmp == NULL)
-        {
-            slog(LOG_ERR, "Could not get plan info.");
-            continue;
-        }
-
-        j_plan = db_get_record(db_tmp);
-        db_free(db_tmp);
+        j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
         if(j_plan == NULL)
         {
-            slog(LOG_ERR, "No plan info.");
+            slog(LOG_ERR, "Could not get plan info.");
             continue;
         }
 
@@ -162,19 +118,19 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
 
         if(strcmp(dial_mode, "predictive") == 0)
         {
-            call_dist_predictive(j_camp, j_plan, j_chan, j_dial);
+            chan_dist_predictive(j_camp, j_plan, j_chan, j_dialing);
         }
         else if(strcmp(dial_mode, "power") == 0)
         {
-            call_dist_power(j_camp, j_plan, j_chan);
+            chan_dist_power(j_camp, j_plan, j_chan);
         }
         else if(strcmp(dial_mode, "redirect") == 0)
         {
-            call_dist_redirect(j_camp, j_plan, j_chan, j_dial);
+            chan_dist_redirect(j_camp, j_plan, j_chan, j_dialing);
         }
     }
 
-    memdb_free(mem_res_chan);
+    memdb_free(mem_res);
 
     return;
 }
@@ -187,16 +143,15 @@ void cb_chan_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ v
 {
     char* sql;
     unused__ int ret;
-    memdb_res* mem_res_hangup;
     memdb_res* mem_res;
-    json_t* j_hangup;   // memdb [channel] hangup set info..
-    json_t* j_park;     // memdb [park]
+    json_t* j_chan;   // memdb [channel] hangup set info..
+    json_t* j_chan_agent;   // memdb [channel] agent side channel info.
     json_t* j_dialing;  // memdb [dialing]
 
     ret = asprintf(&sql, "select * from channel where cause is not null;");
-    mem_res_hangup = memdb_query(sql);
+    mem_res = memdb_query(sql);
     free(sql);
-    if(mem_res_hangup == NULL)
+    if(mem_res == NULL)
     {
         slog(LOG_ERR, "Could not get hangup channel info.");
         return;
@@ -204,63 +159,67 @@ void cb_chan_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ v
 
     while(1)
     {
-        j_hangup = memdb_get_result(mem_res_hangup);
-        if(j_hangup == NULL)
+        j_chan = memdb_get_result(mem_res);
+        if(j_chan == NULL)
         {
             // No more hangup channel.
             break;
         }
 
-        // get park table record.
-        ret = asprintf(&sql, "select * from park where unique_id = \"%s\";",
-                json_string_value(json_object_get(j_hangup, "unique_id"))
-                );
-        mem_res = memdb_query(sql);
-        free(sql);
-        if(mem_res == NULL)
+        // get dialing info
+        j_dialing = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
+        if(j_dialing == NULL)
         {
-            slog(LOG_ERR, "Could not get park info.");
-            json_decref(j_hangup);
+            // Not dialed from here.
+            // Just delete from channel.
+            ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
+            if(ret == false)
+            {
+                slog(LOG_ERR, "Could not delete hangup channel.");
+            }
+
+            json_decref(j_chan);
             continue;
         }
+        json_decref(j_chan);
 
-        // we don't care j_park is NULL or not at this point.
-        j_park = memdb_get_result(mem_res);
-
-        // get dialing table record.
-        ret = asprintf(&sql, "select * from dialing where chan_uuid = \"%s\";",
-                json_string_value(json_object_get(j_hangup, "unique_id"))
-                );
-        mem_res = memdb_query(sql);
-        free(sql);
-        if(mem_res == NULL)
+        // get agent channel info
+        j_chan_agent = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_uuid")));
+        if(j_chan_agent != NULL)
         {
-            slog(LOG_ERR, "Could not get dialing info.");
-            json_decref(j_hangup);
-            json_decref(j_park);
-            continue;
+            // check status
+            if(json_string_value(json_object_get(j_chan_agent, "cause_desc")) != NULL)
+            {
+                // Not done yet.
+                json_decref(j_chan_agent);
+                json_decref(j_dialing);
+
+                continue;
+            }
         }
+        json_decref(j_chan_agent);
 
-        // we don't care j_dialing is NULL or not at this point.
-        j_dialing = memdb_get_result(mem_res);
-
-        // process result.
-        call_result(j_hangup, j_park, j_dialing);
-
+        ret = write_dialing_result(j_dialing);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not write campaign dial result.");
+        }
         json_decref(j_dialing);
-        json_decref(j_park);
-        json_decref(j_hangup);
+
+        // Delete all info releated with dialing
+        delete_dialing_info_all(j_dialing);
+        json_decref(j_dialing);
     }
 
-    memdb_free(mem_res_hangup);
+    memdb_free(mem_res);
 
     return;
 }
 
 /**
- * Check channel for need bridge.
+ * Check channel for need transfer.
  */
-void cb_chan_bridge(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
+void cb_chan_transfer(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
     char* sql;
     int ret;
@@ -306,7 +265,7 @@ void cb_chan_bridge(unused__ evutil_socket_t fd, unused__ short what, unused__ v
         j_chan_agent = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_uuid")));
         if(j_chan_agent == NULL)
         {
-            slog(LOG_ERR, "Could not get customer channel info. chan_uuid[%s]",
+            slog(LOG_ERR, "Could not get agent channel info. chan_uuid[%s]",
                     json_string_value(json_object_get(j_dialing, "tr_chan_uuid"))
                     );
             json_decref(j_chan_customer);
@@ -315,6 +274,10 @@ void cb_chan_bridge(unused__ evutil_socket_t fd, unused__ short what, unused__ v
         }
 
         // create bridge json.
+        slog(LOG_INFO, "Bridging channels. customer[%s], agent[%s]",
+                json_string_value(json_object_get(j_chan_customer, "channel")),
+                json_string_value(json_object_get(j_chan_agent, "channel"))
+                );
         j_bridge = json_pack("{s:s, s:s, s:s}",
                 "Channel1", json_string_value(json_object_get(j_chan_customer, "channel")),
                 "Channel2", json_string_value(json_object_get(j_chan_agent, "channel")),
@@ -328,7 +291,7 @@ void cb_chan_bridge(unused__ evutil_socket_t fd, unused__ short what, unused__ v
         json_decref(j_bridge);
         if(ret == false)
         {
-            slog(LOG_ERR, "Could not brdige.");
+            slog(LOG_ERR, "Could not bridge channels.");
             json_decref(j_dialing);
             continue;
         }
@@ -338,24 +301,24 @@ void cb_chan_bridge(unused__ evutil_socket_t fd, unused__ short what, unused__ v
         json_decref(j_dialing);
         if(ret == false)
         {
-            slog(LOG_ERR, "Could not update dialing table info.");
+            slog(LOG_ERR, "Could not update dialing table info after bridging.");
             continue;
         }
-
     }
+    memdb_free(mem_res);
 
     return;
 }
 
 /**
- * call distribute for predictive
+ * channel distribute for predictive
  * @param j_camp    db [campaign] record info.
  * @param j_plan    db [plan] record info.
- * @param j_call    memdb [channel] record info.
- * @param j_dial    memdb [dialing] record info.
+ * @param j_chan    memdb [channel] record info.
+ * @param j_dialing    memdb [dialing] record info.
  * @return
  */
-static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dialing)
+static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dialing)
 {
     json_t* j_agent;        // ready agent
     json_t* j_peer;         // peer info to transfer(memdb)
@@ -389,16 +352,15 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
             json_string_value(json_object_get(j_peer, "name"))
             );
 
-    // originate call
-    // create channel uuid
+    // create dial json
     uuid = gen_uuid_channel();
-
-    // dial to
     call_addr = sip_gen_call_addr(j_peer, NULL);
-    j_dial = json_pack("{s:s, s:s, s:s, s:s}",
+    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
             "Channel", call_addr,
             "ChannelId", uuid,
-            "Application", "park",
+            "Context", "olive_outbound_agent_transfer",
+            "Exten", "s",
+            "Priority", "1",
             "Timeout", "30000"  // 30 seconds
             );
     slog(LOG_INFO, "Originate to agent. call[%s], peer_name[%s], chan_uuid[%s]",
@@ -406,10 +368,12 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
             json_string_value(json_object_get(j_peer, "name")),
             json_string_value(json_object_get(j_dial, "ChannelId"))
             );
-    ret = cmd_originate(j_dial);
-    json_decref(j_peer);
     free(call_addr);
     free(uuid);
+
+    // originate
+    ret = cmd_originate(j_dial);
+    json_decref(j_peer);
     if(ret == false)
     {
         json_decref(j_agent);
@@ -445,7 +409,7 @@ static void call_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 }
 
 
-static void call_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call)
+static void chan_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call)
 {
     return;
 }
@@ -459,7 +423,7 @@ static void call_dist_power(json_t* j_camp, json_t* j_plan, json_t* j_call)
  * @param j_dial    memdb [dialing] record info.
  * @return
  */
-static void call_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dial)
+static void chan_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dial)
 {
     db_ctx_t* db_res;
     memdb_res* mem_res;
@@ -473,7 +437,7 @@ static void call_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, j
 
     // get ready agent
     ret = asprintf(&sql, "select * from agent where "
-            "uuid = (select uuid_agent from agent_group where uuid_group = \"%s\") "
+            "uuid = (select agent_uuid from agent_group where group_uuid = \"%s\") "
             "and status = \"%s\" "
             "order by tm_status_update "
             "limit 1",
@@ -572,7 +536,7 @@ static void call_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, j
 
     // update dialing info
     ret = asprintf(&sql, "update dialing set "
-            "tm_transfer_req = %s, "
+            "tm_redirect = %s, "
             "tr_agent = \"%s\", "
             "tr_trycnt = %s,"
             "status = \"%s\" "
@@ -634,7 +598,7 @@ static void call_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, j
  * @param j_park
  * @param j_dialing
  */
-static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing)
+void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing)
 {
     int ret;
     char* sql;
@@ -818,7 +782,7 @@ static int update_dialing_after_transferred(json_t* j_dialing)
             "status = \"%s\", "
 
             // timestamp
-            "tm_agent_bridge = %s "
+            "tm_agent_transfer = %s "
 
             "where chan_uuid = \"%s\""
             ";",
@@ -866,4 +830,20 @@ static json_t* get_chan_info(const char* uuid)
     memdb_free(mem_res);
 
     return j_res;
+}
+
+static int delete_chan_info(const char* uuid)
+{
+    char* sql;
+    int ret;
+
+    ret = asprintf(&sql, "delete from channel where unique_id = \"%s\";", uuid);
+    ret = memdb_exec(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not delete chan info.");
+        return false;
+    }
+
+    return true;
 }

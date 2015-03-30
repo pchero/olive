@@ -18,7 +18,8 @@ create table campaign(
     -- resources
     agent_group varchar(255),                       -- agent group uuid
     plan        varchar(255),                       -- plan uuid(plan)
-    dial_list   varchar(255),                       -- dial_list uuid
+    dlma_uuid   varchar(255),                       -- dial_list_ma uuid
+--    dial_list   varchar(255),                       -- dial_list uuid
     trunk_group varchar(255),                       -- trunk group uuid
 --    result      varchar(255),                       -- campaign result table
 
@@ -38,7 +39,7 @@ create table campaign_result(
     seq         int(10)         unsigned auto_increment,
     camp_uuid   varchar(255)    not null,   -- campaign uuid
     chan_uuid   varchar(255)    not null,   -- channel unique id
-    dial_uuid   varchar(255)    not null,   -- dl_list table uuid
+    dlma_uuid   varchar(255)    not null,   -- dial_list_ma uuid
     
     -- timestamp
     tm_dial_req         datetime,   -- dialing request timestamp
@@ -113,8 +114,10 @@ create table agent_group_ma(
 
 drop table if exists agent_group;
 create table agent_group(
-    uuid_group    varchar(255)  not null,
-    uuid_agent    varchar(255)  not null,
+--    uuid_group    varchar(255)  not null,
+    group_uuid    varchar(255)  not null,
+--    uuid_agent    varchar(255)  not null,
+    agent_uuid    varchar(255)  not null,
     
     primary key(uuid_group, uuid_agent)
 );
@@ -144,8 +147,6 @@ create table plan(
     max_retry_cnt_7     int default 5,  -- max retry count for dial number 7
     max_retry_cnt_8     int default 5,  -- max retry count for dial number 8
     
-    
-    
     primary key(seq, uuid)
 );
 
@@ -160,7 +161,8 @@ create table dial_list_ma(
     
     -- information
     name        varchar(255),                               -- dial list name
-    dl_list     varchar(255),                               -- dial list table name.(dl_e276d8be)
+--    dl_list     varchar(255),                               -- dial list table name.(dl_e276d8be)
+    dl_table    varchar(255),                               -- dial list table name.(dl_e276d8be)
     detail      text,                                       -- description of dialist
     
     primary key(seq, uuid)
@@ -199,14 +201,15 @@ create table dl_org(
     trycnt_6    int default 0,      -- try count for tel number 6
     trycnt_7    int default 0,      -- try count for tel number 7
     trycnt_8    int default 0,      -- try count for tel number 8
-
-    tm_last_dial    datetime,       -- last tried dial time
     result_dial     varchar(255),   -- last dial result.(no answer, answer, busy, ...)
     result_route    varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
-    status      varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
+
+    -- timestamp
+    tm_last_dial    datetime,       -- last tried dial time
     
     call_detail text,               -- more detail info about call result
     
+    status      varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
     chan_uuid   varchar(255),       -- dialing channel id.
     
     primary key(seq, uuid)

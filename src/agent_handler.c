@@ -379,7 +379,7 @@ json_t* get_agent_longest_update(json_t* j_camp, const char* status)
 
     // get agent
     ret = asprintf(&sql, "select * from agent where "
-            "uuid = (select uuid_agent from agent_group where uuid_group = \"%s\") "
+            "uuid = (select agent_uuid from agent_group where group_uuid = \"%s\") "
             "and status = \"%s\" "
             "order by tm_status_update "
             "limit 1",

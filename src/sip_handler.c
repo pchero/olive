@@ -106,7 +106,6 @@ char* sip_gen_call_addr(json_t* j_peer, const char* dial_to)
     char* res;
     unused__ int ret;
 
-
     if(dial_to == NULL)
     {
         ret = asprintf(&res, "sip/%s", json_string_value(json_object_get(j_peer, "name")));
@@ -117,5 +116,37 @@ char* sip_gen_call_addr(json_t* j_peer, const char* dial_to)
     }
 
     return res;
+}
 
+
+/**
+ * Get available trunk info.
+ * @param grou_uuid
+ * @return
+ */
+json_t* sip_get_trunk_avaialbe(const char* grou_uuid)
+{
+    char* sql;
+    unused__ int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
+
+    ret = asprintf(&sql, "select * from peer where status like \"OK%%\" "
+            "and name = (select trunk_name from trunk_group where group_uuid = \"%s\" order by random()) "
+            "limit 1;",
+            grou_uuid
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get available trunk info.");
+        return NULL;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+
+    return j_res;
 }

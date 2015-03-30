@@ -468,7 +468,7 @@ static int init_callback(void)
     event_add(ev, &tm_fast);
 
     // call bridging
-    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_bridge, NULL);
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_transfer, NULL);
     event_add(ev, &tm_fast);
 
     // slow

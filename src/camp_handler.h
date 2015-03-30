@@ -45,6 +45,15 @@ OLIVE_RESULT campaign_create(json_t* j_camp);
 
 json_t* campaign_get_all(void);
 
+// internal
+json_t* get_campaign_info(const char* uuid);
+json_t* get_plan_info(const char* uuid);
+json_t* get_dl_master_info(const char* uuid);
+json_t* get_dialing_info(const char* uuid);
+int write_dialing_result(json_t* j_dialing);
+int delete_dialing_info_all(json_t* j_dialing);
 
+
+int update_campaign_info_status(const char* uuid, const char* status);
 
 #endif /* CAMPAIGN_H_ */

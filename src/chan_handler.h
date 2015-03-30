@@ -13,7 +13,7 @@
 
 void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg);
 void cb_chan_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg);
-void cb_chan_bridge(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg);
+void cb_chan_transfer(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg);
 
 
 #endif /* SRC_CHAN_HANDLER_H_ */
