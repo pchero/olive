@@ -2099,7 +2099,7 @@ static void evt_bridgeenter(json_t* j_recv)
     // insert bridge.
     ret = asprintf(&sql, "insert into bridge("
             // identity
-            "brid_uuid, channel, chan_uuid, "
+            "brid_uuid, channel, chan_unique_id, "
 
             // timestamp
             "tm_enter, "
@@ -2273,7 +2273,7 @@ static void evt_bridgeleave(json_t* j_recv)
             "priority = \"%s\" "
 
             "where brid_uuid = \"%s\" "
-            "and chan_uuid = \"%s\" "
+            "and chan_unique_id = \"%s\" "
             ";",
 
             // identity

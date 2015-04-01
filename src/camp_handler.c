@@ -25,6 +25,7 @@
 #include "memdb_handler.h"
 #include "ast_handler.h"
 #include "sip_handler.h"
+#include "chan_handler.h"
 
 
 static void dial_desktop(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
@@ -443,7 +444,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     }
 
     // create dialing json info.
-    slog(LOG_DEBUG, "Check info. dl_uuid[%s], chan_uuid[%s], camp_uuid[%s], tel_index[%d], tel_number[%s], tel_trycnt[%d]",
+    slog(LOG_DEBUG, "Check info. dl_uuid[%s], chan_unique_id[%s], camp_uuid[%s], tel_index[%d], tel_number[%s], tel_trycnt[%d]",
             json_string_value(json_object_get(j_dl_list, "uuid")),
             json_string_value(json_object_get(j_dial, "ChannelId")),
             json_string_value(json_object_get(j_camp, "uuid")),
@@ -453,7 +454,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
             );
     j_dialing = json_pack("{s:s, s:s, s:s, s:s, s:i, s:s, s:i}",
             "dl_uuid",      json_string_value(json_object_get(j_dl_list, "uuid")),
-            "chan_uuid",    json_string_value(json_object_get(j_dial, "ChannelId")),
+            "chan_unique_id",    json_string_value(json_object_get(j_dial, "ChannelId")),
             "camp_uuid",    json_string_value(json_object_get(j_camp, "uuid")),
             "status",       "dialing",
             "tel_index",    dial_num_point,
@@ -477,7 +478,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     j_dl_update = json_pack("{s:s, s:s, s:s, s:s}",
             "dl_table",      json_string_value(json_object_get(j_dlma, "dl_table")),
             "try_cnt",      try_cnt,
-            "chan_uuid",    json_string_value(json_object_get(j_dialing, "chan_uuid")),
+            "chan_unique_id",    json_string_value(json_object_get(j_dialing, "chan_unique_id")),
             "dl_uuid",      json_string_value(json_object_get(j_dialing, "dl_uuid"))
             );
     ret = update_dl_after_dial(j_dl_update);
@@ -710,7 +711,7 @@ static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 
     // insert into dialing
     ret = asprintf(&sql, "insert into dialing("
-            "dl_uuid, chan_uuid, camp_uuid, status, tm_dial, "
+            "dl_uuid, chan_unique_id, camp_uuid, status, tm_dial, "
             "tel_index, tel_number, tel_trycnt"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", %s, "
@@ -740,7 +741,7 @@ static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     sprintf(try_cnt, "trycnt_%d", dial_num_point);
 
     // update dial list status
-    ret = asprintf(&sql, "update %s set status = \"%s\", %s = %s + 1, chan_uuid = \"%s\" where uuid =\"%s\"",
+    ret = asprintf(&sql, "update %s set status = \"%s\", %s = %s + 1, chan_unique_id = \"%s\" where uuid =\"%s\"",
             json_string_value(json_object_get(j_dlma, "dl_table")),
             "dialing",
             try_cnt, try_cnt,
@@ -1225,7 +1226,7 @@ static int insert_dialing_info(json_t* j_dialing)
 
     ret = asprintf(&sql, "insert into dialing("
             // identity
-            "dl_uuid, chan_uuid, camp_uuid, "
+            "dl_uuid, chan_unique_id, camp_uuid, "
 
             // info
             "status, tel_index, tel_number, tel_trycnt, "
@@ -1241,7 +1242,7 @@ static int insert_dialing_info(json_t* j_dialing)
             ");",
 
             json_string_value(json_object_get(j_dialing, "dl_uuid")),
-            json_string_value(json_object_get(j_dialing, "chan_uuid")),
+            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
             json_string_value(json_object_get(j_dialing, "camp_uuid")),
 
             json_string_value(json_object_get(j_dialing, "status")),
@@ -1274,7 +1275,7 @@ json_t* get_dialing_info(const char* uuid)
     memdb_res* mem_res;
     json_t* j_res;
 
-    ret = asprintf(&sql, "select * from dialing where chan_uuid = \"%s\";",
+    ret = asprintf(&sql, "select * from dialing where chan_unique_id = \"%s\";",
             uuid
             );
     mem_res = memdb_query(sql);
@@ -1302,7 +1303,7 @@ static int update_dl_after_dial(json_t* j_dlinfo)
             // info
             "status = \"%s\", "
             "%s = %s + 1, "
-            "chan_uuid = \"%s\", "
+            "chan_unique_id = \"%s\", "
 
             // timestamp
             "tm_last_dial = %s "
@@ -1314,7 +1315,7 @@ static int update_dl_after_dial(json_t* j_dlinfo)
 
             "dialing",
             json_string_value(json_object_get(j_dlinfo, "try_cnt")), json_string_value(json_object_get(j_dlinfo, "try_cnt")),
-            json_string_value(json_object_get(j_dlinfo, "chan_uuid")),
+            json_string_value(json_object_get(j_dlinfo, "chan_unique_id")),
 
             "utc_timestamp()",
 
@@ -1405,6 +1406,26 @@ static int get_dial_num_count(json_t* j_dl_list, int idx)
  */
 int write_dialing_result(json_t* j_dialing)
 {
+    json_t* j_customer;
+    json_t* j_transfer;
+    json_t* j_dial_result;
+
+    // get customer channel info
+    j_customer = get_chan_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+    if(j_customer == NULL)
+    {
+        slog(LOG_ERR, "Could not find customer channel info.");
+        return false;
+    }
+
+    // get transferred channel info
+    j_transfer = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")));
+
+    // todo: write dial result.
+    j_dial_result = json_pack("{}");
+
+
+
     return true;
 }
 

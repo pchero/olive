@@ -241,35 +241,31 @@ char* SQL_CREATE_PARK = "create table park(\n"
  * dialing call info table.
  */
 char* SQL_CREATE_DIALING = "create table dialing(\n"
-        "-- idenetity\n"
-        "chan_uuid text,    -- channel unique_id\n"
-        "dl_uuid text,      -- dl list uuid\n"
-        "camp_uuid text,    -- campaign uuid\n"
+        "-- idenetity.\n"
+        "chan_unique_id  text,    -- channel unique_id\n"
+        "dl_uuid    text,      -- dl list uuid\n"
+        "camp_uuid  text,    -- campaign uuid\n"
 
         "-- status\n"
         "status text,        -- dialing status. [dialing, transferring, transferred, ...]\n"
 
         "-- timestamp. all timestamps are UTC.\n"
-//        "tm_dial_req        text,   -- dialing request time\n"
-//        "tm_transfer_req    text,   -- transfer request time\n"
-//        "tm_redirect_req    text,   -- redirect time\n"
-//        "tm_bridge_req      text,   -- bridge request time\n"
         "tm_dial            text,   -- dialed to customer timestamp\n"
         "tm_agent_dial      text,   -- dialed to agent timestamp.\n"
         "tm_agent_transfer  text,   -- transferred to agent timestamp.\n"
         "tm_redirect        text,   -- redirected to other context timestamp.\n"
 
-        "-- tel info\n"
+        "-- tel info.\n"
         "tel_index int,      -- tel number index\n"
         "tel_number text,    -- tel number\n"
         "tel_trycnt int,     -- tel try count\n"
 
-        "-- transfer\n"
-        "tr_trycnt int default 0,   -- transfer try count\n"
-        "tr_agent       text,       -- transfered agent\n"
-        "tr_chan_uuid   text,       -- try transfer chan_uuid\n"
+        "-- transfer info.\n"
+        "tr_trycnt          int default 0,  -- transfer try count\n"
+        "tr_agent_uuid      text,           -- transfered agent\n"
+        "tr_chan_unique_id  text,           -- try transfer chan_uuid\n"
 
-        "primary key(chan_uuid)\n"
+        "primary key(chan_unique_id)\n"
         ");";
 
 
@@ -321,9 +317,9 @@ char* SQL_CREATE_BRIDGE = "create table bridge(\n"
         "seq integer primary key autoincrement, -- \n"
 
         "-- identity.\n"
-        "brid_uuid  text,   -- bridge unique id\n"
-        "channel    text,   -- channel\n"
-        "chan_uuid  text,   -- channel unique id. Uniqueid.\n"
+        "brid_uuid      text,   -- bridge unique id\n"
+        "channel        text,   -- channel\n"
+        "chan_unique_id text,   -- channel unique id. Uniqueid.\n"
 
         "-- timestamp. UTC.\n"
         "tm_enter text, -- entered timestamp\n"
