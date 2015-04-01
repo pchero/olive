@@ -4,71 +4,93 @@
 
 drop table if exists campaign;
 create table campaign(
+-- campaign.
     
     -- identity
-    seq         int(10)         unsigned auto_increment,
     uuid        varchar(255)    unique,
     
     -- information
-    detail      varchar(1023),                      -- description
-    name        varchar(255),
+    detail                      varchar(1023),      -- description
+    name                        varchar(255),       -- campaign name
     status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/force_stopping)
     status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
+    update_status_agent_uuid    varchar(255),       -- last status update agent uuid
     
     -- resources
     agent_group varchar(255),                       -- agent group uuid
     plan        varchar(255),                       -- plan uuid(plan)
     dlma_uuid   varchar(255),                       -- dial_list_ma uuid
---    dial_list   varchar(255),                       -- dial_list uuid
     trunk_group varchar(255),                       -- trunk group uuid
---    result      varchar(255),                       -- campaign result table
 
-    -- created date
-    -- created agent
-    -- last modified date(except status)
-    -- last modified agent
-    -- last running date.
-    -- last running agent.
-    primary key(seq, uuid)
+    -- timestamp. UTC.
+    tm_create           datetime,   -- create time.
+    tm_delete           datetime,   -- delete time.
+    tm_update_property  datetime,   -- last property update time.(Except status)
+    tm_update_status    datetime    -- last status updated time.
+        
+    primary key(uuid)
 );
 
 drop table if exists campaign_result;
 create table campaign_result(
--- campaign result table.
+-- campaign dial result table.
     -- identity
-    seq         int(10)         unsigned auto_increment,
-    camp_uuid   varchar(255)    not null,   -- campaign uuid
-    chan_uuid   varchar(255)    not null,   -- channel unique id
-    dlma_uuid   varchar(255)    not null,   -- dial_list_ma uuid
+    seq                 int(10)         unsigned auto_increment,
+
+    camp_uuid           varchar(255)    not null,   -- campaign uuid.
+    dlma_uuid           varchar(255)    not null,   -- dial_list_ma uuid.
+    dl_uuid             varchar(255)    not null,   -- dl uuid
     
-    -- timestamp
-    tm_dial_req         datetime,   -- dialing request timestamp
-    tm_dial_start       datetime,   -- dialing start timestamp
-    tm_dial_end         datetime,   -- dialing end timestamp
-    tm_parked_in        datetime,   -- parked in timestamp
-    tm_parked_out       datetime,   -- parked out timestamp
-    tm_transfer_req     datetime,   -- transfer request timestamp
-    tm_transfer_start   datetime,   -- transfer start timestamp
-    tm_transfer_end     datetime,   -- transfer end timestamp
-    tm_hangup           datetime,   -- hangup timestamp
+    -- channel information
+    chan_unique_id      varchar(255)    not null,   -- channel unique id.
+    tr_chan_unique_id   varchar(255),               -- transferred channel unique id(if transferred).
+    
+    
+    -- timestamp(UTC)
+    tm_dial_req         datetime,   -- dialing request timestamp.
+    tm_dial_start       datetime,   -- dialing start timestamp.
+    tm_dial_end         datetime,   -- dialing end timestamp.
+    tm_parked_in        datetime,   -- parked in timestamp.
+    tm_parked_out       datetime,   -- parked out timestamp.
+    tm_transfer_req     datetime,   -- transfer request timestamp.
+    tm_transfer_start   datetime,   -- transfer start timestamp.
+    tm_transfer_end     datetime,   -- transfer end timestamp.
+    tm_chan_hangup      datetime,   -- channel hangup timestamp.
+    tm_tr_chan_hangup   datetime,   -- transferred channel hangup timestamp.
     
     -- dial result
-    res_voice               varchar(255),   -- AMD(Answerring machine detect) result. If it used.
-    res_voice_desc          varchar(255),   -- AMD result description.
-    res_dial                varchar(255),   -- dial result
-    res_transfer            varchar(255),   -- transferred result
-    res_transferred_agent   varchar(255),   -- transferred agent uuid
+    res_voice           varchar(255),   -- AMD(Answerring machine detect) result. If it used.(human, machine, not sure, ...)
+    res_voice_detail    varchar(255),   -- AMD result detail description.
+    res_dial            varchar(255),   -- dial result.(busy, answer, ...)
+    res_tr_trycnt       varchar(255),   -- transfer try count.
+    res_tr_dial         varchar(255),   -- transferred result.(transferred, cutomer hangup, agent hangup)
+    res_tr_agent_uuid   varchar(255),   -- transferred agent uuid.
     
     -- dial information
-    dial_number     varchar(255),   -- call number
-    dial_idx_number varchar(255),   -- call number index
-    dial_idx_count  varchar(255),   -- call number count
-    dial_string     varchar(255),   -- dialed string
-    dial_sip_callid varchar(255),   -- dial sip call id. if exists.
+    dial_number         varchar(255),   -- dial number.
+    dial_number_idx     varchar(255),   -- dial number index.
+    dial_number_cnt     varchar(255),   -- dial number count.
+    dial_string         varchar(255),   -- dialing string.
+    dial_sip_callid     varchar(255),   -- dial sip call id. if exists.
+
+    -- transfer dial information
+    dial_tr_number      varchar(255),   -- transferred dial number(if transferred).
+    dial_tr_string      varchar(255),   -- transferred dialing string(if transferred).
+    dial_tr_sip_callid  varchar(255),   -- transferred dial sip callid(if transferred).
+    
+    -- plan information
+    plan_dial_mode      varchar(255),
+    plan_dial_timeout   varchar(255),
+    plan_caller_id      varchar(255),
+    plan_answer_handle  varchar(255),
     
     primary key(seq)
     
 );
+
 
 drop table if exists agent;
 create table agent(
@@ -76,18 +98,19 @@ create table agent(
 -- every agents are belongs to here.
 
     -- identity
-    seq         int(10)         unsigned auto_increment,
     uuid        varchar(255)    not null unique,
     
     -- information
-    id			varchar(255)	not null unique,	-- login id
-    password    varchar(1023)   not null,			-- login passwd
-    name        varchar(255),                       -- agent name
-    status      varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work)    
-    desc_admin  varchar(1023),      -- description(for administrator)
-    desc_user   varchar(1023),      -- description(for agent itself)
-    create_user varchar(255),       -- create user
-    info_update_user   varchar(255),   -- last agent info modified user
+    id                  varchar(255)    not null unique,    -- login id
+    password            varchar(1023)   not null,           -- login passwd
+    name                varchar(255),                       -- agent name
+    status              varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work)    
+    desc_admin          varchar(1023),                      -- description(for administrator)
+    desc_user           varchar(1023),                      -- description(for agent itself)
+    
+    -- ownership
+    create_agent_uuid   varchar(255),   -- create user
+    update_agent_uuid   varchar(255),
     
     -- timestamp
     tm_info_update      datetime,   -- last agent info modified time
@@ -99,7 +122,7 @@ create table agent(
     -- agent performance
     -- busy time, how many calls got.. Um?
     
-    primary key(seq, uuid)
+    primary key(uuid)
 );
 
 drop table if exists agent_group_ma;
@@ -120,20 +143,23 @@ create table agent_group(
     primary key(group_uuid, agent_uuid)
 );
 
+
 drop table if exists plan;
 create table plan(
 
-    -- row identity
-    seq         int(10)         unsigned auto_increment,
-    uuid        varchar(255)    unique,
-    
-    -- information
+    -- identity
+    uuid        varchar(255) unique not null,    
     name        varchar(255),           -- plan name
     detail      varchar(1023),          -- description
-    dial_mode   varchar(255),           -- dial mode(desktop, power, predictive, robo)
     
-    dial_timeout    int default 30000, -- no answer timeout(30000 ms = 30 second)
-    caller_id   varchar(255),           -- show string as an caller
+    -- strategy
+    dial_mode       varchar(255),       -- dial mode(desktop, power, predictive, robo, sms)
+    dial_timeout    int default 30000,  -- no answer hangup timeout(30000 ms = 30 second)
+    caller_id       varchar(255),       -- caller
+    answer_handle   varchar(255),       -- answer handling.(all, human_only, human_possible)
+    dl_end_handle   varchar(255),       -- stratery when it running out dial list(keep_running, stop, next_campaign)
+    next_camp_uuid  varchar(255),       -- next campaign uuid. work only if dl_end_handle set to "next_campaign", (it will run after fisnish dl_list)
+    retry_delay     varchar(255),       -- retry delaytime(ms)
     
     -- retry number
     max_retry_cnt_1     int default 5,  -- max retry count for dial number 1
@@ -144,8 +170,19 @@ create table plan(
     max_retry_cnt_6     int default 5,  -- max retry count for dial number 6
     max_retry_cnt_7     int default 5,  -- max retry count for dial number 7
     max_retry_cnt_8     int default 5,  -- max retry count for dial number 8
+
+    -- ownership
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
     
-    primary key(seq, uuid)
+    -- timestamp. UTC.
+    tm_create           datetime,   -- create time.
+    tm_delete           datetime,   -- delete time.
+    tm_update_property  datetime,   -- last property update time.(Except status)
+    tm_update_status    datetime    -- last status updated time.
+    
+    primary key(uuid)
 );
 
 drop table if exists dial_list_ma;
@@ -172,13 +209,17 @@ create table dl_org(
 -- original dial list info table
 -- all of other dial lists are copy of this table.
 
-    -- row identity
-    seq         int(10)         unsigned auto_increment,    -- seqeuence
-    uuid        varchar(255)    unique,                     -- 
+    -- identity
+    uuid        varchar(255)    unique,     -- dl uuid
     
     -- information
-    name        varchar(255),
-    detail      varchar(255),
+    name            varchar(255),   -- Can be null
+    detail          varchar(255),
+    uui             text,           -- user-user information
+    status          varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
+    chan_unique_id  varchar(255),       -- dialing channel unique id.
+    
+    -- numbers.
     number_1    varchar(255),       -- tel number 1
     number_2    varchar(255),       -- tel number 2
     number_3    varchar(255),       -- tel number 3
@@ -187,10 +228,11 @@ create table dl_org(
     number_6    varchar(255),       -- tel number 6
     number_7    varchar(255),       -- tel number 7
     number_8    varchar(255),       -- tel number 8
-    app_data    text,               -- application data.
+    
+    -- other address.
     email       text,
 
-    -- results
+    -- try counts.
     trycnt_1    int default 0,      -- try count for tel number 1
     trycnt_2    int default 0,      -- try count for tel number 2
     trycnt_3    int default 0,      -- try count for tel number 3
@@ -199,50 +241,65 @@ create table dl_org(
     trycnt_6    int default 0,      -- try count for tel number 6
     trycnt_7    int default 0,      -- try count for tel number 7
     trycnt_8    int default 0,      -- try count for tel number 8
-    result_dial     varchar(255),   -- last dial result.(no answer, answer, busy, ...)
-    result_route    varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
 
-    -- timestamp
-    tm_last_dial    datetime,       -- last tried dial time
+    -- last dial result
+    res_dial        varchar(255),   -- last dial result.(no answer, answer, busy, ...)
+    res_transfer    varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
+--    call_detail text,               -- more detail info about call result
+
+    -- timestamp. UTC.
+    tm_create       datetime,   -- create time
+    tm_delete       datetime,   -- delete time
+    tm_update       datetime,   -- last update time
+    tm_last_dial    datetime,   -- last tried dial time
     
-    call_detail text,               -- more detail info about call result
-    
-    status      varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
-    chan_uuid   varchar(255),       -- dialing channel id.
-    
-    primary key(seq, uuid)
+    primary key(uuid)
 );
 
 drop table if exists peer;
 create table peer(
--- peer info(static info only)
-    name        varchar(255)    not null unique,
-    tech        varchar(255)    not null,           -- "sip", "iax", ...
 
+    -- identity
+    name        varchar(255)    not null unique,    -- peer name
+    protocol    varchar(255)    not null,           -- "sip", "iax", ...
+
+    -- information
     mode        varchar(255)    not null,           -- "peer", "trunk"
-    agent_uuid  varchar(255),                       -- agent uuid
-    favorite    int default 0,                      -- favorite.
+    agent_uuid  varchar(255),                       -- owned agent uuid.
+    favorite    int default 0,                      -- favorite number. if close to 0, it has more favor value.
     
-    primary key(name, tech)
+    -- timestamp. UTC
+    tm_create       datetime,   -- create time
+    tm_delete       datetime,   -- delete time
+    tm_update       datetime,   -- last update time
+    
+    primary key(name, protocol)
 );
 
 drop table if exists trunk_group_ma;
 create table trunk_group_ma(
 -- trunk group master table
-    uuid    varchar(255)    not  null unique,
+    uuid    varchar(255)    not null unique,
     name    varchar(255),
     detail  text,
-    
+
+    -- timestamp. UTC
+    tm_create       datetime,   -- create time
+    tm_delete       datetime,   -- delete time
+    tm_update       datetime,   -- last update time
+    tm_last_dial    datetime,   -- last tried dial time
+
     primary key(uuid)
 );
 
 drop table if exists trunk_group;
 create table trunk_group(
 -- trunk_group - trunk matching table
-    group_uuid  varchar(255)    not null,
-    trunk_name  varchar(255)    not null,       -- asterisk peer name
+    group_uuid      varchar(255)    not null,
+    trunk_name      varchar(255)    not null,   -- asterisk peer name
+    trunk_proto     varchar(255)    not null,   -- trunk protocol
     
-    primary key(group_uuid, trunk_name)
+    primary key(group_uuid, trunk_name, trunk_proto)
 );
 
 

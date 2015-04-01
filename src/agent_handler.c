@@ -129,7 +129,7 @@ json_t* agent_update(const json_t* j_agent)
             "desc_user = \"%s\", "
 
             "tm_info_update = %s, "
-            "info_update_user = \"%s\" "
+            "update_agent_uuid = \"%s\" "
 
             "where uuid = \"%s\";",
 
@@ -139,7 +139,7 @@ json_t* agent_update(const json_t* j_agent)
             json_string_value(json_object_get(j_agent, "desc_user")),
 
             "utc_timestamp()",
-            json_string_value(json_object_get(j_agent, "info_update_user")),
+            json_string_value(json_object_get(j_agent, "update_agent_uuid")),
 
             json_string_value(json_object_get(j_agent, "uuid"))
             );
@@ -221,9 +221,9 @@ json_t* agent_create(const json_t* j_agent)
 
             "desc_user, "
             "tm_create, "
-            "create_user, "
+            "create_agent_uuid, "
             "tm_info_update, "
-            "info_update_user, "
+            "update_agent_uuid, "
 
             "tm_status_update"
             ") values ("
@@ -240,9 +240,9 @@ json_t* agent_create(const json_t* j_agent)
 
             json_string_value(json_object_get(j_agent, "desc_user")),
             "utc_timestamp()",
-            json_string_value(json_object_get(j_agent, "create_user")),
+            json_string_value(json_object_get(j_agent, "create_agent_uuid")),
             "utc_timestamp()",
-            json_string_value(json_object_get(j_agent, "info_update_user")),
+            json_string_value(json_object_get(j_agent, "update_agent_uuid")),
 
             "utc_timestamp()"
             );
