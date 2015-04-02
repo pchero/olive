@@ -844,6 +844,11 @@ json_t* get_chan_info(const char* unique_id)
     return j_res;
 }
 
+/**
+ * Delete channel info from table.
+ * @param unique_id
+ * @return
+ */
 static int delete_chan_info(const char* unique_id)
 {
     char* sql;
@@ -860,4 +865,33 @@ static int delete_chan_info(const char* unique_id)
     }
 
     return true;
+}
+
+/**
+ * Get park table info.
+ * Return as json.
+ * @param unique_id
+ * @return
+ */
+json_t* get_park_info(const char* unique_id)
+{
+    char* sql;
+    int ret;
+    json_t* j_res;
+    memdb_res* mem_res;
+
+    slog(LOG_INFO, "Get parked call info. unique_id[%s]", unique_id);
+
+    ret = asprintf(&sql, "select * from park where unique_id = \"%s\";", unique_id);
+    mem_res = memdb_query(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get park table info.");
+        return NULL;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+
+    return j_res;
 }

@@ -148,7 +148,7 @@ drop table if exists plan;
 create table plan(
 
     -- identity
-    uuid        varchar(255) unique not null,    
+    uuid        varchar(255) unique not null, 
     name        varchar(255),           -- plan name
     detail      varchar(1023),          -- description
     
