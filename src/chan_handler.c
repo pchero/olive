@@ -39,11 +39,11 @@ static int update_dialing_after_transferred(json_t* j_dialing);
  */
 void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
-    memdb_res* mem_res;    // channel select result
-    json_t* j_chan;     // memdb. channel info to distribute
-    json_t* j_dialing;     // memdb. dialing
-    json_t* j_camp;     // db. campaign info
-    json_t* j_plan;     // db. plan
+    memdb_res* mem_res;     // channel select result
+    json_t* j_chan;         // memdb. channel info to distribute
+    json_t* j_dialing;      // memdb. dialing
+    json_t* j_camp;         // db. campaign info
+    json_t* j_plan;         // db. plan
     const char* dial_mode;
     unused__ int ret;
 
@@ -88,7 +88,7 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             // No more available calls.
             break;
         }
-        slog(LOG_DEBUG, "chan distribute.");
+        slog(LOG_DEBUG, "channel distribute.");
 
         // get dialing info
         j_dialing = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
@@ -326,13 +326,15 @@ void cb_chan_transfer(unused__ evutil_socket_t fd, unused__ short what, unused__
  */
 static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan, json_t* j_dialing)
 {
-    json_t* j_agent;        // ready agent
-    json_t* j_peer;         // peer info to transfer(memdb)
-    json_t* j_dial;    // dialing to agent
+    json_t* j_agent;    // ready agent
+    json_t* j_peer;     // peer info to transfer(memdb)
+    json_t* j_dial;     // dialing to agent
     json_t* j_tmp;
     char* call_addr;
     int ret;
     char* uuid;
+    char* answer_handle;
+    char* amd_result;
 
     // get ready agent
     j_agent = get_agent_longest_update(j_camp, "ready");
@@ -350,6 +352,24 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
         json_decref(j_agent);
         return;
     }
+
+    // get AMD result
+    // MACHINE | HUMAN | NOTSURE | HANGUP
+    amd_result = json_string_value(json_object_get(j_chan, "AMDSTATUS"));
+    slog(LOG_INFO, "AMD result info. AMDSTATUS[%s], AMDCAUSE[%s]",
+            json_string_value(json_object_get(j_chan, "AMDSTATUS")),
+            json_string_value(json_object_get(j_chan, "AMDCAUSE"))
+            );
+
+    // update dialing AMD result info.
+    j_tmp = json_pack("{s:s, s:s, s:s}",
+            "res_dial",             "answer",
+            "res_answer",           json_string_value(json_object_get(j_chan, "AMDSTATUS")),
+            "res_answer_detail",    json_string_value(json_object_get(j_chan, "AMDCAUSE"))
+            );
+
+    // check voice handle
+    answer_handle = json_string_value(json_object_get(j_plan, "answer_handle"));
 
     // distribute call info.
     slog(LOG_INFO, "Call transfer. channel[%s], agent[%s], agent_name[%s], peer[%s]",
@@ -390,13 +410,39 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     }
 
     // update dialing info.
-    ret = update_dialing_after_transferring(j_chan, j_agent, j_dial);
-    json_decref(j_dial);
+    j_tmp = json_pack("{s:s, s:i, s:s, s:s, s:s}",
+            "status",               "transferring",
+
+            // transfer info
+            "tr_trycnt",            json_integer_value(json_object_get(j_dialing, "tr_trycnt")) + 1,
+            "tr_agent_uuid",        json_string_value(json_object_get(j_agent, "uuid")),
+            "tr_chan_unique_id",    json_string_value(json_object_get(j_dial, "ChannelId")),
+
+            "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
+            );
+    ret = update_dialing_info(j_tmp);
+    json_decref(j_tmp);
     if(ret == false)
     {
-        json_decref(j_agent);
+        slog(LOG_ERR, "Could not update dialing info.");
         return;
     }
+
+    // update timestamp
+    ret = update_dialing_timestamp("tm_agent_dial", json_string_value(json_object_get(j_chan, "unique_id")));
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update agent dialing timestamp.");
+        return;
+    }
+
+//    ret = update_dialing_after_transferring(j_chan, j_agent, j_dial);
+//    json_decref(j_dial);
+//    if(ret == false)
+//    {
+//        json_decref(j_agent);
+//        return;
+//    }
 
     // update agent status
     j_tmp = json_pack("{s:s, s:s}",

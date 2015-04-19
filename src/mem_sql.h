@@ -267,6 +267,17 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
         "tr_agent_uuid      text,           -- transfered agent\n"
         "tr_chan_unique_id  text,           -- trying transfer chan unique id\n"
 
+        "-- plan info.\n"
+        "plan_dial_mode     text,   -- dial mode(predictive, ...)\n"
+        "plan_dial_timeout  text,   -- dial timeout(ms)\n"
+        "plan_caller_id     text    -- caller id\n"
+        "plan_answer_handle text    -- answer handle(all, human, ...)\n"
+
+        "-- result \n"
+        "res_dial           text,   -- dial result(answer, no_answer, ...)\n"
+        "res_answer         text,   -- AMD result.\n"
+        "res_answer_detail  text,   -- AMD result detail.\n"
+
         "primary key(chan_unique_id)\n"
         ");";
 

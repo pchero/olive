@@ -1263,12 +1263,12 @@ static int insert_dialing_info(json_t* j_dialing)
 }
 
 /**
- * Get dialing info from dialing table.
+ * Get dialing info from dialing table using unique_id.
  * Return json should be release after use.
  * @param uuid
  * @return
  */
-json_t* get_dialing_info(const char* uuid)
+json_t* get_dialing_info(const char* unique_id)
 {
     char* sql;
     unused__ int ret;
@@ -1276,6 +1276,36 @@ json_t* get_dialing_info(const char* uuid)
     json_t* j_res;
 
     ret = asprintf(&sql, "select * from dialing where chan_unique_id = \"%s\";",
+            unique_id
+            );
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dialing info.");
+        return NULL;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+
+    return j_res;
+}
+
+/**
+ * Get dialing info from dialing table using dl_uuid.
+ * Return json should be release after use.
+ * @param uuid
+ * @return
+ */
+json_t* get_dialing_info_by_dl_uuid(const char* uuid)
+{
+    char* sql;
+    unused__ int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
+
+    ret = asprintf(&sql, "select * from dialing where dl_uuid = \"%s\";",
             uuid
             );
     mem_res = memdb_query(sql);
@@ -1410,6 +1440,7 @@ int write_dialing_result(json_t* j_dialing)
     json_t* j_transfer;
     json_t* j_dial_result;
     json_t* j_park;
+    int ret;
 
     // get customer channel info
     j_customer = get_chan_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
@@ -1475,35 +1506,35 @@ int write_dialing_result(json_t* j_dialing)
             "tm_tr_chan_hangup",    json_string_value(json_object_get(j_transfer, "tm_hangup")),
 
             // dial result
-            "res_voice",
-            "res_voice_detail",
-            "res_dial",
-            "res_tr_trycnt",
-            "res_tr_dial",
+            "res_voice",            json_string_value(json_object_get(j_customer, "AMDSTATUS")),
+            "res_voice_detail",     json_string_value(json_object_get(j_customer, "AMDCAUSE")),
+            "res_dial",             json_null(),    // no idea
+            "res_tr_trycnt",        json_integer_value(json_object_get(j_dialing, "tr_trycnt")),
+            "res_tr_dial",          json_null(),    // no idea
 
-            "res_tr_agent_uuid",
+            "res_tr_agent_uuid",    json_string_value(json_object_get(j_dialing, "tr_agent_uuid")),
 
             // dial information
-            "dial_number",
-            "dial_number_idx",
-            "dial_number_cnt",
-            "dial_string",
-            "dial_sip_callid",
+            "dial_number",      json_string_value(json_object_get(j_dialing, "tel_number")),
+            "dial_number_idx",  json_integer_value(json_object_get(j_dialing, "tel_index")),
+            "dial_number_cnt",  json_integer_value(json_object_get(j_dialing, "tel_trycnt")),
+            "dial_string",      json_string_value(json_object_get(j_customer, "dial_string")),
+            "dial_sip_callid",  json_string_value(json_object_get(j_customer, "SIPCALLID")),
 
             // transfer dial information
-            "dial_tr_number",
-            "dial_tr_string",
-            "dial_tr_sip_callid",
+            "dial_tr_number",       json_null(), // no idea
+            "dial_tr_string",       json_string_value(json_object_get(j_transfer, "dial_string")),
+            "dial_tr_sip_callid",   json_string_value(json_object_get(j_transfer, "SIPCALLID")),
 
             // plan information
-            "plan_dial_mode",
-            "plan_dial_timeout",
-            "plan_caller_id",
-            "plan_answer_handle"
+            "plan_dial_mode",       json_string_value(json_object_get(j_dialing, "plan_dial_mode")),
+            "plan_dial_timeout",    json_string_value(json_object_get(j_dialing, "plan_dial_timeout")),
+            "plan_caller_id",       json_string_value(json_object_get(j_dialing, "plan_caller_id")),
+            "plan_answer_handle",   json_string_value(json_object_get(j_dialing, "plan_answer_handle"))
 
             );
 
-
+    // todo: Need to do something here.
 
     return true;
 }
@@ -1515,5 +1546,143 @@ int write_dialing_result(json_t* j_dialing)
  */
 int delete_dialing_info_all(json_t* j_dialing)
 {
+    return true;
+}
+
+/**
+ * Update dialing info
+ * @param j_dialing
+ * @return
+ */
+int update_dialing_info(json_t* j_dialing)
+{
+    char*       sql;
+    char*       tmp;
+    json_t*     j_val;
+    char*       key;
+    bool        is_first;
+    int         ret;
+    json_type   type;
+
+    ret = strlen(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+    if(ret == 0)
+    {
+        slog(LOG_ERR, "Could not find chan_unique_id.");
+        return false;
+    }
+
+    is_first = true;
+    sql = NULL;
+    tmp = NULL;
+    json_object_foreach(j_dialing, key, j_val)
+    {
+        // if key, just pass.
+        ret = strcmp(key, "chan_unique_id");
+        if(ret == 0)
+        {
+            continue;
+        }
+
+        // copy/set previous sql.
+        if(is_first == true)
+        {
+            ret = asprintf(&tmp, "update dialing set");
+            is_first = false;
+        }
+        else
+        {
+            ret = asprintf(&tmp, "%s,", sql);
+            free(sql);
+        }
+
+        sql = NULL;
+        type = json_typeof(j_val);
+        switch(type)
+        {
+            // string
+            case JSON_STRING:
+            {
+                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, json_string_value(j_val));
+            }
+            break;
+
+            // numbers
+            case JSON_INTEGER:
+            case JSON_REAL:
+            {
+                ret = asprintf(&sql, "%s %s = %f", tmp, key, json_number_value(j_val));
+            }
+            break;
+
+            // true
+            case JSON_TRUE:
+            {
+                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, "true");
+            }
+            break;
+
+            // false
+            case JSON_FALSE:
+            {
+                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, "false");
+            }
+            break;
+
+            case JSON_NULL:
+            {
+                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, "null");
+            }
+            break;
+
+            // object
+            // array
+            default:
+            {
+                // Not done yet.
+
+                // we don't support another types.
+                slog(LOG_WARN, "Wrong type input. We don't handle this.");
+                ret = asprintf(&sql, "%s %s = %s", tmp, key, key);
+            }
+            break;
+
+        }
+        free(tmp);
+    }
+
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update dialing info.");
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Update dialing table column timestamp info.
+ * @param column
+ * @param unique_id
+ * @return
+ */
+int update_dialing_timestamp(const char* column, const char* unique_id)
+{
+    int ret;
+    char* sql;
+
+    ret = asprintf(&sql, "update dialing set %s = strftime('%%Y-%%m-%%d %%H:%%m:%%f', 'now') where chan_unique_id = \"%s\";",
+            column, unique_id
+            );
+
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update dialing timestamp info.");
+        return false;
+    }
+
     return true;
 }
