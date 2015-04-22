@@ -150,8 +150,8 @@ char* SQL_CREATE_TRUNK_GROUP = "create table trunk_group(\n"
  */
 char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "-- identity\n"
-        "channel        text,   -- Channel. channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
         "unique_id      text,   -- Uniqueid\n"
+        "channel        text,   -- Channel. channel name(SIP/trunk-sample_01-0000000a, made by asterisk)\n"
 
         "-- timestamp. used in olive only.\n"
         "tm_create          text,   -- channel created time. UTC timestamp.\n"
@@ -249,10 +249,11 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
         "camp_uuid      text,   -- campaign uuid\n"
 
         "-- status\n"
-        "status text,        -- dialing status. [dialing, transferring, transferred, ...]\n"
+        "status text,        -- dialing status. [dialing, dial_end, transferring, transferred, ...]\n"
 
         "-- timestamp. all timestamps are UTC.\n"
-        "tm_dial            text,   -- dialed to customer timestamp\n"
+        "tm_dial            text,   -- dialed to customer timestamp.\n"
+        "tm_dial_end        text,   -- dial finished timestamp.\n"
         "tm_agent_dial      text,   -- dialed to agent timestamp.\n"
         "tm_agent_transfer  text,   -- transfer to agent timestamp.\n"
         "tm_redirect        text,   -- redirect to other context timestamp.\n"

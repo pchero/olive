@@ -458,20 +458,23 @@ static int init_callback(void)
     struct timeval tm_fast = {0, 20000};    // 20 ms
     struct timeval tm_slow = {0, 500000};   // 500 ms
 
-    // fast
     // campaign start
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_start, NULL);
     event_add(ev, &tm_fast);
 
-    // call_distribute
+    // dial end handle
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_dial_end, NULL);
+    event_add(ev, &tm_fast);
+
+
+    // call distribute
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_distribute, NULL);
     event_add(ev, &tm_fast);
 
-    // call bridging
+    // call transfer
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_transfer, NULL);
     event_add(ev, &tm_fast);
 
-    // slow
     // call_timeout
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
     event_add(ev, &tm_slow);

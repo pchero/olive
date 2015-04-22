@@ -1436,107 +1436,150 @@ static int get_dial_num_count(json_t* j_dl_list, int idx)
  */
 int write_dialing_result(json_t* j_dialing)
 {
-    json_t* j_customer;
-    json_t* j_transfer;
-    json_t* j_dial_result;
-    json_t* j_park;
+//    json_t* j_customer;
+//    json_t* j_transfer;
+//    json_t* j_dial_result;
+//    json_t* j_park;
     int ret;
+    char* sql;
 
-    // get customer channel info
-    j_customer = get_chan_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-    if(j_customer == NULL)
+    ret = asprintf(&sql, "insert into campaign_result("
+            // identity
+            "camp_uuid, dlma_uuid, dl_uuid, "
+
+            // channel information
+            "chan_unique_id, tr_chan_unique_id, "
+
+            // timestamp(UTC)
+            "tm_dial_req, tm_dial_start, tm_dial_end, tm_parked_in, tm_parked_out, "
+            "tm_transfer_req, tm_transfer_start, tm_transfer_end, tm_chan_hangup, tm_tr_chan_hangup, "
+
+            // dial result
+            "res_voice, res_voice_detail, res_dial, res_tr_trycnt, res_tr_dial, "
+            "res_tr_agent_uuid, "
+
+            // dialing information
+            "dial_number, dial_number_idx, dial_number_cnt, dial_string, dial_sip_callid, "
+
+            // transfer dial information
+            "dial_tr_number, dial_tr_string, dial_tr_sip_callid, "
+
+            // plan information
+            "plan_dial_mode, plan_dial_timeout, plan_caller_id, plan_answer_handle"
+
+            ") values ("
+            ");"
+            );
+
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
     {
-        slog(LOG_ERR, "Could not find customer channel info.");
+        slog(LOG_ERR, "Could not insert result into database.");
         return false;
     }
 
-    // get transferred channel info
-    j_transfer = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")));
-
-    // get parked channel info
-    j_park = get_park_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-
-    // todo: write dial result.
-    j_dial_result = json_pack("{"
-            // identity
-            "s:s, s:s, s:s, "
-
-            // chanel info
-            "s:s, s:s, "
-
-            // timestamp
-            "s:s, s:s, s:s, s:s, s:s, "
-            "s:s, s:s, s:s, s:s, s:s, "
-
-            // dial result
-            "s:s, s:s, s:s, s:s, s:s, "
-            "s:s, "
-
-            // dial information
-            "s:s, s:s, s:s, s:s, s:s, "
-
-            // transfer dial information
-            "s:s, s:s, s:s, "
-
-            // plan information
-            "s:s, s:s, s:s, s:s"
-
-            "}",
-
-            // identity
-            "camp_uuid",    json_string_value(json_object_get(j_dialing, "camp_uuid")),
-            "dlma_uuid",    json_string_value(json_object_get(j_dialing, "dlma_uuid")),
-            "dl_uuid",      json_string_value(json_object_get(j_dialing, "dl_uuid")),
-
-            // channel info
-            "chan_unique_id",       json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-            "tr_chan_unique_id",    json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")),
-
-            // timestamp
-            "tm_dial_req",      json_string_value(json_object_get(j_dialing, "tm_dial")),
-            "tm_dial_start",    json_string_value(json_object_get(j_customer, "tm_dial")),
-            "tm_dial_end",      json_string_value(json_object_get(j_customer, "tm_dial_end")),
-            "tm_parked_in",     json_string_value(json_object_get(j_park, "tm_parkedin")),
-            "tm_parked_out",    json_string_value(json_object_get(j_park, "tm_parkedout")),
-
-            "tm_transfer_req",      json_string_value(json_object_get(j_customer, "tm_agent_transfer")),
-            "tm_transfer_start",    json_null(),    // no idea yet.
-            "tm_transfer_end",      json_null(),    // no idea yet.
-            "tm_chan_hangup",       json_string_value(json_object_get(j_customer, "tm_hangup")),
-            "tm_tr_chan_hangup",    json_string_value(json_object_get(j_transfer, "tm_hangup")),
-
-            // dial result
-            "res_voice",            json_string_value(json_object_get(j_customer, "AMDSTATUS")),
-            "res_voice_detail",     json_string_value(json_object_get(j_customer, "AMDCAUSE")),
-            "res_dial",             json_null(),    // no idea
-            "res_tr_trycnt",        json_integer_value(json_object_get(j_dialing, "tr_trycnt")),
-            "res_tr_dial",          json_null(),    // no idea
-
-            "res_tr_agent_uuid",    json_string_value(json_object_get(j_dialing, "tr_agent_uuid")),
-
-            // dial information
-            "dial_number",      json_string_value(json_object_get(j_dialing, "tel_number")),
-            "dial_number_idx",  json_integer_value(json_object_get(j_dialing, "tel_index")),
-            "dial_number_cnt",  json_integer_value(json_object_get(j_dialing, "tel_trycnt")),
-            "dial_string",      json_string_value(json_object_get(j_customer, "dial_string")),
-            "dial_sip_callid",  json_string_value(json_object_get(j_customer, "SIPCALLID")),
-
-            // transfer dial information
-            "dial_tr_number",       json_null(), // no idea
-            "dial_tr_string",       json_string_value(json_object_get(j_transfer, "dial_string")),
-            "dial_tr_sip_callid",   json_string_value(json_object_get(j_transfer, "SIPCALLID")),
-
-            // plan information
-            "plan_dial_mode",       json_string_value(json_object_get(j_dialing, "plan_dial_mode")),
-            "plan_dial_timeout",    json_string_value(json_object_get(j_dialing, "plan_dial_timeout")),
-            "plan_caller_id",       json_string_value(json_object_get(j_dialing, "plan_caller_id")),
-            "plan_answer_handle",   json_string_value(json_object_get(j_dialing, "plan_answer_handle"))
-
-            );
-
-    // todo: Need to do something here.
-
     return true;
+
+//
+//
+//
+//
+//    // get customer channel info
+//    j_customer = get_chan_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+//    if(j_customer == NULL)
+//    {
+//        slog(LOG_ERR, "Could not find customer channel info.");
+//        return false;
+//    }
+//
+//    // get transferred channel info
+//    j_transfer = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")));
+//
+//    // get parked channel info
+//    j_park = get_park_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+//
+//    // todo: write dial result.
+//    j_dial_result = json_pack("{"
+//            // identity
+//            "s:s, s:s, s:s, "
+//
+//            // chanel info
+//            "s:s, s:s, "
+//
+//            // timestamp
+//            "s:s, s:s, s:s, s:s, s:s, "
+//            "s:s, s:s, s:s, s:s, s:s, "
+//
+//            // dial result
+//            "s:s, s:s, s:s, s:s, s:s, "
+//            "s:s, "
+//
+//            // dial information
+//            "s:s, s:s, s:s, s:s, s:s, "
+//
+//            // transfer dial information
+//            "s:s, s:s, s:s, "
+//
+//            // plan information
+//            "s:s, s:s, s:s, s:s"
+//
+//            "}",
+//
+//            // identity
+//            "camp_uuid",    json_string_value(json_object_get(j_dialing, "camp_uuid")),
+//            "dlma_uuid",    json_string_value(json_object_get(j_dialing, "dlma_uuid")),
+//            "dl_uuid",      json_string_value(json_object_get(j_dialing, "dl_uuid")),
+//
+//            // channel info
+//            "chan_unique_id",       json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+//            "tr_chan_unique_id",    json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")),
+//
+//            // timestamp
+//            "tm_dial_req",      json_string_value(json_object_get(j_dialing, "tm_dial")),
+//            "tm_dial_start",    json_string_value(json_object_get(j_customer, "tm_dial")),
+//            "tm_dial_end",      json_string_value(json_object_get(j_customer, "tm_dial_end")),
+//            "tm_parked_in",     json_string_value(json_object_get(j_park, "tm_parkedin")),
+//            "tm_parked_out",    json_string_value(json_object_get(j_park, "tm_parkedout")),
+//
+//            "tm_transfer_req",      json_string_value(json_object_get(j_customer, "tm_agent_transfer")),
+//            "tm_transfer_start",    json_null(),    // no idea yet.
+//            "tm_transfer_end",      json_null(),    // no idea yet.
+//            "tm_chan_hangup",       json_string_value(json_object_get(j_customer, "tm_hangup")),
+//            "tm_tr_chan_hangup",    json_string_value(json_object_get(j_transfer, "tm_hangup")),
+//
+//            // dial result
+//            "res_voice",            json_string_value(json_object_get(j_customer, "AMDSTATUS")),
+//            "res_voice_detail",     json_string_value(json_object_get(j_customer, "AMDCAUSE")),
+//            "res_dial",             json_null(),    // no idea
+//            "res_tr_trycnt",        json_integer_value(json_object_get(j_dialing, "tr_trycnt")),
+//            "res_tr_dial",          json_null(),    // no idea
+//
+//            "res_tr_agent_uuid",    json_string_value(json_object_get(j_dialing, "tr_agent_uuid")),
+//
+//            // dial information
+//            "dial_number",      json_string_value(json_object_get(j_dialing, "tel_number")),
+//            "dial_number_idx",  json_integer_value(json_object_get(j_dialing, "tel_index")),
+//            "dial_number_cnt",  json_integer_value(json_object_get(j_dialing, "tel_trycnt")),
+//            "dial_string",      json_string_value(json_object_get(j_customer, "dial_string")),
+//            "dial_sip_callid",  json_string_value(json_object_get(j_customer, "SIPCALLID")),
+//
+//            // transfer dial information
+//            "dial_tr_number",       json_null(), // no idea
+//            "dial_tr_string",       json_string_value(json_object_get(j_transfer, "dial_string")),
+//            "dial_tr_sip_callid",   json_string_value(json_object_get(j_transfer, "SIPCALLID")),
+//
+//            // plan information
+//            "plan_dial_mode",       json_string_value(json_object_get(j_dialing, "plan_dial_mode")),
+//            "plan_dial_timeout",    json_string_value(json_object_get(j_dialing, "plan_dial_timeout")),
+//            "plan_caller_id",       json_string_value(json_object_get(j_dialing, "plan_caller_id")),
+//            "plan_answer_handle",   json_string_value(json_object_get(j_dialing, "plan_answer_handle"))
+//
+//            );
+//
+//    // todo: Need to do something here.
+//
+//    return true;
 }
 
 /**
