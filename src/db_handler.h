@@ -19,7 +19,7 @@ typedef struct db_ctx
 
 } db_ctx_t;
 
-int db_init(char* host, char* user, char* pass, char* dbname, int port);
+int         db_init(char* host, char* user, char* pass, char* dbname, int port);
 
 void        db_exit(void);
 
@@ -31,6 +31,9 @@ char**      db_result_row(db_ctx_t* ctx, int* ret);
 json_t*     db_get_record(db_ctx_t* ctx);
 
 void        db_free(db_ctx_t* ctx);
+
+char*       db_get_update_str(const json_t* j_data);
+int         db_insert(const char* table, json_t* j_data);
 
 
 #endif /* DB_HANDLER_H_ */

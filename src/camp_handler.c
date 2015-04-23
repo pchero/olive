@@ -37,11 +37,14 @@ static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 static int check_dial_avaiable(json_t* j_camp, json_t* j_plan);
 static json_t* get_dl_available(json_t* j_dlma, json_t* j_plan);
 static json_t* get_dl_available_predictive(json_t* j_dlma, json_t* j_plan);
-static char* get_dial_number(json_t* j_dlist, int cnt);
-static int insert_dialing_info(json_t* j_dialing);
-static int update_dl_after_dial(json_t* j_dlinfo);
-static int get_dial_num_point(json_t* j_dl_list, json_t* j_plan);
-static int get_dial_num_count(json_t* j_dl_list, int idx);
+static char* get_dial_number(const json_t* j_dlist, const int cnt);
+//static int insert_dialing_info(json_t* j_dialing);
+static int update_dl_list(const char* table, const json_t* j_dlinfo);
+static int get_dial_num_point(const json_t* j_dl_list, const json_t* j_plan);
+static int get_dial_num_count(const json_t* j_dl_list, int idx);
+static char* gen_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list);
+static json_t* create_dial_info(json_t* j_dialing);
+static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma, const json_t* j_dl_list);
 
 /**
  * @brief   Check start campaign and try to make a call.
@@ -344,17 +347,10 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 {
     int ret;
     json_t*	j_dl_list;
-    json_t* j_trunk;
     json_t* j_dial;
     json_t* j_dialing;
     json_t* j_dl_update;
-    char*   channel_id;
-    char*   tmp;
     char    try_cnt[128];   // string buffer for "trycnt_1"...
-    int cur_trycnt;     // try count
-    char* dial_addr;    // dialing addr
-    char* cust_addr;    // customer addr
-    int dial_num_point;
 
     // check available outgoing call.
     ret = check_dial_avaiable(j_camp, j_plan);
@@ -372,121 +368,80 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
         return;
     }
 
-    // get dial number
-    dial_num_point = get_dial_num_point(j_dl_list, j_plan);
-    if(dial_num_point < 0)
+    j_dialing = create_dialing_info(j_camp, j_plan, j_dlma, j_dl_list);
+    json_decref(j_dl_list);
+    if(j_dialing == NULL)
     {
-        slog(LOG_ERR, "Could not find correct number count.");
-        json_decref(j_dl_list);
+        slog(LOG_ERR, "Could not create dialing info.");
         return;
     }
 
-    // get try count
-    cur_trycnt = get_dial_num_count(j_dl_list, dial_num_point);
-
-    // get available trunk
-    j_trunk = sip_get_trunk_avaialbe(json_string_value(json_object_get(j_camp, "trunk_group")));
-    if(j_trunk == NULL)
+    // create dial
+    j_dial = create_dial_info(j_dialing);
+    if(j_dial == NULL)
     {
-        // No available trunk.
-        json_decref(j_dl_list);
+        slog(LOG_ERR, "Could not create dial info.");
+        json_decref(j_dialing);
+
         return;
     }
-
-    // create dial address
-    cust_addr = get_dial_number(j_dl_list, dial_num_point);
-    dial_addr = sip_gen_call_addr(j_trunk, cust_addr);
-    channel_id = gen_uuid_channel();
-    free(cust_addr);
-    json_decref(j_trunk);
-
-    slog(LOG_INFO, "Dialing campaign info. camp_uuid[%s], camp_name[%s], plan_uuid[%s], dlma_uuid[%s]",
-            json_string_value(json_object_get(j_camp, "uuid")),
-            json_string_value(json_object_get(j_camp, "name")),
-            json_string_value(json_object_get(j_camp, "plan")),
-            json_string_value(json_object_get(j_camp, "dlma_uuid"))
-            );
-
-    // dial to
-    ret = asprintf(&tmp, "%d", (int)json_integer_value(json_object_get(j_plan, "dial_timeout")));
-    slog(LOG_DEBUG, "Check info. dial_addr[%s], channel_id[%s], timeout[%s], timeout_org[%d]",
-            dial_addr, channel_id, tmp, (int)json_integer_value(json_object_get(j_plan, "dial_timeout"))
-            );
-    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
-            "Channel", dial_addr,
-            "ChannelId", channel_id,
-            "Exten", "s",
-            "Context", "olive_outbound_amd_default",
-            "Priority", "1",
-            "Timeout", tmp
-            );
-    free(tmp);
-    free(channel_id);
-    free(dial_addr);
-
-    slog(LOG_INFO, "Dialing. Campaign info. uuid[%s], name[%s], status[%s], dial_mode[%s], channel[%s], channel_id[%s]",
-            json_string_value(json_object_get(j_camp, "uuid")),
-            json_string_value(json_object_get(j_camp, "name")),
-            json_string_value(json_object_get(j_camp, "status")),
-            json_string_value(json_object_get(j_plan, "dial_mode")),
-            json_string_value(json_object_get(j_dial, "Channel")),
-            json_string_value(json_object_get(j_dial, "ChannelId"))
-            );
 
     // dial to customer
     ret = cmd_originate(j_dial);
+    json_decref(j_dial);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not originate.");
-        json_decref(j_dial);
-        json_decref(j_dl_list);
+        json_decref(j_dialing);
+
         return;
     }
 
-    // create dialing json info.
-    slog(LOG_DEBUG, "Check info. dl_uuid[%s], chan_unique_id[%s], camp_uuid[%s], tel_index[%d], tel_number[%s], tel_trycnt[%d]",
-            json_string_value(json_object_get(j_dl_list, "uuid")),
-            json_string_value(json_object_get(j_dial, "ChannelId")),
-            json_string_value(json_object_get(j_camp, "uuid")),
-            dial_num_point,
-            json_string_value(json_object_get(j_dial, "Channel")),
-            cur_trycnt
+    // update dl_list
+    sprintf(try_cnt, "trycnt_%d", (int)json_integer_value(json_object_get(j_dialing, "dial_index")));
+    j_dl_update = json_pack("{s:s, s:i, s:s, s:s}",
+            "status",           "dialing",
+            try_cnt,            json_integer_value(json_object_get(j_dialing, "dial_trycnt")) + 1,
+            "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+            "uuid",             json_string_value(json_object_get(j_dialing, "dl_uuid"))
             );
-    j_dialing = json_pack("{s:s, s:s, s:s, s:s, s:i, s:s, s:i}",
-            "dl_uuid",      json_string_value(json_object_get(j_dl_list, "uuid")),
-            "chan_unique_id",    json_string_value(json_object_get(j_dial, "ChannelId")),
-            "camp_uuid",    json_string_value(json_object_get(j_camp, "uuid")),
-            "status",       "dialing",
-            "tel_index",    dial_num_point,
-            "tel_number",   json_string_value(json_object_get(j_dial, "Channel")),
-            "tel_trycnt",   cur_trycnt
-            );
-
-    // insert into dialing.
-    ret = insert_dialing_info(j_dialing);
-    json_decref(j_dial);
-    json_decref(j_dl_list);
+    ret = update_dl_list(json_string_value(json_object_get(j_dlma, "dl_table")), j_dl_update);
+    json_decref(j_dl_update);
     if(ret == false)
     {
         json_decref(j_dialing);
-        slog(LOG_ERR, "Could not insert dialing.");
+        slog(LOG_ERR, "Could not update dial list info.");
         return;
     }
 
-    // update dl_table
-    sprintf(try_cnt, "trycnt_%d", dial_num_point);
-    j_dl_update = json_pack("{s:s, s:s, s:s, s:s}",
-            "dl_table",      json_string_value(json_object_get(j_dlma, "dl_table")),
-            "try_cnt",      try_cnt,
-            "chan_unique_id",    json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-            "dl_uuid",      json_string_value(json_object_get(j_dialing, "dl_uuid"))
+    // update dl_list timestamp
+    ret = update_dl_list_timestamp(
+            json_string_value(json_object_get(j_dlma, "dl_table")),
+            "tm_last_dial",
+            json_string_value(json_object_get(j_dl_update, "dl_uuid"))
             );
-    ret = update_dl_after_dial(j_dl_update);
-    json_decref(j_dl_update);
-    json_decref(j_dialing);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not update dl_list info.");
+        json_decref(j_dialing);
+        slog(LOG_ERR, "Could not update dial list timestamp.");
+        return;
+    }
+
+    // insert dialing
+    ret = memdb_insert("dialing", j_dialing);
+    if(ret == false)
+    {
+        json_decref(j_dialing);
+        slog(LOG_ERR, "Could not insert dialing info.");
+        return;
+    }
+
+    // update timestamp
+    ret = update_dialing_timestamp("tm_dial", json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+    if(ret == false)
+    {
+        json_decref(j_dialing);
+        slog(LOG_ERR, "Could not update time stamp.");
         return;
     }
 
@@ -712,7 +667,7 @@ static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     // insert into dialing
     ret = asprintf(&sql, "insert into dialing("
             "dl_uuid, chan_unique_id, camp_uuid, status, tm_dial, "
-            "tel_index, tel_number, tel_trycnt"
+            "dial_index, dial_addr, dial_trycnt"
             ") values ("
             "\"%s\", \"%s\", \"%s\", \"%s\", %s, "
             "%d, \"%s\", %d"
@@ -1206,7 +1161,7 @@ static json_t* get_dl_available_predictive(json_t* j_dlma, json_t* j_plan)
  * @param cnt
  * @return
  */
-static char* get_dial_number(json_t* j_dlist, int cnt)
+static char* get_dial_number(const json_t* j_dlist, const int cnt)
 {
     char* res;
     char* tmp;
@@ -1219,49 +1174,49 @@ static char* get_dial_number(json_t* j_dlist, int cnt)
     return res;
 }
 
-static int insert_dialing_info(json_t* j_dialing)
-{
-    char* sql;
-    int ret;
-
-    ret = asprintf(&sql, "insert into dialing("
-            // identity
-            "dl_uuid, chan_unique_id, camp_uuid, "
-
-            // info
-            "status, tel_index, tel_number, tel_trycnt, "
-
-            // timestamp
-            "tm_dial "
-            ") values ("
-            "\"%s\", \"%s\", \"%s\", "
-
-            "\"%s\", %d, \"%s\", %d, "
-
-            "%s"
-            ");",
-
-            json_string_value(json_object_get(j_dialing, "dl_uuid")),
-            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-            json_string_value(json_object_get(j_dialing, "camp_uuid")),
-
-            json_string_value(json_object_get(j_dialing, "status")),
-            (int)json_integer_value(json_object_get(j_dialing, "tel_index")),
-            json_string_value(json_object_get(j_dialing, "tel_number")),
-            (int)json_integer_value(json_object_get(j_dialing, "tel_trycnt")),
-
-            "strftime('%Y-%m-%d %H:%m:%f', 'now')"
-            );
-    ret = memdb_exec(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not insert dialing info.");
-        return false;
-    }
-
-    return true;
-}
-
+//static int insert_dialing_info(json_t* j_dialing)
+//{
+//    char* sql;
+//    int ret;
+//
+//    ret = asprintf(&sql, "insert into dialing("
+//            // identity
+//            "dl_uuid, chan_unique_id, camp_uuid, "
+//
+//            // info
+//            "status, dial_index, dial_addr, dial_trycnt, "
+//
+//            // timestamp
+//            "tm_dial "
+//            ") values ("
+//            "\"%s\", \"%s\", \"%s\", "
+//
+//            "\"%s\", %d, \"%s\", %d, "
+//
+//            "%s"
+//            ");",
+//
+//            json_string_value(json_object_get(j_dialing, "dl_uuid")),
+//            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+//            json_string_value(json_object_get(j_dialing, "camp_uuid")),
+//
+//            json_string_value(json_object_get(j_dialing, "status")),
+//            (int)json_integer_value(json_object_get(j_dialing, "dial_index")),
+//            json_string_value(json_object_get(j_dialing, "dial_addr")),
+//            (int)json_integer_value(json_object_get(j_dialing, "dial_trycnt")),
+//
+//            "strftime('%Y-%m-%d %H:%m:%f', 'now')"
+//            );
+//    ret = memdb_exec(sql);
+//    if(ret == false)
+//    {
+//        slog(LOG_ERR, "Could not insert dialing info.");
+//        return false;
+//    }
+//
+//    return true;
+//}
+//
 /**
  * Get dialing info from dialing table using unique_id.
  * Return json should be release after use.
@@ -1322,45 +1277,97 @@ json_t* get_dialing_info_by_dl_uuid(const char* uuid)
     return j_res;
 }
 
+/**
+ *
+ * @param j_dlinfo
+ * @return
+ */
+static int update_dl_list(const char* table, const json_t* j_dlinfo)
+{
+    char* sql;
+    int ret;
+    char* tmp;
 
+    tmp = db_get_update_str(j_dlinfo);
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not get update sql.");
+        return false;
+    }
 
-static int update_dl_after_dial(json_t* j_dlinfo)
+    ret = asprintf(&sql, "update %s set %s where uuid = %s\n",
+            table, tmp, json_string_value(json_object_get(j_dlinfo, "uuid"))
+            );
+    free(tmp);
+    ret = db_exec(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update dl_list info.");
+        return false;
+    }
+
+    return true;
+
+//
+//    ret = asprintf(&sql, "update %s set "
+//            // info
+//            "status = \"%s\", "
+//            "%s = %s + 1, "
+//            "chan_unique_id = \"%s\", "
+//
+//            // timestamp
+//            "tm_last_dial = %s "
+//
+//            "where uuid =\"%s\""
+//            ";",
+//
+//            json_string_value(json_object_get(j_dlinfo, "dl_table")),
+//
+//            "dialing",
+//            json_string_value(json_object_get(j_dlinfo, "try_cnt")), json_string_value(json_object_get(j_dlinfo, "try_cnt")),
+//            json_string_value(json_object_get(j_dlinfo, "chan_unique_id")),
+//
+//            "utc_timestamp()",
+//
+//            json_string_value(json_object_get(j_dlinfo, "dl_uuid"))
+//            );
+//
+//    ret = db_exec(sql);
+//    if(ret == false)
+//    {
+//        slog(LOG_ERR, "Could not insert channel info into database.");
+//        return false;
+//    }
+//    free(sql);
+//
+//    return true;
+}
+
+/**
+ *
+ * @param table
+ * @param column
+ * @param chan_unique_id
+ * @return
+ */
+int update_dl_list_timestamp(const char* table, const char* column, const char* chan_unique_id)
 {
     char* sql;
     int ret;
 
-    ret = asprintf(&sql, "update %s set "
-            // info
-            "status = \"%s\", "
-            "%s = %s + 1, "
-            "chan_unique_id = \"%s\", "
-
-            // timestamp
-            "tm_last_dial = %s "
-
-            "where uuid =\"%s\""
-            ";",
-
-            json_string_value(json_object_get(j_dlinfo, "dl_table")),
-
-            "dialing",
-            json_string_value(json_object_get(j_dlinfo, "try_cnt")), json_string_value(json_object_get(j_dlinfo, "try_cnt")),
-            json_string_value(json_object_get(j_dlinfo, "chan_unique_id")),
-
-            "utc_timestamp()",
-
-            json_string_value(json_object_get(j_dlinfo, "dl_uuid"))
+    ret = asprintf(&sql, "update %s set %s = utc_timestamp() where chan_unique_id = \"%s\";",
+            table, column, chan_unique_id
             );
 
     ret = db_exec(sql);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not insert channel info into database.");
+        slog(LOG_ERR, "Could not update dl_list timestamp.");
         return false;
     }
-    free(sql);
 
     return true;
+
 }
 
 /**
@@ -1369,7 +1376,7 @@ static int update_dl_after_dial(json_t* j_dlinfo)
  * @param j_plan
  * @return
  */
-static int get_dial_num_point(json_t* j_dl_list, json_t* j_plan)
+static int get_dial_num_point(const json_t* j_dl_list, const json_t* j_plan)
 {
     int ret;
     int i;
@@ -1415,7 +1422,7 @@ static int get_dial_num_point(json_t* j_dl_list, json_t* j_plan)
  * @param j_plan
  * @return
  */
-static int get_dial_num_count(json_t* j_dl_list, int idx)
+static int get_dial_num_count(const json_t* j_dl_list, int idx)
 {
     int ret;
     char* tmp;
@@ -1558,9 +1565,9 @@ int write_dialing_result(json_t* j_dialing)
 //            "res_tr_agent_uuid",    json_string_value(json_object_get(j_dialing, "tr_agent_uuid")),
 //
 //            // dial information
-//            "dial_number",      json_string_value(json_object_get(j_dialing, "tel_number")),
-//            "dial_number_idx",  json_integer_value(json_object_get(j_dialing, "tel_index")),
-//            "dial_number_cnt",  json_integer_value(json_object_get(j_dialing, "tel_trycnt")),
+//            "dial_number",      json_string_value(json_object_get(j_dialing, "dial_addr")),
+//            "dial_number_idx",  json_integer_value(json_object_get(j_dialing, "dial_index")),
+//            "dial_number_cnt",  json_integer_value(json_object_get(j_dialing, "dial_trycnt")),
 //            "dial_string",      json_string_value(json_object_get(j_customer, "dial_string")),
 //            "dial_sip_callid",  json_string_value(json_object_get(j_customer, "SIPCALLID")),
 //
@@ -1704,6 +1711,7 @@ int update_dialing_info(json_t* j_dialing)
     return true;
 }
 
+
 /**
  * Update dialing table column timestamp info.
  * @param column
@@ -1728,4 +1736,134 @@ int update_dialing_timestamp(const char* column, const char* unique_id)
     }
 
     return true;
+}
+
+static char* gen_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list)
+{
+    int dial_num_point;
+    char* cust_addr;
+    char* dial_addr;
+    json_t* j_trunk;
+
+    dial_num_point = get_dial_num_point(j_dl_list, j_plan);
+    if(dial_num_point < 0)
+    {
+        slog(LOG_ERR, "Could not find correct number count.");
+        return NULL;
+    }
+
+    // get available trunk
+    j_trunk = sip_get_trunk_avaialbe(json_string_value(json_object_get(j_camp, "trunk_group")));
+    if(j_trunk == NULL)
+    {
+        // No available trunk.
+        return NULL;
+    }
+
+    cust_addr = get_dial_number(j_dl_list, dial_num_point);
+    dial_addr = sip_gen_call_addr(j_trunk, cust_addr);
+
+    free(cust_addr);
+    json_decref(j_trunk);
+
+    return dial_addr;
+
+
+}
+
+/**
+ * Create dialing record.
+ * @param j_camp
+ * @param j_plan
+ * @param j_dl_list
+ * @return
+ */
+static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma, const json_t* j_dl_list)
+{
+    json_t* j_dialing;
+    char*   dial_addr;
+    char*   chan_unique_id;
+    int     dial_num_point;
+    int     cur_trycnt;
+
+    char*   tmp_camp;
+    char*   tmp_plan;
+    char*   tmp_dl_list;
+    unused__ int ret;
+
+    // create dial address.
+    dial_addr = gen_dial_addr(j_camp, j_plan, j_dl_list);
+    if(dial_addr == NULL)
+    {
+        // No available address
+        return NULL;
+    }
+
+    // create unique_channel id.
+    chan_unique_id = gen_uuid_channel();
+    if(chan_unique_id == NULL)
+    {
+        slog(LOG_ERR, "Could not create unique_id");
+
+        free(dial_addr);
+        return NULL;
+    }
+
+    dial_num_point = get_dial_num_point(j_dl_list, j_plan);
+    cur_trycnt = get_dial_num_count(j_dl_list, dial_num_point);
+    tmp_camp    = json_dumps(j_camp, JSON_ENCODE_ANY);
+    tmp_plan    = json_dumps(j_plan, JSON_ENCODE_ANY);
+    tmp_dl_list = json_dumps(j_dl_list, JSON_ENCODE_ANY);
+
+    j_dialing = json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:s, s:i, s:i, s:s, s:s, s:s}",
+            "chan_unique_id",   chan_unique_id,
+
+            "dl_uuid",          json_string_value(json_object_get(j_dl_list, "uuid")),
+            "dlma_uuid",        json_string_value(json_object_get(j_dlma, "uuid")),
+            "camp_uuid",        json_string_value(json_object_get(j_camp, "uuid")),
+
+            "status",           "idle",
+
+            "dial_index",       dial_num_point,
+            "dial_addr",        dial_addr,
+            "dial_trycnt",      cur_trycnt,
+            "dial_timeout",     json_integer_value(json_object_get(j_plan, "dial_timeout")),
+
+            "info_camp",        tmp_camp,
+            "info_plan",        tmp_plan,
+            "info_dl",          tmp_dl_list
+            );
+
+    free(dial_addr);
+    free(tmp_camp);
+    free(tmp_plan);
+    free(tmp_dl_list);
+
+    return j_dialing;
+}
+
+/**
+ * create dial info.
+ * @param j_dialing
+ * @return
+ */
+static json_t* create_dial_info(json_t* j_dialing)
+{
+    json_t* j_dial;
+    char*   tmp;
+    unused__ int ret;
+
+    ret = asprintf(&tmp, "%d", (int)json_integer_value(json_object_get(j_dialing, "dial_timeout")));
+
+    j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+            "Channel",      json_string_value(json_object_get(j_dialing, "dial_addr")),
+            "ChannelId",    json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+            "Exten",        "s",
+            "Context",      "olive_outbound_amd_default",
+            "Priority",     "1",
+            "Timeout",      tmp
+            );
+    free(tmp);
+
+    return j_dial;
 }

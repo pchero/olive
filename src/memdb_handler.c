@@ -245,3 +245,226 @@ int memdb_table_existence(const char* table)
     return true;
 }
 
+/**
+ *
+ * @param table
+ * @param j_data
+ * @return
+ */
+int memdb_insert(const char* table, json_t* j_data)
+{
+    char*       sql;
+    char*       tmp;
+    json_t*     j_val;
+    char*       key;
+    bool        is_first;
+    int         ret;
+    json_type   type;
+    char* sql_keys;
+    char* sql_values;
+    char* tmp_sub;
+
+    // set keys
+    is_first = true;
+    tmp = NULL;
+    json_object_foreach(j_data, key, j_val)
+    {
+        if(is_first == true)
+        {
+            is_first = false;
+            ret = asprintf(&tmp, "%s", key);
+        }
+        else
+        {
+            ret = asprintf(&tmp, "%s, %s", sql_keys, key);
+        }
+
+        free(sql_keys);
+        ret = asprintf(&sql_keys, "%s", tmp);
+
+        free(tmp);
+    }
+    slog(LOG_DEBUG, "Set insert keys. keys[%s]", sql_keys);
+
+    // set values
+    is_first = true;
+    tmp = NULL;
+    json_object_foreach(j_data, key, j_val)
+    {
+
+        if(is_first == true)
+        {
+            is_first = false;
+            ret = asprintf(&tmp_sub, " ");
+        }
+        else
+        {
+            ret = asprintf(&tmp_sub, "%s, ", sql_values);
+        }
+
+        // get type.
+        type = json_typeof(j_val);
+        switch(type)
+        {
+            // string
+            case JSON_STRING:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, json_string_value(j_val));
+            }
+            break;
+
+            // numbers
+            case JSON_INTEGER:
+            case JSON_REAL:
+            {
+                ret = asprintf(&tmp, "%s%f", tmp_sub, json_number_value(j_val));
+            }
+            break;
+
+            // true
+            case JSON_TRUE:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "true");
+            }
+            break;
+
+            // false
+            case JSON_FALSE:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "false");
+            }
+            break;
+
+            case JSON_NULL:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "null");
+            }
+            break;
+
+            // object
+            // array
+            default:
+            {
+                // Not done yet.
+
+                // we don't support another types.
+                slog(LOG_WARN, "Wrong type input. We don't handle this.");
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "null");
+            }
+            break;
+        }
+
+        free(tmp_sub);
+        free(sql_values);
+        ret = asprintf(&sql_values, "%s", tmp);
+
+        free(tmp);
+
+    }
+
+
+    ret = asprintf(&sql, "insert into %s(%s) values (%s);", table, sql_keys, sql_values);
+    free(sql_keys);
+    free(sql_values);
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not insert dialing info.");
+        return false;
+    }
+
+    return true;
+}
+
+/*
+ * Create update string.
+ * Create only key=values part.
+ * Should be free after use.
+ */
+char* memdb_get_update_str(json_t* j_data)
+{
+
+    char*       res;
+    char*       tmp;
+    json_t*     j_val;
+    char*       key;
+    bool        is_first;
+    __attribute__((unused)) int ret;
+    json_type   type;
+
+    is_first = true;
+    res = NULL;
+    tmp = NULL;
+    json_object_foreach(j_data, key, j_val)
+    {
+        // copy/set previous sql.
+        if(is_first == true)
+        {
+            ret = asprintf(&tmp, " ");
+            is_first = false;
+        }
+        else
+        {
+            ret = asprintf(&tmp, "%s, ", res);
+        }
+
+        free(res);
+        type = json_typeof(j_val);
+        switch(type)
+        {
+            // string
+            case JSON_STRING:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, json_string_value(j_val));
+            }
+            break;
+
+            // numbers
+            case JSON_INTEGER:
+            case JSON_REAL:
+            {
+                ret = asprintf(&res, "%s%s = %f", tmp, key, json_number_value(j_val));
+            }
+            break;
+
+            // true
+            case JSON_TRUE:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "true");
+            }
+            break;
+
+            // false
+            case JSON_FALSE:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "false");
+            }
+            break;
+
+            case JSON_NULL:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "null");
+            }
+            break;
+
+            // object
+            // array
+            default:
+            {
+                // Not done yet.
+
+                // we don't support another types.
+                slog(LOG_WARN, "Wrong type input. We don't handle this.");
+                ret = asprintf(&res, "%s%s = %s", tmp, key, key);
+            }
+            break;
+
+        }
+        free(tmp);
+    }
+
+    return res;
+
+}

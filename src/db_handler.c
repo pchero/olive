@@ -1,4 +1,5 @@
 
+#define _GNU_SOURCE
 
 //#include <my_global.h>
 #include <string.h>
@@ -27,7 +28,6 @@ int db_init(char* host, char* user, char* pass, char* dbname, int port)
     g_db_conn = mysql_init(NULL);
     if(g_db_conn == NULL)
     {
-//        fprintf(stderr, "Could not init db. Err[%s]\n", mysql_error(g_db_conn));
         slog(LOG_ERR, "Could not initiate mysql. err[%s]",  mysql_error(g_db_conn));
         return false;
     }
@@ -36,7 +36,6 @@ int db_init(char* host, char* user, char* pass, char* dbname, int port)
 
     if(mysql_real_connect(g_db_conn, host, user, pass, dbname, port, NULL, 0) == NULL)
     {
-//        fprintf(stderr, "Err. Msg[%s]\n", mysql_error(g_db_conn));
         slog(LOG_ERR, "Could not connect to mysql. err[%s]",  mysql_error(g_db_conn));
         mysql_close(g_db_conn);
         return false;
@@ -266,187 +265,10 @@ char** db_result_row(db_ctx_t* ctx, int* ret)
     return row;
 }
 
-
-///**
-// database query.
-// @param query
-// @return Success:, Fail:NULL
-// */
-//db_ctx_t* _db_query(char* query)
-//{
-//    // make statement
-//    db_ctx_t*   db_ctx;
-//    MYSQL_STMT* stmt;
-//    int ret;
-//    int param_count, column_count;
-//    MYSQL_RES*  prepare_meta_result;
-//    MYSQL_BIND* binds;
-//    int i;
-//
-//    /* Prepare */
-//    stmt = mysql_stmt_init(g_db_conn);
-//    if(stmt == NULL)
-//    {
-//        fprintf(stderr, "Err. Something was wrong. msg[%s]\n", mysql_error(g_db_conn));
-//        return NULL;
-//    }
-//
-//    fprintf(stderr, "before prepare..\n");
-//    ret = mysql_stmt_prepare(stmt, query, strlen(query));
-//    if(ret != 0)
-//    {
-//       fprintf(stderr, "execQuery:mysql_stmt_prepare[%s]\n", mysql_error(g_db_conn));
-//       mysql_stmt_close(stmt);
-//       return NULL;
-//    }
-//
-//    /* Get the parameter count from the statement */
-//    fprintf(stderr, "before get counts..\n");
-//    param_count = mysql_stmt_param_count(stmt);
-//    if (param_count != 0) /* validate parameter count */
-//    {
-//        fprintf(stderr, " invalid parameter count returned by MySQL\n");
-//        return NULL;
-//    }
-//
-//    /* Fetch result set meta information */
-//    fprintf(stderr, "before get result metadata..\n");
-//    prepare_meta_result = mysql_stmt_result_metadata(stmt);
-//    if(!prepare_meta_result)
-//    {
-//        fprintf(stderr, "mysql_stmt_result_metadata(), returned no meta information\n");
-//        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
-//        return NULL;
-//    }
-//
-//    /* Get total columns in the query */
-//    fprintf(stderr, "before get number of fields..\n");
-//    column_count = mysql_num_fields(prepare_meta_result);
-//    mysql_free_result(prepare_meta_result);
-//    ret = mysql_stmt_execute(stmt);
-//    if(ret != 0)
-//    {
-//       fprintf(stderr, "execQuery:mysql_stmt_execute[%s]\n", mysql_error(g_db_conn));
-//       mysql_stmt_close(stmt);
-//       return NULL;
-//    }
-//
-//    // Make binds set.
-//    fprintf(stderr, "before make binds set..\n");
-//    binds = calloc(column_count, sizeof(MYSQL_BIND));
-//    for(i = 0; i < column_count; i++)
-//    {
-//        binds[i].buffer = calloc(MAX_BIND_BUF, sizeof(char));
-//        binds[i].buffer_type    = MYSQL_TYPE_STRING;
-//        binds[i].buffer_length  = MAX_BIND_BUF - 1;
-//    }
-//
-//    /* Bind the result buffers */
-//    ret = mysql_stmt_bind_result(stmt, binds);
-//    if(ret == 1)
-//    {
-//      fprintf(stderr, " mysql_stmt_bind_result() failed\n");
-//      fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
-//      return NULL;
-//    }
-//
-//    if(mysql_stmt_store_result(stmt) != 0)
-//    {
-//        fprintf(stderr, "execQuery:mysql_stmt_store_result[%s]", mysql_stmt_error(stmt));
-//        mysql_stmt_close(stmt);
-//        return NULL;
-//    }
-//
-//
-//    // Make db_ctx_t.
-//    db_ctx = calloc(1, sizeof(db_ctx_t));
-//    db_ctx->ctx = stmt;
-//    db_ctx->result = binds;
-//    db_ctx->columns = column_count;
-//
-//    // Return some values here..
-//    fprintf(stderr, "db_query end..\n");
-//    return db_ctx;
-//
-//}
-
-///**
-// *
-// * @param ctx
-// * @param result
-// * @return Success:TRUE, Fail:FALSE
-// */
-//int db_result(db_ctx_t* ctx, char** result)
-//{
-//    int ret;
-//    int i;
-//    int fields_cnt;
-//    int buffer_size;
-//    MYSQL_RES* meta_result;
-//    MYSQL_BIND* binds;
-//
-//    ret = mysql_stmt_fetch(ctx->ctx);
-//    if(ret == MYSQL_NO_DATA)
-//    {
-//       return false;
-//    }
-//
-//    binds = ctx->result;
-//    /* Fetch result set meta information */
-//    meta_result = mysql_stmt_result_metadata(ctx->ctx);
-//    if(meta_result == NULL)
-//    {
-//        fprintf(stderr, "mysql_stmt_result_metadata(), returned no meta information\n");
-//        fprintf(stderr, " %s\n", mysql_stmt_error(ctx->ctx));
-//        return -1;
-//    }
-//
-//    fields_cnt = mysql_num_fields(meta_result);
-//    mysql_free_result(meta_result);
-//
-//    // Make buffer
-//    buffer_size = 0;
-//    for(i = 0; i < fields_cnt; i++)
-//    {
-//        buffer_size += strlen(binds[i].buffer);
-//        buffer_size += 1;   // for delimeter.
-//    }
-//
-////    printf("Bind size[%d], column[%d]\n", buffer_size, fields_cnt);
-//    *result = calloc(buffer_size + 1, sizeof(char));
-//    for(i = 0; i < fields_cnt; i++)
-//    {
-//        // Add delimiter
-//        if(i == 0)
-//        {
-//            sprintf(*result, "%s", (char*)binds[i].buffer);
-//        }
-//        else
-//        {
-//            sprintf(*result, "%s%c%s", *result, DELIMITER, (char*)binds[i].buffer);
-//        }
-//    }
-//
-//    return true;
-//
-//}
-
-//void db_free(db_ctx_t* ctx)
-//{
-//    MYSQL_BIND* binds;
-//    int i;
-//
-//    mysql_stmt_close(ctx->ctx);
-//    binds = ctx->result;
-//    for(i = 0; i < ctx->columns; i++)
-//    {
-//        free(binds[i].buffer);
-//    }
-//    free(ctx->result);
-//    free(ctx);
-//    return;
-//}
-
+/**
+ *
+ * @param ctx
+ */
 void db_free(db_ctx_t* ctx)
 {
     if(ctx == NULL)
@@ -458,4 +280,220 @@ void db_free(db_ctx_t* ctx)
     free(ctx);
 
     return;
+}
+
+int db_insert(const char* table, json_t* j_data)
+{
+    char*       sql;
+    char*       tmp;
+    json_t*     j_val;
+    char*       key;
+    bool        is_first;
+    int         ret;
+    json_type   type;
+    char* sql_keys;
+    char* sql_values;
+    char* tmp_sub;
+
+    // set keys
+    is_first = true;
+    tmp = NULL;
+    json_object_foreach(j_data, key, j_val)
+    {
+        if(is_first == true)
+        {
+            is_first = false;
+            ret = asprintf(&tmp, "%s", key);
+        }
+        else
+        {
+            ret = asprintf(&tmp, "%s, %s", sql_keys, key);
+        }
+
+        free(sql_keys);
+        ret = asprintf(&sql_keys, "%s", tmp);
+
+        free(tmp);
+    }
+    slog(LOG_DEBUG, "Set insert keys. keys[%s]", sql_keys);
+
+    // set values
+    is_first = true;
+    tmp = NULL;
+    json_object_foreach(j_data, key, j_val)
+    {
+
+        if(is_first == true)
+        {
+            is_first = false;
+            ret = asprintf(&tmp_sub, " ");
+        }
+        else
+        {
+            ret = asprintf(&tmp_sub, "%s, ", sql_values);
+        }
+
+        // get type.
+        type = json_typeof(j_val);
+        switch(type)
+        {
+            // string
+            case JSON_STRING:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, json_string_value(j_val));
+            }
+            break;
+
+            // numbers
+            case JSON_INTEGER:
+            case JSON_REAL:
+            {
+                ret = asprintf(&tmp, "%s%f", tmp_sub, json_number_value(j_val));
+            }
+            break;
+
+            // true
+            case JSON_TRUE:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "true");
+            }
+            break;
+
+            // false
+            case JSON_FALSE:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "false");
+            }
+            break;
+
+            case JSON_NULL:
+            {
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "null");
+            }
+            break;
+
+            // object
+            // array
+            default:
+            {
+                // Not done yet.
+
+                // we don't support another types.
+                slog(LOG_WARN, "Wrong type input. We don't handle this.");
+                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "null");
+            }
+            break;
+        }
+
+        free(tmp_sub);
+        free(sql_values);
+        ret = asprintf(&sql_values, "%s", tmp);
+
+        free(tmp);
+
+    }
+
+
+    ret = asprintf(&sql, "insert into %s(%s) values (%s);", table, sql_keys, sql_values);
+    free(sql_keys);
+    free(sql_values);
+
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not insert dialing info.");
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Return part of update sql.
+ * @param j_data
+ * @return
+ */
+char* db_get_update_str(const json_t* j_data)
+{
+    char*       res;
+    char*       tmp;
+    json_t*     j_val;
+    char*       key;
+    bool        is_first;
+    __attribute__((unused)) int ret;
+    json_type   type;
+
+    is_first = true;
+    res = NULL;
+    tmp = NULL;
+    json_object_foreach((json_t*)j_data, key, j_val)
+    {
+        // copy/set previous sql.
+        if(is_first == true)
+        {
+            ret = asprintf(&tmp, " ");
+            is_first = false;
+        }
+        else
+        {
+            ret = asprintf(&tmp, "%s, ", res);
+        }
+
+        free(res);
+        type = json_typeof(j_val);
+        switch(type)
+        {
+            // string
+            case JSON_STRING:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, json_string_value(j_val));
+            }
+            break;
+
+            // numbers
+            case JSON_INTEGER:
+            case JSON_REAL:
+            {
+                ret = asprintf(&res, "%s%s = %f", tmp, key, json_number_value(j_val));
+            }
+            break;
+
+            // true
+            case JSON_TRUE:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "true");
+            }
+            break;
+
+            // false
+            case JSON_FALSE:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "false");
+            }
+            break;
+
+            case JSON_NULL:
+            {
+                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "null");
+            }
+            break;
+
+            // object
+            // array
+            default:
+            {
+                // Not done yet.
+
+                // we don't support another types.
+                slog(LOG_WARN, "Wrong type input. We don't handle this.");
+                ret = asprintf(&res, "%s%s = %s", tmp, key, key);
+            }
+            break;
+
+        }
+        free(tmp);
+    }
+
+    return res;
 }

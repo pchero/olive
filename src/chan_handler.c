@@ -78,7 +78,8 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     json_t* j_dialing;      // memdb. dialing
     json_t* j_camp;         // db. campaign info
     json_t* j_plan;         // db. plan
-    json_t* j_chans;        // channel array
+    json_t* j_chans;        // memdb. channels to be distribute. json_array
+    json_error_t j_err;
     const char* dial_mode;
     unused__ int ret;
     size_t idx;
@@ -89,8 +90,10 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     json_array_foreach(j_chans, idx, j_chan)
     {
         j_dialing   = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
-        j_camp      = get_campaign_info(json_string_value(json_object_get(j_dialing, "camp_uuid")));
-        j_plan      = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
+        j_camp = json_loads(json_string_value(json_object_get(j_dialing, "info_camp")), 0, &j_err);
+        j_plan = json_loads(json_string_value(json_object_get(j_dialing, "info_plan")), 0, &j_err);
+//        j_camp      = get_campaign_info(json_string_value(json_object_get(j_dialing, "camp_uuid")));
+//        j_plan      = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
 
         if(j_dialing == NULL || j_camp == NULL || j_plan == NULL)
         {
@@ -1006,8 +1009,10 @@ static json_t* get_chans_to_dist(void)
     unused__ int ret;
 
     // get answered channel.
-    ret = asprintf(&sql, "select * from channel where unique_id = (select chan_unique_id from dialing where status = \"dial_end\")"
-            ";");
+//    ret = asprintf(&sql, "select * from channel where unique_id = (select chan_unique_id from dialing where status = \"dial_end\")"
+//            ";");
+    ret = asprintf(&sql, "select * from channel "
+            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dialing\" or status = \"dial_end\");");
 
     mem_res = memdb_query(sql);
     free(sql);

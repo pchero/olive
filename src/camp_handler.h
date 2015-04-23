@@ -57,6 +57,7 @@ int write_dialing_result(json_t* j_dialing);
 int delete_dialing_info_all(json_t* j_dialing);
 int update_dialing_info(json_t* j_dialing);
 int update_dialing_timestamp(const char* column, const char* unique_id);
+int update_dl_list_timestamp(const char* table, const char* column, const char* chan_unique_id);
 
 int update_campaign_info_status(const char* uuid, const char* status);
 
