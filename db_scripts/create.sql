@@ -29,7 +29,7 @@ create table campaign(
     tm_create           datetime,   -- create time.
     tm_delete           datetime,   -- delete time.
     tm_update_property  datetime,   -- last property update time.(Except status)
-    tm_update_status    datetime    -- last status updated time.
+    tm_update_status    datetime,   -- last status updated time.
         
     primary key(uuid)
 );
@@ -180,7 +180,7 @@ create table plan(
     tm_create           datetime,   -- create time.
     tm_delete           datetime,   -- delete time.
     tm_update_property  datetime,   -- last property update time.(Except status)
-    tm_update_status    datetime    -- last status updated time.
+    tm_update_status    datetime,   -- last status updated time.
     
     primary key(uuid)
 );
@@ -196,7 +196,6 @@ create table dial_list_ma(
     
     -- information
     name        varchar(255),                               -- dial list name
---    dl_list     varchar(255),                               -- dial list table name.(dl_e276d8be)
     dl_table    varchar(255),                               -- dial list table name.(dl_e276d8be)
     detail      text,                                       -- description of dialist
     
