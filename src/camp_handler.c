@@ -42,7 +42,7 @@ static char* get_dial_number(const json_t* j_dlist, const int cnt);
 static int update_dl_list(const char* table, const json_t* j_dlinfo);
 static int get_dial_num_point(const json_t* j_dl_list, const json_t* j_plan);
 static int get_dial_num_count(const json_t* j_dl_list, int idx);
-static char* gen_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list);
+static char* create_dl_list_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list);
 static json_t* create_dial_info(json_t* j_dialing);
 static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma, const json_t* j_dl_list);
 
@@ -1738,7 +1738,14 @@ int update_dialing_timestamp(const char* column, const char* unique_id)
     return true;
 }
 
-static char* gen_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list)
+/**
+ * Create dl_list's dial address.
+ * @param j_camp
+ * @param j_plan
+ * @param j_dl_list
+ * @return
+ */
+static char* create_dl_list_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list)
 {
     int dial_num_point;
     char* cust_addr;
@@ -1792,7 +1799,7 @@ static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, c
     unused__ int ret;
 
     // create dial address.
-    dial_addr = gen_dial_addr(j_camp, j_plan, j_dl_list);
+    dial_addr = create_dl_list_dial_addr(j_camp, j_plan, j_dl_list);
     if(dial_addr == NULL)
     {
         // No available address

@@ -254,7 +254,7 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
         "info_dl    text,   -- dl info. json format.\n"
 
         "-- status\n"
-        "status text,        -- dialing status. [idle, dialing, dial_end, transferring, transferred, ...]\n"
+        "status text,        -- dialing status. [dialing, transferring, transferred, ...]\n"
 
         "-- timestamp. all timestamps are UTC.\n"
         "tm_dial            text,   -- dialed to customer timestamp.\n"

@@ -79,6 +79,7 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     json_t* j_camp;         // db. campaign info
     json_t* j_plan;         // db. plan
     json_t* j_chans;        // memdb. channels to be distribute. json_array
+    json_t* j_tmp;
     json_error_t j_err;
     const char* dial_mode;
     unused__ int ret;
@@ -89,12 +90,10 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
 
     json_array_foreach(j_chans, idx, j_chan)
     {
+        // extract info.
         j_dialing   = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
         j_camp = json_loads(json_string_value(json_object_get(j_dialing, "info_camp")), 0, &j_err);
         j_plan = json_loads(json_string_value(json_object_get(j_dialing, "info_plan")), 0, &j_err);
-//        j_camp      = get_campaign_info(json_string_value(json_object_get(j_dialing, "camp_uuid")));
-//        j_plan      = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
-
         if(j_dialing == NULL || j_camp == NULL || j_plan == NULL)
         {
             slog(LOG_ERR, "Could not get info. j_dialing[%p], j_camp[%p], j_plan[%p]",
@@ -106,8 +105,19 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             continue;
         }
 
-        dial_mode = json_string_value(json_object_get(j_plan, "dial_mode"));
+        // update tm_dial_end
+        ret = strlen(json_string_value(json_object_get(j_dialing, "tm_dial_end")));
+        if(ret == 0)
+        {
+            j_tmp = json_pack("{s:s, s:s}",
+                    "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+                    "tm_dial_end",      json_string_value(json_object_get(j_chan, "tm_dial_end"))
+                    );
+            update_dialing_info(j_tmp);
+            json_decref(j_tmp);
+        }
 
+        dial_mode = json_string_value(json_object_get(j_plan, "dial_mode"));
         if(strcmp(dial_mode, "predictive") == 0)
         {
             chan_dist_predictive(j_camp, j_plan, j_chan, j_dialing);
@@ -334,8 +344,6 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     char* call_addr;
     int ret;
     char* uuid;
-//    char* answer_handle;
-//    const char* amd_result;
 
     // get ready agent
     j_agent = get_agent_longest_update(j_camp, "ready");
@@ -393,12 +401,12 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     uuid = gen_uuid_channel();
     call_addr = sip_gen_call_addr(j_peer, NULL);
     j_dial = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
-            "Channel", call_addr,
-            "ChannelId", uuid,
-            "Context", "olive_outbound_agent_transfer",
-            "Exten", "s",
-            "Priority", "1",
-            "Timeout", "30000"  // 30 seconds
+            "Channel",      call_addr,
+            "ChannelId",    uuid,
+            "Context",      "olive_outbound_agent_transfer",
+            "Exten",        "s",
+            "Priority",     "1",
+            "Timeout",      "30000"  // 30 seconds
             );
     slog(LOG_INFO, "Originate to agent. call[%s], peer_name[%s], chan_unique_id[%s]",
             call_addr,
@@ -408,7 +416,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     free(call_addr);
     free(uuid);
 
-    // originate
+    // originate to agent
     ret = cmd_originate(j_dial);
     json_decref(j_peer);
     if(ret == false)
@@ -1009,10 +1017,8 @@ static json_t* get_chans_to_dist(void)
     unused__ int ret;
 
     // get answered channel.
-//    ret = asprintf(&sql, "select * from channel where unique_id = (select chan_unique_id from dialing where status = \"dial_end\")"
-//            ";");
     ret = asprintf(&sql, "select * from channel "
-            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dialing\" or status = \"dial_end\");");
+            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dialing\");");
 
     mem_res = memdb_query(sql);
     free(sql);
