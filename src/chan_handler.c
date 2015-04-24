@@ -52,7 +52,7 @@ void cb_chan_dial_end(unused__ evutil_socket_t fd, unused__ short what, unused__
         // update dialing status, tm_dialend
         j_tmp = json_pack("{s:s, s:s, s:s}",
                 "tm_dial_end",      json_string_value(json_object_get(j_chan, "tm_dial_end")),
-                "status",           "dial_end"
+                "status",           "dial_end",
                 "chan_unique_id",   json_string_value(json_object_get(j_chan, "unique_id"))
                 );
         ret = update_dialing_info(j_tmp);
@@ -105,11 +105,12 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             continue;
         }
 
-        // update tm_dial_end
+        // update tm_dial_end and status
         ret = strlen(json_string_value(json_object_get(j_dialing, "tm_dial_end")));
         if(ret == 0)
         {
-            j_tmp = json_pack("{s:s, s:s}",
+            j_tmp = json_pack("{s:s, s:s, s:s}",
+                    "status",           "dial_end",
                     "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
                     "tm_dial_end",      json_string_value(json_object_get(j_chan, "tm_dial_end"))
                     );
@@ -345,6 +346,45 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     int ret;
     char* uuid;
 
+
+    // get AMD result
+    // MACHINE | HUMAN | NOTSURE | HANGUP
+    slog(LOG_INFO, "AMD result info. AMDSTATUS[%s], AMDCAUSE[%s]",
+            json_string_value(json_object_get(j_chan, "AMDSTATUS")),
+            json_string_value(json_object_get(j_chan, "AMDCAUSE"))
+            );
+
+    // update res_dial.
+    // update once only.
+    ret = strlen(json_string_value(json_object_get(j_dialing, "res_dial")));
+    if(ret == 0)
+    {
+        // update dialing AMD result info.
+        j_tmp = json_pack("{s:s, s:s, s:s}",
+                "res_dial",             json_string_value(json_object_get(j_chan, "dial_status")),
+                "res_answer",           json_string_value(json_object_get(j_chan, "AMDSTATUS")),
+                "res_answer_detail",    json_string_value(json_object_get(j_chan, "AMDCAUSE")),
+                "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
+                );
+
+        ret = update_dialing_info(j_tmp);
+        json_decref(j_tmp);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not update dialing.");
+            return;
+        }
+    }
+
+
+    // check answer handle.
+    ret = check_answer_handle();
+    if(ret == false)
+    {
+        slog(LOG_INFO, "Could not pass checking_answer_handle.");
+        return;
+    }
+
     // get ready agent
     j_agent = get_agent_longest_update(j_camp, "ready");
     if(j_agent == NULL)
@@ -359,30 +399,6 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     if(j_peer == NULL)
     {
         json_decref(j_agent);
-        return;
-    }
-
-    // get AMD result
-    // MACHINE | HUMAN | NOTSURE | HANGUP
-//    amd_result = json_string_value(json_object_get(j_chan, "AMDSTATUS"));
-    slog(LOG_INFO, "AMD result info. AMDSTATUS[%s], AMDCAUSE[%s]",
-            json_string_value(json_object_get(j_chan, "AMDSTATUS")),
-            json_string_value(json_object_get(j_chan, "AMDCAUSE"))
-            );
-
-    // update dialing AMD result info.
-    j_tmp = json_pack("{s:s, s:s, s:s}",
-            "res_dial",             "answer",
-            "res_answer",           json_string_value(json_object_get(j_chan, "AMDSTATUS")),
-            "res_answer_detail",    json_string_value(json_object_get(j_chan, "AMDCAUSE")),
-            "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
-            );
-
-    ret = update_dialing_info(j_tmp);
-    json_decref(j_tmp);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not update dialing.");
         return;
     }
 
@@ -1018,7 +1034,7 @@ static json_t* get_chans_to_dist(void)
 
     // get answered channel.
     ret = asprintf(&sql, "select * from channel "
-            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dialing\");");
+            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dialing\" or status = \"dial_end\");");
 
     mem_res = memdb_query(sql);
     free(sql);
@@ -1045,4 +1061,16 @@ static json_t* get_chans_to_dist(void)
     memdb_free(mem_res);
 
     return j_chans;
+}
+
+/**
+ * Check plan's answer handle strategy.
+ * Return possible of distribute-able or not.
+ * @param j_dialing
+ * @param j_plan
+ * @return
+ */
+static bool check_answer_handle(json_t* j_dialing, j_plan)
+{
+    return true;
 }

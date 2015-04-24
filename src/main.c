@@ -305,8 +305,10 @@ static int init_libevent(void)
 
 }
 
-
-
+/**
+ * Initiate database.
+ * @return
+ */
 static int init_database(void)
 {
     int ret;
