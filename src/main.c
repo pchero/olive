@@ -41,6 +41,7 @@
 // Global
 app_* g_app = NULL;
 
+static bool init_optarg(int argc, char** argv);
 
 static int init_zmq(void);
 static int init_log(void);
@@ -57,29 +58,17 @@ static void siginfo_cb(unused__ int fd, unused__ short event, unused__ void *arg
 
 int main(int argc, char** argv)
 {
-    char*   conf;
-    json_error_t j_err;
     int ret;
 
     g_app = calloc(1, sizeof(app_));
 
-    if(argc >= 2)
+    // init options
+    ret = init_optarg(argc, argv);
+    if(ret == false)
     {
-        ret = asprintf(&conf, "%s", argv[1]);
-    }
-    else
-    {
-        ret = asprintf(&conf, "olive.conf");
-    }
-
-    // conf load
-    g_app->j_conf = json_load_file(conf, 0, &j_err);
-    if(g_app->j_conf == NULL)
-    {
-        fprintf(stderr, "Could not load configure file. err[%d:%s]\n", j_err.line, j_err.text);
+        fprintf(stderr, "Could not get options.\n");
         exit(0);
     }
-    free(conf);
 
     // init zmq
     ret = init_zmq();
@@ -98,6 +87,7 @@ int main(int argc, char** argv)
     }
 
     // Start log!!!!!!!!!!!!!!!!!!!!!!
+    // Now we can logging.
     slog(LOG_INFO, "");
     slog(LOG_INFO, "");
     slog(LOG_INFO, "");
@@ -186,6 +176,39 @@ int main(int argc, char** argv)
 //    printf("End\n");
 
     return 0;
+}
+
+/**
+ * Option parser
+ * @param argc
+ * @param argv
+ * @return
+ */
+static bool init_optarg(int argc, char** argv)
+{
+    unused__ int ret;
+    char*   conf;
+    json_error_t j_err;
+
+    if(argc >= 2)
+    {
+        ret = asprintf(&conf, "%s", argv[1]);
+    }
+    else
+    {
+        ret = asprintf(&conf, "olive.conf");
+    }
+
+    // conf load
+    g_app->j_conf = json_load_file(conf, 0, &j_err);
+    if(g_app->j_conf == NULL)
+    {
+        fprintf(stderr, "Could not load configure file. err[%d:%s]\n", j_err.line, j_err.text);
+        return false;
+    }
+    free(conf);
+
+    return true;
 }
 
 /**
