@@ -254,7 +254,7 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
         "info_dl    text,   -- dl info. json format.\n"
 
         "-- status\n"
-        "status text,        -- dialing status. [dialing, transferring, transferred, ...]\n"
+        "status text,        -- dialing status. [dialing, transferring, transferred, hangup, ...]\n"
 
         "-- timestamp. all timestamps are UTC.\n"
         "tm_dial            text,   -- dialed to customer timestamp.\n"
@@ -282,8 +282,8 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
 
         "-- result \n"
         "res_dial           text,   -- dial result(answer, no_answer, ...)\n"
-        "res_answer         text,   -- AMD result.\n"
-        "res_answer_detail  text,   -- AMD result detail.\n"
+        "res_answer         text,   -- AMD result.(AMDSTATUS)\n"
+        "res_answer_detail  text,   -- AMD result detail.(AMDCAUSE)\n"
 
         "primary key(chan_unique_id)\n"
         ");";

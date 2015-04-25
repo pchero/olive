@@ -267,6 +267,8 @@ int memdb_insert(const char* table, json_t* j_data)
     // set keys
     is_first = true;
     tmp = NULL;
+    sql_keys    = NULL;
+    sql_values  = NULL;
     json_object_foreach(j_data, key, j_val)
     {
         if(is_first == true)

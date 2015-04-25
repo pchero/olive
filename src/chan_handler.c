@@ -33,6 +33,8 @@ static int delete_chan_info(const char* unique_id);
 static int update_dialing_after_transferred(json_t* j_dialing);
 static json_t* get_chans_dial_end(void);
 static json_t* get_chans_to_dist(void);
+static bool check_answer_handle(json_t* j_dialing, json_t* j_plan);
+
 
 /**
  * Dial ended call handler.
@@ -376,12 +378,19 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
         }
     }
 
-
     // check answer handle.
-    ret = check_answer_handle();
+    ret = check_answer_handle(j_dialing, j_plan);
     if(ret == false)
     {
         slog(LOG_INFO, "Could not pass checking_answer_handle.");
+
+        // set hangup
+        j_tmp = json_pack("{s:s, s:s}",
+                "status",           "hangup",
+                "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id"))
+                );
+        update_dialing_info(j_tmp);
+        json_decref(j_tmp);
         return;
     }
 
@@ -1070,7 +1079,49 @@ static json_t* get_chans_to_dist(void)
  * @param j_plan
  * @return
  */
-static bool check_answer_handle(json_t* j_dialing, j_plan)
+static bool check_answer_handle(json_t* j_dialing, json_t* j_plan)
 {
+    int ret;
+    int ret_tmp;
+    const char* answer_handle;
+    const char* answer_res;
+
+    // get answer handle,
+    answer_handle = json_string_value(json_object_get(j_plan, "answer_handle"));
+
+    // compare answer.
+    answer_res = json_string_value(json_object_get(j_dialing, "res_answer"));
+
+    // check already hangup
+    ret = strcmp(answer_res, "HANGUP");
+    if(ret == 0)
+    {
+        slog(LOG_INFO, "Already hangup.");
+        return false;
+    }
+
+    // human only
+    ret = strcmp(answer_handle, "human");
+    if(ret == 0)
+    {
+        ret_tmp = strcmp(answer_res, "HUMAN");
+        if(ret_tmp != 0)
+        {
+            return false;
+        }
+    }
+
+    // human possible
+    ret = strcmp(answer_handle, "human_possible");
+    if(ret == 0)
+    {
+        ret_tmp = strcmp(answer_res, "MACHINE");
+        if(ret_tmp == 0)
+        {
+            return false;
+        }
+    }
+
+    // else connect all
     return true;
 }

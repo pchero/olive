@@ -161,7 +161,7 @@ void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg)
     json_t* j_camp;
     json_t* j_chan;
 
-    ret = asprintf(&sql, "select * from campaign where status = \"%s\"",
+    ret = asprintf(&sql, "select * from campaign where status = \"%s\";",
             "stopping"
             );
     db_res = db_query(sql);
@@ -202,7 +202,7 @@ void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg)
             continue;
         }
 
-        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\"",
+        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\";",
                 "stop",
                 json_string_value(json_object_get(j_camp, "uuid"))
                 );
@@ -239,7 +239,7 @@ void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void 
     json_t* j_camp;
     json_t* j_chan;
 
-    ret = asprintf(&sql, "select * from campaign where status = \"%s\"",
+    ret = asprintf(&sql, "select * from campaign where status = \"%s\";",
             "force_stopping"
             );
     db_res = db_query(sql);
@@ -295,7 +295,7 @@ void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void 
         }
         memdb_free(mem_res);
 
-        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\"",
+        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\";",
                 "stopping",
                 json_string_value(json_object_get(j_camp, "uuid"))
                 );
@@ -372,7 +372,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     json_decref(j_dl_list);
     if(j_dialing == NULL)
     {
-        slog(LOG_ERR, "Could not create dialing info.");
+        slog(LOG_DEBUG, "Could not create dialing info.");
         return;
     }
 
@@ -1295,7 +1295,7 @@ static int update_dl_list(const char* table, const json_t* j_dlinfo)
         return false;
     }
 
-    ret = asprintf(&sql, "update %s set %s where uuid = %s\n",
+    ret = asprintf(&sql, "update %s set %s where uuid = \"%s\";\n",
             table, tmp, json_string_value(json_object_get(j_dlinfo, "uuid"))
             );
     free(tmp);
@@ -1764,6 +1764,7 @@ static char* create_dl_list_dial_addr(const json_t* j_camp, const json_t* j_plan
     if(j_trunk == NULL)
     {
         // No available trunk.
+        slog(LOG_INFO, "No available trunk.");
         return NULL;
     }
 
@@ -1803,6 +1804,7 @@ static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, c
     if(dial_addr == NULL)
     {
         // No available address
+        slog(LOG_DEBUG, "No available address");
         return NULL;
     }
 
