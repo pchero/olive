@@ -45,6 +45,10 @@ static int get_dial_num_count(const json_t* j_dl_list, int idx);
 static char* create_dl_list_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list);
 static json_t* create_dial_info(json_t* j_dialing);
 static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma, const json_t* j_dl_list);
+static json_t* get_campaigns_by_status(const char* status);
+static json_t* get_dl_list_by_status(const char* dl_table, const char* status);
+static bool check_dialing_list_by_camp(const json_t* j_camp);
+
 
 /**
  * @brief   Check start campaign and try to make a call.
@@ -154,73 +158,33 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
  */
 void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg)
 {
-    char* sql;
     int ret;
-    db_ctx_t* db_res;
-    memdb_res*  mem_res;
     json_t* j_camp;
-    json_t* j_chan;
+    json_t* j_camps;
+    int index;
 
-    ret = asprintf(&sql, "select * from campaign where status = \"%s\";",
-            "stopping"
-            );
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
+    j_camps = get_campaigns_by_status("stopping");
+    if(j_camps == NULL)
     {
-        slog(LOG_ERR, "Could not get stopping campaign info.");
         return;
     }
 
-    while(1)
+    json_array_foreach(j_camps, index, j_camp)
     {
-        j_camp = db_get_record(db_res);
-        if(j_camp == NULL)
-        {
-            // No more campaign for trying to stop.
-            break;
-        }
 
-        ret = asprintf(&sql, "select * from channel where camp_uuid = \"%s\";",
-                json_string_value(json_object_get(j_camp, "uuid"))
-                );
-        mem_res = memdb_query(sql);
-        free(sql);
-        if(mem_res == NULL)
+        // check no more dialing now
+        ret = check_dialing_list_by_camp(j_camp);
+        if(ret == true)
         {
-            slog(LOG_ERR, "Could not get channel info.");
-            json_decref(j_camp);
             continue;
         }
 
-        j_chan = memdb_get_result(mem_res);
-        memdb_free(mem_res);
-        if(j_chan != NULL)
-        {
-            json_decref(j_camp);
-            json_decref(j_chan);
-            continue;
-        }
-
-        ret = asprintf(&sql, "update campaign set status = \"%s\" where uuid = \"%s\";",
-                "stop",
-                json_string_value(json_object_get(j_camp, "uuid"))
-                );
-        ret = db_exec(sql);
-        free(sql);
-        if(ret == false)
-        {
-            slog(LOG_ERR, "Could not update campaign info.");
-            json_decref(j_camp);
-
-            continue;
-        }
-        json_decref(j_camp);
+        // update campaign.
+        slog(LOG_INFO, "Stop campaign. uuid[%s]", json_string_value(json_object_get(j_camp, "uuid")));
+        update_campaign_info_status(json_string_value(json_object_get(j_camp, "uuid")), "stop");
     }
+    json_decref(j_camps);
 
-    db_free(db_res);
-
-    return;
 }
 
 
@@ -317,6 +281,52 @@ void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void 
 }
 
 /**
+ * Check campaign which is has no more dial list.
+ * Then update status to stopping.
+ */
+void cb_campaign_check_end(unused__ int fd, unused__ short event, unused__ void *arg)
+{
+    json_t* j_camps;
+    json_t* j_camp;
+    json_t* j_tmp;
+    json_t* j_dlma;
+    json_t* j_plan;
+    int index;
+    unused__ int ret;
+
+    j_camps = get_campaigns_by_status("start");
+    if(j_camps == NULL)
+    {
+        return;
+    }
+
+    json_array_foreach(j_camps, index, j_camp)
+    {
+        slog(LOG_DEBUG, "Value check. uuid[%s]", json_string_value(json_object_get(j_camp, "uuid")));
+        j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
+        j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
+
+        slog(LOG_DEBUG, "Value check. dial_mode[%s]", json_string_value(json_object_get(j_plan, "dial_mode")));
+        j_tmp = get_dl_available(j_dlma, j_plan);
+
+        // if there's no more dial list... than starting to stop.
+        if(j_tmp == NULL)
+        {
+            ret = update_campaign_info_status(json_string_value(json_object_get(j_camp, "uuid")), "stopping");
+        }
+
+        json_decref(j_plan);
+        json_decref(j_dlma);
+        json_decref(j_tmp);
+
+    }
+    json_decref(j_camps);
+
+    return;
+}
+
+
+/**
  *
  * @param j_camp
  * @param j_plan
@@ -352,19 +362,21 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     json_t* j_dl_update;
     char    try_cnt[128];   // string buffer for "trycnt_1"...
 
-    // check available outgoing call.
-    ret = check_dial_avaiable(j_camp, j_plan);
-    if(ret == false)
-    {
-        // No available outgoing call.
-        return;
-    }
-
     // get dl_list info to dial.
     j_dl_list = get_dl_available(j_dlma, j_plan);
     if(j_dl_list == NULL)
     {
         // No available list
+        slog(LOG_INFO, "No available dial list.");
+        return;
+    }
+
+    // check available outgoing call.
+    ret = check_dial_avaiable(j_camp, j_plan);
+    if(ret == false)
+    {
+        // No available outgoing call.
+//        slog(LOG_DEBUG, "Not enough dial resource.");
         return;
     }
 
@@ -428,6 +440,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     }
 
     // insert dialing
+    slog(LOG_INFO, "Insert new dialing. chan_unique_id[%s]", json_string_value(json_object_get(j_dialing, "chan_unique_id")));
     ret = memdb_insert("dialing", j_dialing);
     if(ret == false)
     {
@@ -1727,7 +1740,7 @@ int update_dialing_timestamp(const char* column, const char* unique_id)
             column, unique_id
             );
 
-    ret = db_exec(sql);
+    ret = memdb_exec(sql);
     free(sql);
     if(ret == false)
     {
@@ -1875,4 +1888,120 @@ static json_t* create_dial_info(json_t* j_dialing)
     free(tmp);
 
     return j_dial;
+}
+
+static json_t* get_campaigns_by_status(const char* status)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    int ret;
+    char* sql;
+    db_ctx_t* db_res;
+
+    ret = asprintf(&sql, "select * from campaign where status = \"%s\";", status);
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get campaign info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = db_get_record(db_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        ret = json_array_append(j_res, j_tmp);
+        if(ret == -1)
+        {
+            slog(LOG_ERR, "Could not get campaign info.");
+        }
+
+        json_decref(j_tmp);
+    }
+    db_free(db_res);
+
+    return j_res;
+}
+
+static json_t* get_dl_list_by_status(const char* dl_table, const char* status)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    char* sql;
+    int ret;
+    db_ctx_t* db_res;
+
+    ret = asprintf(&sql, "select * from %s where status = \"%s\";", dl_table, status);
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dl_list info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = db_get_record(db_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        ret = json_array_append(j_res, j_tmp);
+        if(ret == -1)
+        {
+            slog(LOG_ERR, "Could not append dl_list info.");
+        }
+
+        json_decref(j_tmp);
+    }
+
+    db_free(db_res);
+
+    return j_res;
+}
+
+/**
+ * Return is there dialing list or not.
+ * If there's no currently dialing list, return false.
+ * @param j_camp
+ * @return
+ */
+static bool check_dialing_list_by_camp(const json_t* j_camp)
+{
+
+    json_t* j_dlma;
+    json_t* j_dl_lists;
+    size_t  list_size;
+
+    j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
+
+    j_dl_lists = get_dl_list_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "dialing");
+    if(j_dl_lists == NULL)
+    {
+        // Just error. Not stop yet. We can't know that now.
+        slog(LOG_ERR, "Could not get dl_list info.");
+        return true;
+    }
+    json_decref(j_dlma);
+
+    list_size = json_array_size(j_dl_lists);
+    json_decref(j_dl_lists);
+
+    if(list_size == 0)
+    {
+        return false;
+    }
+
+    return true;
 }

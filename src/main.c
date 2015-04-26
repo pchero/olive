@@ -483,6 +483,10 @@ static int init_callback(void)
     struct timeval tm_fast = {0, 20000};    // 20 ms
     struct timeval tm_slow = {0, 500000};   // 500 ms
 
+    // campaign end check.
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_check_end, NULL);
+    event_add(ev, &tm_slow);
+
     // campaign start
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_start, NULL);
     event_add(ev, &tm_fast);
@@ -499,9 +503,9 @@ static int init_callback(void)
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_transfer, NULL);
     event_add(ev, &tm_fast);
 
-    // call_timeout
-    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
-    event_add(ev, &tm_slow);
+//    // call_timeout
+//    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
+//    event_add(ev, &tm_slow);
 
     // campaign_stop
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_stop, NULL);

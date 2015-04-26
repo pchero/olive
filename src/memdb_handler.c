@@ -286,7 +286,6 @@ int memdb_insert(const char* table, json_t* j_data)
 
         free(tmp);
     }
-    slog(LOG_DEBUG, "Set insert keys. keys[%s]", sql_keys);
 
     // set values
     is_first = true;
@@ -311,7 +310,7 @@ int memdb_insert(const char* table, json_t* j_data)
             // string
             case JSON_STRING:
             {
-                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, json_string_value(j_val));
+                ret = asprintf(&tmp, "%s\'%s\'", tmp_sub, json_string_value(j_val));
             }
             break;
 

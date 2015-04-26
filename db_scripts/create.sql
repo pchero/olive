@@ -212,11 +212,11 @@ create table dl_org(
     uuid        varchar(255)    unique,     -- dl uuid
     
     -- information
-    name            varchar(255),   -- Can be null
+    name            varchar(255),                   -- Can be null
     detail          varchar(255),
-    uui             text,           -- user-user information
+    uui             text,                           -- user-user information
     status          varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
-    chan_unique_id  varchar(255),       -- dialing channel unique id.
+    chan_unique_id  varchar(255),                   -- dialing channel unique id.
     
     -- numbers.
     number_1    varchar(255),       -- tel number 1

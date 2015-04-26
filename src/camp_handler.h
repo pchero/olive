@@ -35,6 +35,8 @@ typedef enum _CAMP_STATUS_T
 void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg);
 void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg);
 void cb_campaign_forcestop(unused__ int fd, unused__ short event, unused__ void *arg);
+void cb_campaign_check_end(unused__ int fd, unused__ short event, unused__ void *arg);
+
 
 // etc
 bool load_table_trunk_group(void);

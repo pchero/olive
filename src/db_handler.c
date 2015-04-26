@@ -315,7 +315,6 @@ int db_insert(const char* table, json_t* j_data)
 
         free(tmp);
     }
-    slog(LOG_DEBUG, "Set insert keys. keys[%s]", sql_keys);
 
     // set values
     is_first = true;
