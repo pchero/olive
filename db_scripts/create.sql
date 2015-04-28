@@ -26,10 +26,10 @@ create table campaign(
     trunk_group varchar(255),                       -- trunk group uuid
 
     -- timestamp. UTC.
-    tm_create           datetime,   -- create time.
-    tm_delete           datetime,   -- delete time.
-    tm_update_property  datetime,   -- last property update time.(Except status)
-    tm_update_status    datetime,   -- last status updated time.
+    tm_create           datetime(6),   -- create time.
+    tm_delete           datetime(6),   -- delete time.
+    tm_update_property  datetime(6),   -- last property update time.(Except status)
+    tm_update_status    datetime(6),   -- last status updated time.
         
     primary key(uuid)
 );
@@ -62,7 +62,7 @@ create table campaign_result(
     dial_index          int,            -- dialing number index.
     dial_addr           varchar(255),   -- dialing address.
     dial_trycnt         int,            -- dialing try count.
-    dial_timeout        int             -- dialing timeout.
+    dial_timeout        int,            -- dialing timeout.
     
     -- transfer info
     tr_trycnt          int,             -- transfer try count.
