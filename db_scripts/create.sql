@@ -39,54 +39,45 @@ create table campaign_result(
 -- campaign dial result table.
     -- identity
     seq                 int(10)         unsigned auto_increment,
-
-    camp_uuid           varchar(255)    not null,   -- campaign uuid.
-    dlma_uuid           varchar(255)    not null,   -- dial_list_ma uuid.
-    dl_uuid             varchar(255)    not null,   -- dl uuid
-    
-    -- channel information
     chan_unique_id      varchar(255)    not null,   -- channel unique id.
-    tr_chan_unique_id   varchar(255),               -- transferred channel unique id(if transferred).
-    
+    dl_uuid             varchar(255)    not null,   -- dl uuid
+    dlma_uuid           varchar(255)    not null,   -- dial_list_ma uuid.
+    camp_uuid           varchar(255)    not null,   -- campaign uuid.
+
+    -- dial_info
+    info_camp   text    not null,   -- campaign info. json format.
+    info_plan   text    not null,   -- plan info. json format.
+    info_dl     text    not null,   -- dl info. json format.    
     
     -- timestamp(UTC)
-    tm_dial_req         datetime,   -- dialing request timestamp.
-    tm_dial_start       datetime,   -- dialing start timestamp.
-    tm_dial_end         datetime,   -- dialing end timestamp.
-    tm_parked_in        datetime,   -- parked in timestamp.
-    tm_parked_out       datetime,   -- parked out timestamp.
-    tm_transfer_req     datetime,   -- transfer request timestamp.
-    tm_transfer_start   datetime,   -- transfer start timestamp.
-    tm_transfer_end     datetime,   -- transfer end timestamp.
-    tm_chan_hangup      datetime,   -- channel hangup timestamp.
-    tm_tr_chan_hangup   datetime,   -- transferred channel hangup timestamp.
+    tm_dial             datetime(6),   -- timestamp for dialing request.
+    tm_dial_end         datetime(6),   -- timestamp for dialing start.
+    tm_redirect         datetime(6),   -- timestamp for dialing end.
+    tm_hangup           datetime(6),   -- timestamp for dialing end.
+    tm_tr_dial          datetime(6),   -- timestamp for dialing to agent.
+    tm_tr_dial_end      datetime(6),   -- timestamp for transfer to agent.
+    tm_tr_hangup        datetime(6),   -- timestamp for agent hangup.
+
+    -- dial info
+    dial_index          int,            -- dialing number index.
+    dial_addr           varchar(255),   -- dialing address.
+    dial_trycnt         int,            -- dialing try count.
+    dial_timeout        int             -- dialing timeout.
+    
+    -- transfer info
+    tr_trycnt          int,             -- transfer try count.
+    tr_agent_uuid      varchar(255),    -- transfered agent.
+    tr_chan_unique_id  varchar(255),    -- trying transfer chan unique id.
     
     -- dial result
-    res_voice           varchar(255),   -- AMD(Answerring machine detect) result. If it used.(human, machine, not sure, ...)
-    res_voice_detail    varchar(255),   -- AMD result detail description.
-    res_dial            varchar(255),   -- dial result.(busy, answer, ...)
-    res_tr_trycnt       varchar(255),   -- transfer try count.
-    res_tr_dial         varchar(255),   -- transferred result.(transferred, cutomer hangup, agent hangup)
-    res_tr_agent_uuid   varchar(255),   -- transferred agent uuid.
-    
-    -- dial information
-    dial_number         varchar(255),   -- dial number.
-    dial_number_idx     varchar(255),   -- dial number index.
-    dial_number_cnt     varchar(255),   -- dial number count.
-    dial_string         varchar(255),   -- dialing string.
-    dial_sip_callid     varchar(255),   -- dial sip call id. if exists.
-
-    -- transfer dial information
-    dial_tr_number      varchar(255),   -- transferred dial number(if transferred).
-    dial_tr_string      varchar(255),   -- transferred dialing string(if transferred).
-    dial_tr_sip_callid  varchar(255),   -- transferred dial sip callid(if transferred).
-    
-    -- plan information
-    plan_dial_mode      varchar(255),
-    plan_dial_timeout   varchar(255),
-    plan_caller_id      varchar(255),
-    plan_answer_handle  varchar(255),
-    
+    res_dial                varchar(255),   -- dial result(answer, no_answer, ...)\n"
+    res_answer              varchar(255),   -- AMD result.(AMDSTATUS)\n"
+    res_answer_detail       varchar(255),   -- AMD result detail.(AMDCAUSE)\n"
+    res_hangup              varchar(255),   -- hangup code.\n"
+    res_hangup_detail       varchar(255),   -- hangup detail.\n"
+    res_tr_hangup           varchar(255),   -- hangup code.\n"
+    res_tr_hangup_detail    varchar(255),   -- hangup detail.\n"
+        
     primary key(seq)
     
 );
