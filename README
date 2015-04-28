@@ -9,10 +9,11 @@ INFO:
 
 
 DEPENDENCIES:
-- asterisk-zmq
-- zmq
-- jansson
-- libevent
+- asterisk-13
+- asterisk-zmq(https://github.com/pchero/asterisk-zmq)
+- zmq-3.2.5(at least)
+- jansson-2.7
+- libevent2
 - bmake
 - logstash
 - libevhtp
@@ -37,6 +38,7 @@ LICENSING:
 
 Changed log:
 - 28.Apr 2015
+: Added asterisk version requires. olive needs asterisk-13.
 : Fixed mysql version require to at least mysql-5.6.4. Because of Fractional Seconds in Time Values.
 : When olive write time stamp, it needs microsecond unit.
 : See http://dev.mysql.com/doc/refman/5.6/en/fractional-seconds.html. 
