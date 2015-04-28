@@ -339,7 +339,7 @@ int db_insert(const char* table, json_t* j_data)
             // string
             case JSON_STRING:
             {
-                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, json_string_value(j_val));
+                ret = asprintf(&tmp, "%s\'%s\'", tmp_sub, json_string_value(j_val));
             }
             break;
 
@@ -446,7 +446,7 @@ char* db_get_update_str(const json_t* j_data)
             // string
             case JSON_STRING:
             {
-                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, json_string_value(j_val));
+                ret = asprintf(&res, "%s%s = \'%s\'", tmp, key, json_string_value(j_val));
             }
             break;
 

@@ -31,9 +31,13 @@ static int delete_chan_info(const char* unique_id);
 
 //static int update_dialing_after_transferring(json_t* j_chan, json_t* j_agent, json_t* j_dial);
 static int update_dialing_after_transferred(json_t* j_dialing);
-static json_t* get_chans_dial_end(void);
-static json_t* get_chans_to_dist(void);
+static json_t*  get_chans_dial_end(void);
+static json_t*  get_chans_to_dist(void);
+static json_t*  get_chans_hangup(void);
 static bool check_answer_handle(json_t* j_dialing, json_t* j_plan);
+static int check_dialing_by_tr_channel(const json_t* j_chan);
+static int check_dialing_by_channel(const json_t* j_chan);
+
 
 
 /**
@@ -57,7 +61,7 @@ void cb_chan_dial_end(unused__ evutil_socket_t fd, unused__ short what, unused__
                 "status",           "dial_end",
                 "chan_unique_id",   json_string_value(json_object_get(j_chan, "unique_id"))
                 );
-        ret = update_dialing_info(j_tmp);
+        ret = update_memdb_dialing_info(j_tmp);
         json_decref(j_tmp);
         if(ret == false)
         {
@@ -93,7 +97,7 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     json_array_foreach(j_chans, idx, j_chan)
     {
         // extract info.
-        j_dialing   = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
+        j_dialing   = get_dialing_info_by_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
         j_camp = json_loads(json_string_value(json_object_get(j_dialing, "info_camp")), 0, &j_err);
         j_plan = json_loads(json_string_value(json_object_get(j_dialing, "info_plan")), 0, &j_err);
         if(j_dialing == NULL || j_camp == NULL || j_plan == NULL)
@@ -116,7 +120,7 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
                     "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
                     "tm_dial_end",      json_string_value(json_object_get(j_chan, "tm_dial_end"))
                     );
-            update_dialing_info(j_tmp);
+            update_memdb_dialing_info(j_tmp);
             json_decref(j_tmp);
         }
 
@@ -155,84 +159,123 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
  */
 void cb_chan_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
-    char* sql;
-    unused__ int ret;
-    memdb_res* mem_res;
+//    char* sql;
+    int ret;
+//    memdb_res* mem_res;
     json_t* j_chan;         // memdb [channel] hangup set info..
-    json_t* j_chan_agent;   // memdb [channel] agent side channel info.
-    json_t* j_dialing;      // memdb [dialing]
+//    json_t* j_chan_agent;   // memdb [channel] agent side channel info.
+//    json_t* j_dialing;      // memdb [dialing]
+    json_t* j_chans;
+    int index;
 
-    // get hanged up channels.
-    ret = asprintf(&sql, "select * from channel where cause is not null;");
-    mem_res = memdb_query(sql);
-    free(sql);
-    if(mem_res == NULL)
+
+    // get hangup channels
+    j_chans = get_chans_hangup();
+    if(j_chans == NULL)
     {
-        slog(LOG_ERR, "Could not get hangup channel info.");
         return;
     }
 
-    while(1)
+    json_array_foreach(j_chans, index, j_chan)
     {
-        j_chan = memdb_get_result(mem_res);
-        if(j_chan == NULL)
+        // check chan_unique_id in dialing.
+        ret = check_dialing_by_channel(j_chan);
+        if(ret == -1)
         {
-            // No more hangup channel.
-            break;
-        }
-
-        // get dialing info
-        j_dialing = get_dialing_info(json_string_value(json_object_get(j_chan, "unique_id")));
-        if(j_dialing == NULL)
-        {
-            // Not dialed from here.
-            // Just delete from channel.
-            slog(LOG_INFO, "Found hanged up channel. Didn't begin from here.");
-            ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
-            if(ret == false)
-            {
-                slog(LOG_ERR, "Could not delete hanged up channel.");
-            }
-
-            json_decref(j_chan);
+            slog(LOG_ERR, "Could not check dialing channel by chan_unique_id");
             continue;
         }
-        json_decref(j_chan);
 
-        // get agent channel info
-        j_chan_agent = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")));
-        if(j_chan_agent != NULL)
+        // check tr_chan_unique_id in dialing.
+        ret = check_dialing_by_tr_channel(j_chan);
+        if(ret == -1)
         {
-            // check status
-            // if agent info exists and not hang up yet, just leave it.
-            if(json_string_value(json_object_get(j_chan_agent, "cause_desc")) != NULL)
-            {
-                // Not done yet.
-                json_decref(j_chan_agent);
-                json_decref(j_dialing);
-
-                continue;
-            }
+            slog(LOG_ERR, "Could not check dialing channel by tr_chan_unique_id");
+            continue;
         }
-        json_decref(j_chan_agent);
 
-        // every channel work done.
-        // write dialing result.
-        ret = write_dialing_result(j_dialing);
+        // delete channel info.
+        ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
         if(ret == false)
         {
-            slog(LOG_ERR, "Could not write campaign dial result.");
+            slog(LOG_ERR, "Could not delete channel info.");
         }
-        json_decref(j_dialing);
-
-        // Delete all info related with dialing
-        delete_dialing_info_all(j_dialing);
-        json_decref(j_dialing);
     }
 
-    memdb_free(mem_res);
+    json_decref(j_chans);
 
-    return;
+
+//    // get hanged up channels.
+//    ret = asprintf(&sql, "select * from channel where cause is not null;");
+//    mem_res = memdb_query(sql);
+//    free(sql);
+//    if(mem_res == NULL)
+//    {
+//        slog(LOG_ERR, "Could not get hangup channel info.");
+//        return;
+//    }
+//
+//    while(1)
+//    {
+//        j_chan = memdb_get_result(mem_res);
+//        if(j_chan == NULL)
+//        {
+//            // No more hangup channel.
+//            break;
+//        }
+//
+//        // get dialing info
+//        j_dialing = get_dialing_info_by_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
+//        if(j_dialing == NULL)
+//        {
+//            // Not dialed from here.
+//            // Just delete from channel.
+//            slog(LOG_INFO, "Found hanged up channel. Didn't begin from here.");
+//            ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
+//            if(ret == false)
+//            {
+//                slog(LOG_ERR, "Could not delete hanged up channel.");
+//            }
+//
+//            json_decref(j_chan);
+//            continue;
+//        }
+//        json_decref(j_chan);
+//
+//        // get agent channel info
+//        j_chan_agent = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")));
+//        if(j_chan_agent != NULL)
+//        {
+//            // check status
+//            // if agent info exists and not hang up yet, just leave it.
+//            if(json_string_value(json_object_get(j_chan_agent, "cause_desc")) != NULL)
+//            {
+//                // Not done yet.
+//                json_decref(j_chan_agent);
+//                json_decref(j_dialing);
+//
+//                continue;
+//            }
+//        }
+//        json_decref(j_chan_agent);
+//
+//        // every channel work done.
+//        // write dialing result.
+//        ret = write_dialing_result(j_dialing);
+//        if(ret == false)
+//        {
+//            slog(LOG_ERR, "Could not write campaign dial result.");
+//        }
+//        json_decref(j_dialing);
+//
+//        // Delete all info related with dialing
+//        delete_dialing_info_all(j_dialing);
+//        json_decref(j_dialing);
+//    }
+//
+//    memdb_free(mem_res);
+//
+//    return;
 }
 
 /**
@@ -369,7 +412,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
                 "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
                 );
 
-        ret = update_dialing_info(j_tmp);
+        ret = update_memdb_dialing_info(j_tmp);
         json_decref(j_tmp);
         if(ret == false)
         {
@@ -389,7 +432,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
                 "status",           "hangup",
                 "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id"))
                 );
-        update_dialing_info(j_tmp);
+        update_memdb_dialing_info(j_tmp);
         json_decref(j_tmp);
         return;
     }
@@ -463,7 +506,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
             "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
             );
-    ret = update_dialing_info(j_tmp);
+    ret = update_memdb_dialing_info(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
@@ -472,7 +515,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     }
 
     // update timestamp
-    ret = update_dialing_timestamp("tm_agent_dial", json_string_value(json_object_get(j_chan, "unique_id")));
+    ret = update_memdb_dialing_timestamp("tm_tr_dial", json_string_value(json_object_get(j_chan, "unique_id")));
     if(ret == false)
     {
         slog(LOG_ERR, "Could not update agent dialing timestamp.");
@@ -878,7 +921,7 @@ static int update_dialing_after_transferred(json_t* j_dialing)
             "status = \"%s\", "
 
             // timestamp
-            "tm_agent_transfer = %s "
+            "tm_tr_dial_end = %s "
 
             "where chan_unique_id = \"%s\""
             ";",
@@ -1019,7 +1062,7 @@ static json_t* get_chans_dial_end(void)
             break;
         }
 
-        ret = json_array_append_new(j_chans, j_tmp);
+        ret = json_array_append(j_chans, j_tmp);
 
         json_decref(j_tmp);
     }
@@ -1062,7 +1105,50 @@ static json_t* get_chans_to_dist(void)
             break;
         }
 
-        ret = json_array_append_new(j_chans, j_tmp);
+        ret = json_array_append(j_chans, j_tmp);
+
+        json_decref(j_tmp);
+    }
+
+    memdb_free(mem_res);
+
+    return j_chans;
+}
+
+
+/**
+ * Get channels info that have a cause
+ * @return
+ */
+static json_t* get_chans_hangup(void)
+{
+    json_t* j_chans;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    // get answered channel.
+    ret = asprintf(&sql, "select * from channel where cause is not null;");
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get channels info.");
+        return NULL;
+    }
+
+    j_chans = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        ret = json_array_append(j_chans, j_tmp);
 
         json_decref(j_tmp);
     }
@@ -1125,3 +1211,118 @@ static bool check_answer_handle(json_t* j_dialing, json_t* j_plan)
     // else connect all
     return true;
 }
+
+static int check_dialing_by_channel(const json_t* j_chan)
+{
+    json_t* j_dialing;
+    int ret;
+
+    // get dialing
+    j_dialing = get_dialing_info_by_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
+    if(j_dialing == NULL)
+    {
+        return false;
+    }
+
+    // update hangup info.
+    ret = json_object_set(j_dialing, "res_hangup", json_object_get(j_chan, "cause"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. res_hangup[%s]", json_string_value(json_object_get(j_chan, "cause")));
+        return -1;
+    }
+
+    ret = json_object_set(j_dialing, "res_hangup_detail", json_object_get(j_chan, "cause_desc"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. res_hangup_detail[%s]", json_string_value(json_object_get(j_chan, "cause_desc")));
+        return -1;
+    }
+
+    ret = json_object_set(j_dialing, "tm_dial_end", json_object_get(j_chan, "tm_dial_end"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. tm_dial_end[%s]", json_string_value(json_object_get(j_chan, "tm_dial_end")));
+        return -1;
+    }
+
+    ret = json_object_set(j_dialing, "tm_hangup", json_object_get(j_chan, "tm_hangup"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. tm_hangup[%s]", json_string_value(json_object_get(j_chan, "tm_hangup")));
+        return -1;
+    }
+
+    ret = update_memdb_dialing_info(j_dialing);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not hangup channel info.");
+        return -1;
+    }
+
+    json_decref(j_dialing);
+
+    return true;
+}
+
+/**
+ * Check suitable dialing info by tr_chan_uqnieu_id,
+ * then update dialing info.
+ * @param j_chan
+ * @return
+ */
+static int check_dialing_by_tr_channel(const json_t* j_chan)
+{
+    json_t* j_dialing;
+    int ret;
+
+    // get dialing
+    j_dialing = get_dialing_info_by_tr_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
+    if(j_dialing == NULL)
+    {
+        return false;
+    }
+
+    // update hangup info.
+    ret = json_object_set(j_dialing, "res_tr_hangup", json_object_get(j_chan, "cause"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. res_tr_hangup[%s]", json_string_value(json_object_get(j_chan, "cause")));
+        return -1;
+    }
+
+    ret = json_object_set(j_dialing, "res_tr_hangup_detail", json_object_get(j_chan, "cause_desc"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. res_tr_hangup_detail[%s]", json_string_value(json_object_get(j_chan, "cause_desc")));
+        return -1;
+    }
+
+    ret = json_object_set(j_dialing, "tm_tr_dial_end", json_object_get(j_chan, "tm_dial_end"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. tm_tr_dial_end[%s]", json_string_value(json_object_get(j_chan, "tm_dial_end")));
+        return -1;
+    }
+
+    ret = json_object_set(j_dialing, "tm_tr_hangup", json_object_get(j_chan, "tm_hangup"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing object. tm_tr_hangup[%s]", json_string_value(json_object_get(j_chan, "tm_hangup")));
+        return -1;
+    }
+
+    ret = update_memdb_dialing_info(j_dialing);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not hangup channel info.");
+        return -1;
+    }
+
+    json_decref(j_dialing);
+
+    return true;
+}
+
+
+

@@ -28,15 +28,15 @@
 #include "chan_handler.h"
 
 
-static void dial_desktop(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
-static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
-static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
+static void dial_desktop(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
+static void dial_power(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
+static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
 static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 
-static int check_dial_avaiable(json_t* j_camp, json_t* j_plan);
-static json_t* get_dl_available(json_t* j_dlma, json_t* j_plan);
-static json_t* get_dl_available_predictive(json_t* j_dlma, json_t* j_plan);
+static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan);
+static json_t* get_dl_available(const json_t* j_dlma, const json_t* j_plan);
+static json_t* get_dl_available_predictive(const json_t* j_dlma, const json_t* j_plan);
 static char* get_dial_number(const json_t* j_dlist, const int cnt);
 //static int insert_dialing_info(json_t* j_dialing);
 static int update_dl_list(const char* table, const json_t* j_dlinfo);
@@ -331,7 +331,7 @@ void cb_campaign_check_end(unused__ int fd, unused__ short event, unused__ void 
  * @param j_camp
  * @param j_plan
  */
-static void dial_desktop(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
+static void dial_desktop(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma)
 {
     return;
 }
@@ -341,7 +341,7 @@ static void dial_desktop(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
  * @param j_camp
  * @param j_plan
  */
-static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
+static void dial_power(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma)
 {
     return;
 }
@@ -353,7 +353,7 @@ static void dial_power(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
  * @param j_plan    plan info
  * @param j_dlma    dial list master info
  */
-static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
+static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma)
 {
     int ret;
     json_t*	j_dl_list;
@@ -397,6 +397,12 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 
         return;
     }
+    slog(LOG_INFO, "Originating. campaign[%s], channel[%s], chan_unique_id[%s], timeout[%s]",
+            json_string_value(json_object_get(j_camp, "uuid")),
+            json_string_value(json_object_get(j_dial, "Channel")),
+            json_string_value(json_object_get(j_dial, "ChannelId")),
+            json_string_value(json_object_get(j_dial, "Timeout"))
+            );
 
     // dial to customer
     ret = cmd_originate(j_dial);
@@ -450,7 +456,7 @@ static void dial_predictive(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     }
 
     // update timestamp
-    ret = update_dialing_timestamp("tm_dial", json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+    ret = update_memdb_dialing_timestamp("tm_dial", json_string_value(json_object_get(j_dialing, "chan_unique_id")));
     if(ret == false)
     {
         json_decref(j_dialing);
@@ -885,7 +891,7 @@ json_t* campaign_get_all(void)
             break;
         }
 
-        json_array_append_new(j_out, j_res);
+        json_array_append(j_out, j_res);
         json_decref(j_res);
     }
 
@@ -1007,7 +1013,7 @@ json_t* get_dl_master_info(const char* uuid)
  * @param j_plan
  * @return
  */
-static int check_dial_avaiable(json_t* j_camp, json_t* j_plan)
+static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan)
 {
     char* sql;
     db_ctx_t* db_res;
@@ -1081,7 +1087,7 @@ static int check_dial_avaiable(json_t* j_camp, json_t* j_plan)
  * @param j_plan
  * @return
  */
-static json_t* get_dl_available(json_t* j_dlma, json_t* j_plan)
+static json_t* get_dl_available(const json_t* j_dlma, const json_t* j_plan)
 {
     json_t* j_res;
     const char* dial_mode;
@@ -1114,7 +1120,7 @@ static json_t* get_dl_available(json_t* j_dlma, json_t* j_plan)
  * @param j_plan
  * @return
  */
-static json_t* get_dl_available_predictive(json_t* j_dlma, json_t* j_plan)
+static json_t* get_dl_available_predictive(const json_t* j_dlma, const json_t* j_plan)
 {
     char* sql;
     unused__ int ret;
@@ -1236,7 +1242,7 @@ static char* get_dial_number(const json_t* j_dlist, const int cnt)
  * @param uuid
  * @return
  */
-json_t* get_dialing_info(const char* unique_id)
+json_t* get_dialing_info_by_chan_unique_id(const char* unique_id)
 {
     char* sql;
     unused__ int ret;
@@ -1291,6 +1297,37 @@ json_t* get_dialing_info_by_dl_uuid(const char* uuid)
 }
 
 /**
+ * Get dialing info from dialing table using dl_uuid.
+ * Return json should be release after use.
+ * @param uuid
+ * @return
+ */
+json_t* get_dialing_info_by_tr_chan_unique_id(const char* unique_id)
+{
+    char* sql;
+    unused__ int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
+
+    ret = asprintf(&sql, "select * from dialing where tr_chan_unique_id = \"%s\";",
+            unique_id
+            );
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dialing info.");
+        return NULL;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+
+    return j_res;
+}
+
+
+/**
  *
  * @param j_dlinfo
  * @return
@@ -1320,40 +1357,6 @@ static int update_dl_list(const char* table, const json_t* j_dlinfo)
     }
 
     return true;
-
-//
-//    ret = asprintf(&sql, "update %s set "
-//            // info
-//            "status = \"%s\", "
-//            "%s = %s + 1, "
-//            "chan_unique_id = \"%s\", "
-//
-//            // timestamp
-//            "tm_last_dial = %s "
-//
-//            "where uuid =\"%s\""
-//            ";",
-//
-//            json_string_value(json_object_get(j_dlinfo, "dl_table")),
-//
-//            "dialing",
-//            json_string_value(json_object_get(j_dlinfo, "try_cnt")), json_string_value(json_object_get(j_dlinfo, "try_cnt")),
-//            json_string_value(json_object_get(j_dlinfo, "chan_unique_id")),
-//
-//            "utc_timestamp()",
-//
-//            json_string_value(json_object_get(j_dlinfo, "dl_uuid"))
-//            );
-//
-//    ret = db_exec(sql);
-//    if(ret == false)
-//    {
-//        slog(LOG_ERR, "Could not insert channel info into database.");
-//        return false;
-//    }
-//    free(sql);
-//
-//    return true;
 }
 
 /**
@@ -1613,111 +1616,64 @@ int delete_dialing_info_all(json_t* j_dialing)
 }
 
 /**
- * Update dialing info
+ * Update database dialing info
  * @param j_dialing
  * @return
  */
-int update_dialing_info(json_t* j_dialing)
+int update_db_dialing_info(json_t* j_dialing)
 {
-    char*       sql;
-    char*       tmp;
-    json_t*     j_val;
-    char*       key;
-    bool        is_first;
-    int         ret;
-    json_type   type;
 
-    ret = strlen(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-    if(ret == 0)
+    char* sql;
+    int ret;
+    char* tmp;
+
+    tmp = db_get_update_str(j_dialing);
+    if(tmp == NULL)
     {
-        slog(LOG_ERR, "Could not find chan_unique_id.");
+        slog(LOG_ERR, "Could not get update sql.");
         return false;
     }
 
-    is_first = true;
-    sql = NULL;
-    tmp = NULL;
-    json_object_foreach(j_dialing, key, j_val)
-    {
-        // if key, just pass.
-        ret = strcmp(key, "chan_unique_id");
-        if(ret == 0)
-        {
-            continue;
-        }
-
-        // copy/set previous sql.
-        if(is_first == true)
-        {
-            ret = asprintf(&tmp, "update dialing set");
-            is_first = false;
-        }
-        else
-        {
-            ret = asprintf(&tmp, "%s,", sql);
-            free(sql);
-        }
-
-        sql = NULL;
-        type = json_typeof(j_val);
-        switch(type)
-        {
-            // string
-            case JSON_STRING:
-            {
-                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, json_string_value(j_val));
-            }
-            break;
-
-            // numbers
-            case JSON_INTEGER:
-            case JSON_REAL:
-            {
-                ret = asprintf(&sql, "%s %s = %f", tmp, key, json_number_value(j_val));
-            }
-            break;
-
-            // true
-            case JSON_TRUE:
-            {
-                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, "true");
-            }
-            break;
-
-            // false
-            case JSON_FALSE:
-            {
-                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, "false");
-            }
-            break;
-
-            case JSON_NULL:
-            {
-                ret = asprintf(&sql, "%s %s = \"%s\"", tmp, key, "null");
-            }
-            break;
-
-            // object
-            // array
-            default:
-            {
-                // Not done yet.
-
-                // we don't support another types.
-                slog(LOG_WARN, "Wrong type input. We don't handle this.");
-                ret = asprintf(&sql, "%s %s = %s", tmp, key, key);
-            }
-            break;
-
-        }
-        free(tmp);
-    }
-
+    ret = asprintf(&sql, "update dialing set %s where chan_unique_id = \"%s\";",
+            tmp, json_string_value(json_object_get(j_dialing, "chan_unique_id"))
+            );
+    free(tmp);
     ret = db_exec(sql);
-    free(sql);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not update dialing info.");
+        slog(LOG_ERR, "Could not update memdb_dialing info.");
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Update database dialing info
+ * @param j_dialing
+ * @return
+ */
+int update_memdb_dialing_info(const json_t* j_dialing)
+{
+    char* sql;
+    int ret;
+    char* tmp;
+
+    tmp = memdb_get_update_str(j_dialing);
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not get update sql.");
+        return false;
+    }
+
+    ret = asprintf(&sql, "update dialing set %s where chan_unique_id = \"%s\";",
+            tmp, json_string_value(json_object_get(j_dialing, "chan_unique_id"))
+            );
+    free(tmp);
+    ret = memdb_exec(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update memdb_dialing info.");
         return false;
     }
 
@@ -1731,7 +1687,7 @@ int update_dialing_info(json_t* j_dialing)
  * @param unique_id
  * @return
  */
-int update_dialing_timestamp(const char* column, const char* unique_id)
+int update_memdb_dialing_timestamp(const char* column, const char* unique_id)
 {
     int ret;
     char* sql;

@@ -503,9 +503,9 @@ static int init_callback(void)
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_transfer, NULL);
     event_add(ev, &tm_fast);
 
-//    // call_timeout
-//    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
-//    event_add(ev, &tm_slow);
+    // channel hangup handler
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
+    event_add(ev, &tm_slow);
 
     // campaign_stop
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_stop, NULL);

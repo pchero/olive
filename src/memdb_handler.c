@@ -384,7 +384,7 @@ int memdb_insert(const char* table, json_t* j_data)
  * Create only key=values part.
  * Should be free after use.
  */
-char* memdb_get_update_str(json_t* j_data)
+char* memdb_get_update_str(const json_t* j_data)
 {
 
     char*       res;
@@ -398,7 +398,7 @@ char* memdb_get_update_str(json_t* j_data)
     is_first = true;
     res = NULL;
     tmp = NULL;
-    json_object_foreach(j_data, key, j_val)
+    json_object_foreach((json_t*)j_data, key, j_val)
     {
         // copy/set previous sql.
         if(is_first == true)
@@ -418,7 +418,7 @@ char* memdb_get_update_str(json_t* j_data)
             // string
             case JSON_STRING:
             {
-                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, json_string_value(j_val));
+                ret = asprintf(&res, "%s%s = \'%s\'", tmp, key, json_string_value(j_val));
             }
             break;
 
