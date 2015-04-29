@@ -511,10 +511,11 @@ static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const js
     // update dl_list
     sprintf(try_cnt, "trycnt_%d", (int)json_integer_value(json_object_get(j_dialing, "dial_index")));
     j_dl_update = json_pack("{s:s, s:i, s:s, s:s}",
-            "status",           "dialing",
-            try_cnt,            json_integer_value(json_object_get(j_dialing, "dial_trycnt")) + 1,
-            "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-            "uuid",             json_string_value(json_object_get(j_dialing, "dl_uuid"))
+            "status",                   "dialing",
+            try_cnt,                    json_integer_value(json_object_get(j_dialing, "dial_trycnt")) + 1,
+            "dialing_camp_uuid",        json_string_value(json_object_get(j_dialing, "camp_uuid")),
+            "dialing_chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+            "uuid",                     json_string_value(json_object_get(j_dialing, "dl_uuid"))
             );
     ret = update_dl_list(json_string_value(json_object_get(j_dlma, "dl_table")), j_dl_update);
     json_decref(j_dl_update);
@@ -1589,19 +1590,19 @@ static int update_dl_result_clear(const json_t* j_dialing)
 
 
 /**
- *
+ * Update timestamp. dl_list table(ex. dl_e22732)
  * @param table
  * @param column
  * @param chan_unique_id
  * @return
  */
-int update_dl_list_timestamp(const char* table, const char* column, const char* chan_unique_id)
+int update_dl_list_timestamp(const char* table, const char* column, const char* uuid)
 {
     char* sql;
     int ret;
 
-    ret = asprintf(&sql, "update %s set %s = utc_timestamp() where chan_unique_id = \"%s\";",
-            table, column, chan_unique_id
+    ret = asprintf(&sql, "update %s set %s = utc_timestamp() where uuid = \"%s\";",
+            table, column, uuid
             );
 
     ret = db_exec(sql);
