@@ -21,7 +21,7 @@ create table campaign(
     
     -- resources
     agent_group varchar(255),                       -- agent group uuid
-    plan        varchar(255),                       -- plan uuid(plan)
+    plan_uuid   varchar(255),                       -- plan uuid
     dlma_uuid   varchar(255),                       -- dial_list_ma uuid
     trunk_group varchar(255),                       -- trunk group uuid
 
@@ -209,8 +209,8 @@ create table dl_org(
     status          varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
     
     -- current dialing
-    dialing_camp_uuid   varchar(255),       -- dialing campaign_uuid
-    chan_unique_id  varchar(255),                   -- dialing channel unique id.
+    dialing_camp_uuid       varchar(255),       -- dialing campaign_uuid
+    dialing_chan_unique_id  varchar(255),       -- dialing channel unique id.
     
     -- numbers.
     number_1    varchar(255),       -- tel number 1
@@ -237,7 +237,7 @@ create table dl_org(
 
     -- last dial result
     res_dial        varchar(255),   -- last dial result.(no answer, answer, busy, ...)
-    res_transfer    varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
+    res_hangup      varchar(255),   -- last route result after answer.(routed, agent busy, no route place, ...)
 --    call_detail text,               -- more detail info about call result
 
     -- timestamp. UTC.
@@ -323,7 +323,7 @@ insert into peer(name, mode, agent_uuid) values ("test-01", "peer", "agent-56b02
 insert into plan(uuid, name, dial_mode) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan", "predictive");
 
 -- insert campaign
-insert into campaign(uuid, name, status, agent_group, plan, dlma_uuid, trunk_group) 
+insert into campaign(uuid, name, status, agent_group, plan_uuid, dlma_uuid, trunk_group) 
 values (
 "campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7", "sample_campaign", "start", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56",
 "dl-e276d8be-a558-4546-948a-f99913a7fea2", "trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56"

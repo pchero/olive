@@ -42,12 +42,14 @@ static bool check_dialing_finshed(const json_t* j_dialing);
 static int check_cmapaign_result_already_exist(const json_t* j_dialing);
 
 
-// dial list
+// dl
 static json_t* get_dl_available(const json_t* j_dlma, const json_t* j_plan);
 static json_t* get_dl_available_predictive(const json_t* j_dlma, const json_t* j_plan);
 static json_t* get_dl_lists_info_by_status(const char* dl_table, const char* status);
 static json_t* get_dl_list_info_by_status(const char* dl_table, const char* status);
+static json_t* get_dl_list_info_by_uuid(const char* dl_table, const char* uuid);
 static int update_dl_list(const char* table, const json_t* j_dlinfo);
+static int update_dl_result_clear(const json_t* j_dialing);
 
 
 static char* get_dial_number(const json_t* j_dlist, const int cnt);
@@ -97,7 +99,7 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
     }
 
     // get plan
-    j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
+    j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan_uuid")));
     if(j_plan == NULL)
     {
         slog(LOG_ERR, "Could not find plan info. Stopping campaign.");
@@ -337,8 +339,6 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
 {
     json_t* j_dialings;
     json_t* j_dialing;
-    json_t* j_dlma;
-    json_t* j_tmp;
     int index;
     int ret;
 
@@ -369,12 +369,20 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
         }
         else if(ret == true)
         {
-            // just update dialing info.
-            json_object_set(j_dialing, "status", json_string("finished"));
-            ret = update_dialing_info(j_dialing);
+            // update dl
+            ret = update_dl_result_clear(j_dialing);
             if(ret == false)
             {
-                slog(LOG_ERR, "Could not update dialing status info.");
+                slog(LOG_ERR, "Could not update dial list info.");
+                continue;
+            }
+
+            // delete dialing
+            ret = delete_dialing_info_all(j_dialing);
+            if(ret == false)
+            {
+                slog(LOG_ERR, "Could not delete dialing info.");
+                continue;
             }
             continue;
         }
@@ -388,18 +396,20 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
         }
 
         // update dl
-        j_dlma = get_dl_master_info(json_string_value(json_object_get(j_dialing, "dlma_uuid")));
-        j_tmp = json_pack("{s:s, s:s}",
-                "status",   "idle",
-                "uuid",     json_string_value(json_object_get(j_dialing, "dl_uuid"))
-                );
-        ret = update_dl_list(json_string_value(json_object_get(j_dlma, "dl_table")), j_tmp);
+        ret = update_dl_result_clear(j_dialing);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not update dial list info.");
+            continue;
+        }
 
-
-        // delete diling
-
-        json_object_set(j_dialing, "status", json_string("finished"));
-        ret = update_dialing_info(j_dialing);
+        // delete dialing
+        ret = delete_dialing_info_all(j_dialing);
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete dialing info.");
+            continue;
+        }
     }
 
     json_decref(j_dialings);
@@ -1097,28 +1107,27 @@ json_t* get_dl_master_info(const char* uuid)
 static bool check_campaign_end(const json_t* j_camp)
 {
     json_t* j_dlma;
+    json_t* j_plan;
     json_t* j_dl;
+    int ret;
 
     j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
 
     // get dl_info. If there's "dialing" dl_list exist, then we can't say true.
     j_dl = get_dl_list_info_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "dialing");
+    json_decref(j_dlma);
     if(j_dl != NULL)
     {
-        json_decref(j_dlma);
         json_decref(j_dl);
         return false;
     }
 
-    // get dl_info. If there's "idle" dl_list exist, then we can't say true.
-    j_dl = get_dl_list_info_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "idle");
-    if(j_dl != NULL)
+    j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan_uuid")));
+    ret = check_dial_avaiable(j_camp, j_plan);
+    if(ret == false)
     {
-        json_decref(j_dlma);
-        json_decref(j_dl);
         return false;
     }
-    json_decref(j_dlma);
 
     return true;
 }
@@ -1524,6 +1533,63 @@ static int update_dl_list(const char* table, const json_t* j_dlinfo)
 
 /**
  *
+ * @param j_dlinfo
+ * @return
+ */
+static int update_dl_result_clear(const json_t* j_dialing)
+{
+    int ret;
+    json_t* j_dlma;
+    json_t* j_tmp;
+    const char* tmp;
+
+    // update dl
+    j_dlma = get_dl_master_info(json_string_value(json_object_get(j_dialing, "dlma_uuid")));
+
+    // check already status changed to "idle
+    j_tmp = get_dl_list_info_by_uuid(json_string_value(json_object_get(j_dlma, "dl_table")), json_string_value(json_object_get(j_dialing, "dl_uuid")));
+    if(j_tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not find dl_list info.");
+        json_decref(j_dlma);
+        return false;
+    }
+
+    tmp = json_string_value(json_object_get(j_tmp, "status"));
+    ret = strcmp(tmp, "idle");
+    if(ret == 0)
+    {
+        slog(LOG_INFO, "Already set to \"idle\".");
+        json_decref(j_dlma);
+        json_decref(j_tmp);
+        return true;
+    }
+    json_decref(j_tmp);
+
+    j_tmp = json_pack("{s:s, s:s}",
+            "status",                   "idle",
+            "dialing_camp_uuid",        "",
+            "dialing_chan_unique_id",   "",
+            "res_dial",                 json_string_value(json_object_get(j_dialing, "res_dial")),
+            "res_hangup",               json_string_value(json_object_get(j_dialing, "res_hangup")),
+            "uuid",                     json_string_value(json_object_get(j_dialing, "dl_uuid"))
+            );
+    ret = update_dl_list(json_string_value(json_object_get(j_dlma, "dl_table")), j_tmp);
+    json_decref(j_dlma);
+    json_decref(j_tmp);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update dl reseult clear info,");
+        return false;
+    }
+
+    return true;
+
+}
+
+
+/**
+ *
  * @param table
  * @param column
  * @param chan_unique_id
@@ -1651,7 +1717,7 @@ static int write_dialing_result(const json_t* j_dialing)
  * @param j_dialing
  * @return
  */
-int delete_memdb_dialing_info_all(json_t* j_dialing)
+int delete_dialing_info_all(json_t* j_dialing)
 {
     return true;
 }
@@ -2002,6 +2068,36 @@ static json_t* get_dl_list_info_by_status(const char* dl_table, const char* stat
 
     return j_res;
 }
+
+/**
+ * Get dial list info by dl_table and status
+ * @param dl_table
+ * @param status
+ * @return
+ */
+static json_t* get_dl_list_info_by_uuid(const char* dl_table, const char* uuid)
+{
+    json_t* j_res;
+    char* sql;
+    unused__ int ret;
+    db_ctx_t* db_res;
+
+    ret = asprintf(&sql, "select * from %s where uuid = \"%s\";", dl_table, uuid);
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dl_list info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+
+    return j_res;
+}
+
 
 /**
  * Return is there dialing list or not.

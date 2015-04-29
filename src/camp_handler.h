@@ -57,7 +57,7 @@ json_t* get_dialing_info_by_tr_chan_unique_id(const char* unique_id);
 json_t* get_dialing_info_by_dl_uuid(const char* uuid);
 json_t* get_dialings_info_by_status(const char* status);
 
-int delete_memdb_dialing_info_all(json_t* j_dialing);
+int delete_dialing_info_all(json_t* j_dialing);
 //int update_dialing_info(json_t* j_dialing);
 int update_db_dialing_info(json_t* j_dialing);
 int update_dialing_info(const json_t* j_dialing);
