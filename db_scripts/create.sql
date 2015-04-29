@@ -78,7 +78,7 @@ create table campaign_result(
     res_tr_hangup           varchar(255),   -- hangup code.\n"
     res_tr_hangup_detail    varchar(255),   -- hangup detail.\n"
         
-    primary key(seq)
+    primary key(seq, chan_unique_id)
     
 );
 
@@ -207,6 +207,9 @@ create table dl_org(
     detail          varchar(255),
     uui             text,                           -- user-user information
     status          varchar(255) default "idle",    -- dial list status. ("idle", "dialing", ...)
+    
+    -- current dialing
+    dialing_camp_uuid   varchar(255),       -- dialing campaign_uuid
     chan_unique_id  varchar(255),                   -- dialing channel unique id.
     
     -- numbers.

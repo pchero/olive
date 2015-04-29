@@ -61,7 +61,7 @@ void cb_chan_dial_end(unused__ evutil_socket_t fd, unused__ short what, unused__
                 "status",           "dial_end",
                 "chan_unique_id",   json_string_value(json_object_get(j_chan, "unique_id"))
                 );
-        ret = update_memdb_dialing_info(j_tmp);
+        ret = update_dialing_info(j_tmp);
         json_decref(j_tmp);
         if(ret == false)
         {
@@ -120,7 +120,7 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
                     "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
                     "tm_dial_end",      json_string_value(json_object_get(j_chan, "tm_dial_end"))
                     );
-            update_memdb_dialing_info(j_tmp);
+            update_dialing_info(j_tmp);
             json_decref(j_tmp);
         }
 
@@ -412,7 +412,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
                 "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
                 );
 
-        ret = update_memdb_dialing_info(j_tmp);
+        ret = update_dialing_info(j_tmp);
         json_decref(j_tmp);
         if(ret == false)
         {
@@ -432,7 +432,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
                 "status",           "hangup",
                 "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id"))
                 );
-        update_memdb_dialing_info(j_tmp);
+        update_dialing_info(j_tmp);
         json_decref(j_tmp);
         return;
     }
@@ -506,7 +506,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
             "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
             );
-    ret = update_memdb_dialing_info(j_tmp);
+    ret = update_dialing_info(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
@@ -515,7 +515,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     }
 
     // update timestamp
-    ret = update_memdb_dialing_timestamp("tm_tr_dial", json_string_value(json_object_get(j_chan, "unique_id")));
+    ret = update_dialing_timestamp("tm_tr_dial", json_string_value(json_object_get(j_chan, "unique_id")));
     if(ret == false)
     {
         slog(LOG_ERR, "Could not update agent dialing timestamp.");
@@ -1253,7 +1253,7 @@ static int check_dialing_by_channel(const json_t* j_chan)
         return -1;
     }
 
-    ret = update_memdb_dialing_info(j_dialing);
+    ret = update_dialing_info(j_dialing);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not hangup channel info.");
@@ -1312,7 +1312,7 @@ static int check_dialing_by_tr_channel(const json_t* j_chan)
         return -1;
     }
 
-    ret = update_memdb_dialing_info(j_dialing);
+    ret = update_dialing_info(j_dialing);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not hangup channel info.");

@@ -34,21 +34,30 @@ static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const js
 static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 
+// checks
 static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan);
+static bool check_campaign_end(const json_t* j_camp);
+static bool check_dialing_list_by_camp(const json_t* j_camp);
+static bool check_dialing_finshed(const json_t* j_dialing);
+static int check_cmapaign_result_already_exist(const json_t* j_dialing);
+
+
+// dial list
 static json_t* get_dl_available(const json_t* j_dlma, const json_t* j_plan);
 static json_t* get_dl_available_predictive(const json_t* j_dlma, const json_t* j_plan);
-static char* get_dial_number(const json_t* j_dlist, const int cnt);
-//static int insert_dialing_info(json_t* j_dialing);
+static json_t* get_dl_lists_info_by_status(const char* dl_table, const char* status);
+static json_t* get_dl_list_info_by_status(const char* dl_table, const char* status);
 static int update_dl_list(const char* table, const json_t* j_dlinfo);
+
+
+static char* get_dial_number(const json_t* j_dlist, const int cnt);
 static int get_dial_num_point(const json_t* j_dl_list, const json_t* j_plan);
 static int get_dial_num_count(const json_t* j_dl_list, int idx);
 static char* create_dl_list_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list);
+
 static json_t* create_dial_info(json_t* j_dialing);
 static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma, const json_t* j_dl_list);
 static json_t* get_campaigns_by_status(const char* status);
-static json_t* get_dl_list_by_status(const char* dl_table, const char* status);
-static bool check_dialing_list_by_camp(const json_t* j_camp);
-static bool check_dialing_finshed(const json_t* j_dialing);
 static int write_dialing_result(const json_t* j_dialing);
 
 
@@ -290,9 +299,6 @@ void cb_campaign_check_end(unused__ int fd, unused__ short event, unused__ void 
 {
     json_t* j_camps;
     json_t* j_camp;
-    json_t* j_tmp;
-    json_t* j_dlma;
-    json_t* j_plan;
     int index;
     unused__ int ret;
 
@@ -305,22 +311,19 @@ void cb_campaign_check_end(unused__ int fd, unused__ short event, unused__ void 
     json_array_foreach(j_camps, index, j_camp)
     {
         slog(LOG_DEBUG, "Value check. uuid[%s]", json_string_value(json_object_get(j_camp, "uuid")));
-        j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan")));
-        j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
 
-        slog(LOG_DEBUG, "Value check. dial_mode[%s]", json_string_value(json_object_get(j_plan, "dial_mode")));
-        j_tmp = get_dl_available(j_dlma, j_plan);
-
-        // if there's no more dial list... than starting to stop.
-        if(j_tmp == NULL)
+        ret = check_campaign_end(j_camp);
+        if(ret == false)
         {
-            ret = update_campaign_info_status(json_string_value(json_object_get(j_camp, "uuid")), "stopping");
+            continue;
         }
 
-        json_decref(j_plan);
-        json_decref(j_dlma);
-        json_decref(j_tmp);
-
+        ret = update_campaign_info_status(json_string_value(json_object_get(j_camp, "uuid")), "stopping");
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not update campaign status info.");
+            continue;
+        }
     }
     json_decref(j_camps);
 
@@ -329,12 +332,13 @@ void cb_campaign_check_end(unused__ int fd, unused__ short event, unused__ void 
 
 /**
  * Check finished dialing then insert into campaign_result.
- * Then delete dialing info.
  */
 void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *arg)
 {
     json_t* j_dialings;
     json_t* j_dialing;
+    json_t* j_dlma;
+    json_t* j_tmp;
     int index;
     int ret;
 
@@ -355,6 +359,26 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
             continue;
         }
 
+        // check already inserted into result.
+        ret = check_cmapaign_result_already_exist(j_dialing);
+        if(ret == -1)
+        {
+            // we can't handle this now.
+            slog(LOG_ERR, "Could not check result already existence.");
+            continue;
+        }
+        else if(ret == true)
+        {
+            // just update dialing info.
+            json_object_set(j_dialing, "status", json_string("finished"));
+            ret = update_dialing_info(j_dialing);
+            if(ret == false)
+            {
+                slog(LOG_ERR, "Could not update dialing status info.");
+            }
+            continue;
+        }
+
         // insert dialing result.
         ret = write_dialing_result(j_dialing);
         if(ret == false)
@@ -363,10 +387,19 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
             continue;
         }
 
-        // update db_dialing info.
-        // todo: what should I do? If failed to update_db_dialing?
+        // update dl
+        j_dlma = get_dl_master_info(json_string_value(json_object_get(j_dialing, "dlma_uuid")));
+        j_tmp = json_pack("{s:s, s:s}",
+                "status",   "idle",
+                "uuid",     json_string_value(json_object_get(j_dialing, "dl_uuid"))
+                );
+        ret = update_dl_list(json_string_value(json_object_get(j_dlma, "dl_table")), j_tmp);
 
-        // delete info
+
+        // delete diling
+
+        json_object_set(j_dialing, "status", json_string("finished"));
+        ret = update_dialing_info(j_dialing);
     }
 
     json_decref(j_dialings);
@@ -506,7 +539,7 @@ static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const js
     }
 
     // update timestamp
-    ret = update_memdb_dialing_timestamp("tm_dial", json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+    ret = update_dialing_timestamp("tm_dial", json_string_value(json_object_get(j_dialing, "chan_unique_id")));
     if(ret == false)
     {
         json_decref(j_dialing);
@@ -1057,6 +1090,40 @@ json_t* get_dl_master_info(const char* uuid)
 }
 
 /**
+ * Check campaign end.
+ * @param j_camp
+ * @return
+ */
+static bool check_campaign_end(const json_t* j_camp)
+{
+    json_t* j_dlma;
+    json_t* j_dl;
+
+    j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
+
+    // get dl_info. If there's "dialing" dl_list exist, then we can't say true.
+    j_dl = get_dl_list_info_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "dialing");
+    if(j_dl != NULL)
+    {
+        json_decref(j_dlma);
+        json_decref(j_dl);
+        return false;
+    }
+
+    // get dl_info. If there's "idle" dl_list exist, then we can't say true.
+    j_dl = get_dl_list_info_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "idle");
+    if(j_dl != NULL)
+    {
+        json_decref(j_dlma);
+        json_decref(j_dl);
+        return false;
+    }
+    json_decref(j_dlma);
+
+    return true;
+}
+
+/**
  * Return dialing availability.
  * If can dialing returns true, if not returns false.
  * @param j_camp
@@ -1555,12 +1622,7 @@ static int get_dial_num_count(const json_t* j_dl_list, int idx)
  */
 static int write_dialing_result(const json_t* j_dialing)
 {
-//    json_t* j_customer;
-//    json_t* j_transfer;
-//    json_t* j_dial_result;
-//    json_t* j_park;
     int ret;
-//    char* sql;
     json_t* j_tmp;
 
     j_tmp = json_deep_copy(j_dialing);
@@ -1574,7 +1636,7 @@ static int write_dialing_result(const json_t* j_dialing)
     }
 
     // insert j_dialnig info into dialing database.
-    ret = db_insert("dialing", j_tmp);
+    ret = db_insert("campaign_result", j_tmp);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not insert campaign result info.");
@@ -1582,145 +1644,6 @@ static int write_dialing_result(const json_t* j_dialing)
     }
 
     return true;
-
-//
-//    ret = asprintf(&sql, "insert into campaign_result("
-//            // identity
-//            "camp_uuid, dlma_uuid, dl_uuid, "
-//
-//            // channel information
-//            "chan_unique_id, tr_chan_unique_id, "
-//
-//            // timestamp(UTC)
-//            "tm_dial_req, tm_dial_start, tm_dial_end, tm_parked_in, tm_parked_out, "
-//            "tm_transfer_req, tm_transfer_start, tm_transfer_end, tm_chan_hangup, tm_tr_chan_hangup, "
-//
-//            // dial result
-//            "res_voice, res_voice_detail, res_dial, res_tr_trycnt, res_tr_dial, "
-//            "res_tr_agent_uuid, "
-//
-//            // dialing information
-//            "dial_number, dial_number_idx, dial_number_cnt, dial_string, dial_sip_callid, "
-//
-//            // transfer dial information
-//            "dial_tr_number, dial_tr_string, dial_tr_sip_callid, "
-//
-//            // plan information
-//            "plan_dial_mode, plan_dial_timeout, plan_caller_id, plan_answer_handle"
-//
-//            ") values ("
-//            ");"
-//            );
-//
-//    ret = db_exec(sql);
-//    free(sql);
-//    if(ret == false)
-//    {
-//        slog(LOG_ERR, "Could not insert result into database.");
-//        return false;
-//    }
-//
-//    return true;
-//
-//
-//
-//
-//
-//    // get customer channel info
-//    j_customer = get_chan_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-//    if(j_customer == NULL)
-//    {
-//        slog(LOG_ERR, "Could not find customer channel info.");
-//        return false;
-//    }
-//
-//    // get transferred channel info
-//    j_transfer = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")));
-//
-//    // get parked channel info
-//    j_park = get_park_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-//
-//    // todo: write dial result.
-//    j_dial_result = json_pack("{"
-//            // identity
-//            "s:s, s:s, s:s, "
-//
-//            // chanel info
-//            "s:s, s:s, "
-//
-//            // timestamp
-//            "s:s, s:s, s:s, s:s, s:s, "
-//            "s:s, s:s, s:s, s:s, s:s, "
-//
-//            // dial result
-//            "s:s, s:s, s:s, s:s, s:s, "
-//            "s:s, "
-//
-//            // dial information
-//            "s:s, s:s, s:s, s:s, s:s, "
-//
-//            // transfer dial information
-//            "s:s, s:s, s:s, "
-//
-//            // plan information
-//            "s:s, s:s, s:s, s:s"
-//
-//            "}",
-//
-//            // identity
-//            "camp_uuid",    json_string_value(json_object_get(j_dialing, "camp_uuid")),
-//            "dlma_uuid",    json_string_value(json_object_get(j_dialing, "dlma_uuid")),
-//            "dl_uuid",      json_string_value(json_object_get(j_dialing, "dl_uuid")),
-//
-//            // channel info
-//            "chan_unique_id",       json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-//            "tr_chan_unique_id",    json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")),
-//
-//            // timestamp
-//            "tm_dial_req",      json_string_value(json_object_get(j_dialing, "tm_dial")),
-//            "tm_dial_start",    json_string_value(json_object_get(j_customer, "tm_dial")),
-//            "tm_dial_end",      json_string_value(json_object_get(j_customer, "tm_dial_end")),
-//            "tm_parked_in",     json_string_value(json_object_get(j_park, "tm_parkedin")),
-//            "tm_parked_out",    json_string_value(json_object_get(j_park, "tm_parkedout")),
-//
-//            "tm_transfer_req",      json_string_value(json_object_get(j_customer, "tm_agent_transfer")),
-//            "tm_transfer_start",    json_null(),    // no idea yet.
-//            "tm_transfer_end",      json_null(),    // no idea yet.
-//            "tm_chan_hangup",       json_string_value(json_object_get(j_customer, "tm_hangup")),
-//            "tm_tr_chan_hangup",    json_string_value(json_object_get(j_transfer, "tm_hangup")),
-//
-//            // dial result
-//            "res_voice",            json_string_value(json_object_get(j_customer, "AMDSTATUS")),
-//            "res_voice_detail",     json_string_value(json_object_get(j_customer, "AMDCAUSE")),
-//            "res_dial",             json_null(),    // no idea
-//            "res_tr_trycnt",        json_integer_value(json_object_get(j_dialing, "tr_trycnt")),
-//            "res_tr_dial",          json_null(),    // no idea
-//
-//            "res_tr_agent_uuid",    json_string_value(json_object_get(j_dialing, "tr_agent_uuid")),
-//
-//            // dial information
-//            "dial_number",      json_string_value(json_object_get(j_dialing, "dial_addr")),
-//            "dial_number_idx",  json_integer_value(json_object_get(j_dialing, "dial_index")),
-//            "dial_number_cnt",  json_integer_value(json_object_get(j_dialing, "dial_trycnt")),
-//            "dial_string",      json_string_value(json_object_get(j_customer, "dial_string")),
-//            "dial_sip_callid",  json_string_value(json_object_get(j_customer, "SIPCALLID")),
-//
-//            // transfer dial information
-//            "dial_tr_number",       json_null(), // no idea
-//            "dial_tr_string",       json_string_value(json_object_get(j_transfer, "dial_string")),
-//            "dial_tr_sip_callid",   json_string_value(json_object_get(j_transfer, "SIPCALLID")),
-//
-//            // plan information
-//            "plan_dial_mode",       json_string_value(json_object_get(j_dialing, "plan_dial_mode")),
-//            "plan_dial_timeout",    json_string_value(json_object_get(j_dialing, "plan_dial_timeout")),
-//            "plan_caller_id",       json_string_value(json_object_get(j_dialing, "plan_caller_id")),
-//            "plan_answer_handle",   json_string_value(json_object_get(j_dialing, "plan_answer_handle"))
-//
-//            );
-//
-//    // todo: Need to do something here.
-//
-//    return true;
 }
 
 /**
@@ -1771,7 +1694,7 @@ int update_db_dialing_info(json_t* j_dialing)
  * @param j_dialing
  * @return
  */
-int update_memdb_dialing_info(const json_t* j_dialing)
+int update_dialing_info(const json_t* j_dialing)
 {
     char* sql;
     int ret;
@@ -1805,7 +1728,7 @@ int update_memdb_dialing_info(const json_t* j_dialing)
  * @param unique_id
  * @return
  */
-int update_memdb_dialing_timestamp(const char* column, const char* unique_id)
+int update_dialing_timestamp(const char* column, const char* unique_id)
 {
     int ret;
     char* sql;
@@ -2004,7 +1927,13 @@ static json_t* get_campaigns_by_status(const char* status)
     return j_res;
 }
 
-static json_t* get_dl_list_by_status(const char* dl_table, const char* status)
+/**
+ * Get dial list array info by dl_table and status
+ * @param dl_table
+ * @param status
+ * @return
+ */
+static json_t* get_dl_lists_info_by_status(const char* dl_table, const char* status)
 {
     json_t* j_res;
     json_t* j_tmp;
@@ -2046,6 +1975,35 @@ static json_t* get_dl_list_by_status(const char* dl_table, const char* status)
 }
 
 /**
+ * Get dial list info by dl_table and status
+ * @param dl_table
+ * @param status
+ * @return
+ */
+static json_t* get_dl_list_info_by_status(const char* dl_table, const char* status)
+{
+    json_t* j_res;
+    char* sql;
+    unused__ int ret;
+    db_ctx_t* db_res;
+
+    ret = asprintf(&sql, "select * from %s where status = \"%s\" limit 1;", dl_table, status);
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dl_list info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+
+    return j_res;
+}
+
+/**
  * Return is there dialing list or not.
  * If there's no currently dialing list, return false.
  * @param j_camp
@@ -2060,7 +2018,7 @@ static bool check_dialing_list_by_camp(const json_t* j_camp)
 
     j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
 
-    j_dl_lists = get_dl_list_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "dialing");
+    j_dl_lists = get_dl_lists_info_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "dialing");
     if(j_dl_lists == NULL)
     {
         // Just error. Not stop yet. We can't know that now.
@@ -2114,6 +2072,42 @@ static bool check_dialing_finshed(const json_t* j_dialing)
         // Agent didn't hangup yet.
         return false;
     }
+
+    return true;
+}
+
+/**
+ * Check there's dialing result info in the table.
+ * @param j_dialing
+ * @return error:-1, non-exists:false, exists:true
+ */
+static int check_cmapaign_result_already_exist(const json_t* j_dialing)
+{
+    char* sql;
+    unused__ int ret;
+    db_ctx_t* db_res;
+    json_t* j_tmp;
+
+    ret = asprintf(&sql, "select * from campaign_result where chan_unique_id = \"%s\";",
+            json_string_value(json_object_get(j_dialing, "chan_unique_id"))
+            );
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get campaign_result info,");
+        return -1;
+    }
+
+    j_tmp = db_get_record(db_res);
+    db_free(db_res);
+    if(j_tmp == NULL)
+    {
+        return false;
+    }
+
+    json_decref(j_tmp);
 
     return true;
 }
