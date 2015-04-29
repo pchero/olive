@@ -27,7 +27,7 @@
 #include "sip_handler.h"
 #include "chan_handler.h"
 
-
+// dial
 static void dial_desktop(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
 static void dial_power(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
 static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
@@ -35,31 +35,34 @@ static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 
 // checks
-static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan);
+static int  check_dial_avaiable(const json_t* j_camp, const json_t* j_plan);
 static bool check_campaign_end(const json_t* j_camp);
 static bool check_dialing_list_by_camp(const json_t* j_camp);
 static bool check_dialing_finshed(const json_t* j_dialing);
-static int check_cmapaign_result_already_exist(const json_t* j_dialing);
+static int  check_cmapaign_result_already_exist(const json_t* j_dialing);
+static bool check_campaign_has_no_dialing(const json_t* j_camp);
 
+// dial list
+static json_t*  get_dl_dial_available(const json_t* j_dlma, const json_t* j_plan);
+static json_t*  get_dl_available_predictive(const json_t* j_dlma, const json_t* j_plan);
+static json_t*  get_dl_lists_info_by_status(const char* dl_table, const char* status);
+static json_t*  get_dl_list_info_by_status(const char* dl_table, const char* status);
+static json_t*  get_dl_list_info_by_camp_and_status(const char* dl_table, const char* camp_uuid, const char* status);
+static json_t*  get_dl_list_info_by_uuid(const char* dl_table, const char* uuid);
+static int      update_dl_list(const char* table, const json_t* j_dlinfo);
+static int      update_dl_result_clear(const json_t* j_dialing);
 
-// dl
-static json_t* get_dl_available(const json_t* j_dlma, const json_t* j_plan);
-static json_t* get_dl_available_predictive(const json_t* j_dlma, const json_t* j_plan);
-static json_t* get_dl_lists_info_by_status(const char* dl_table, const char* status);
-static json_t* get_dl_list_info_by_status(const char* dl_table, const char* status);
-static json_t* get_dl_list_info_by_uuid(const char* dl_table, const char* uuid);
-static int update_dl_list(const char* table, const json_t* j_dlinfo);
-static int update_dl_result_clear(const json_t* j_dialing);
+// dial misc
+static char*    get_dial_number(const json_t* j_dlist, const int cnt);
+static int      get_dial_num_point(const json_t* j_dl_list, const json_t* j_plan);
+static int      get_dial_num_count(const json_t* j_dl_list, int idx);
+static char*    create_dial_addr_from_dl(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list);
+static json_t*  create_dial_info(json_t* j_dialing);
 
-
-static char* get_dial_number(const json_t* j_dlist, const int cnt);
-static int get_dial_num_point(const json_t* j_dl_list, const json_t* j_plan);
-static int get_dial_num_count(const json_t* j_dl_list, int idx);
-static char* create_dl_list_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list);
-
-static json_t* create_dial_info(json_t* j_dialing);
+// etc
 static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma, const json_t* j_dl_list);
 static json_t* get_campaigns_by_status(const char* status);
+static json_t* get_campaign_for_dial(void);
 static int write_dialing_result(const json_t* j_dialing);
 
 
@@ -69,32 +72,15 @@ static int write_dialing_result(const json_t* j_dialing);
 void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg)
 {
     unused__ int ret;
-    db_ctx_t*   db_res;
     json_t*     j_camp; // working campaign
     json_t*     j_plan;
     json_t*     j_dlma;
     const char* dial_mode;
-    char*       sql;
 
-    // get start campaign
-    // 1 campaign at once.
-    ret = asprintf(&sql, "select * from campaign where status = \"%s\" order by rand() limit 1;",
-            "start"
-            );
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get campaign info.");
-        return;
-    }
-
-    // get campaign
-    j_camp = db_get_record(db_res);
-    db_free(db_res);
+    // get dial available campaign.
+    j_camp = get_campaign_for_dial();
     if(j_camp == NULL)
     {
-        // No available campaign.
         return;
     }
 
@@ -185,9 +171,9 @@ void cb_campaign_stop(unused__ int fd, unused__ short event, unused__ void *arg)
     json_array_foreach(j_camps, index, j_camp)
     {
 
-        // check no more dialing now
-        ret = check_dialing_list_by_camp(j_camp);
-        if(ret == true)
+        // check no more dialing now.
+        ret = check_campaign_has_no_dialing(j_camp);
+        if(ret == false)
         {
             continue;
         }
@@ -455,7 +441,7 @@ static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const js
     char    try_cnt[128];   // string buffer for "trycnt_1"...
 
     // get dl_list info to dial.
-    j_dl_list = get_dl_available(j_dlma, j_plan);
+    j_dl_list = get_dl_dial_available(j_dlma, j_plan);
     if(j_dl_list == NULL)
     {
         // No available list
@@ -1110,25 +1096,43 @@ static bool check_campaign_end(const json_t* j_camp)
     json_t* j_dlma;
     json_t* j_plan;
     json_t* j_dl;
-    int ret;
 
     j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
+    if(j_dlma == NULL)
+    {
+        slog(LOG_ERR, "Could not get dl master info. Can not diagnose.");
+        return false;
+    }
 
-    // get dl_info. If there's "dialing" dl_list exist, then we can't say true.
-    j_dl = get_dl_list_info_by_status(json_string_value(json_object_get(j_dlma, "dl_table")), "dialing");
-    json_decref(j_dlma);
+    // check there's "dialing" status dl_list.
+    // it there is, that means campaign is working.
+    j_dl = get_dl_list_info_by_camp_and_status(
+            json_string_value(json_object_get(j_dlma, "dl_table")),
+            json_string_value(json_object_get(j_camp, "uuid")),
+            "dialing"
+            );
     if(j_dl != NULL)
     {
+        json_decref(j_dlma);
         json_decref(j_dl);
         return false;
     }
 
+    // check there's dial available dl.
+    // it there is, that means campaign is working.
     j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan_uuid")));
-    ret = check_dial_avaiable(j_camp, j_plan);
-    if(ret == false)
+    j_dl = get_dl_dial_available(j_dlma, j_plan);
+    if(j_dl != NULL)
     {
+        json_decref(j_dlma);
+        json_decref(j_dl);
+        json_decref(j_plan);
         return false;
     }
+
+    json_decref(j_dlma);
+    json_decref(j_dl);
+    json_decref(j_plan);
 
     return true;
 }
@@ -1214,7 +1218,7 @@ static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan)
  * @param j_plan
  * @return
  */
-static json_t* get_dl_available(const json_t* j_dlma, const json_t* j_plan)
+static json_t* get_dl_dial_available(const json_t* j_dlma, const json_t* j_plan)
 {
     json_t* j_res;
     const char* dial_mode;
@@ -1822,7 +1826,7 @@ int update_dialing_timestamp(const char* column, const char* unique_id)
  * @param j_dl_list
  * @return
  */
-static char* create_dl_list_dial_addr(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list)
+static char* create_dial_addr_from_dl(const json_t* j_camp, const json_t* j_plan, const json_t* j_dl_list)
 {
     int dial_num_point;
     char* cust_addr;
@@ -1877,7 +1881,7 @@ static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, c
     unused__ int ret;
 
     // create dial address.
-    dial_addr = create_dl_list_dial_addr(j_camp, j_plan, j_dl_list);
+    dial_addr = create_dial_addr_from_dl(j_camp, j_plan, j_dl_list);
     if(dial_addr == NULL)
     {
         // No available address
@@ -1995,6 +1999,35 @@ static json_t* get_campaigns_by_status(const char* status)
 }
 
 /**
+ * Get dial available campaign. 1 campaign at once.
+ * @return
+ */
+static json_t* get_campaign_for_dial(void)
+{
+    json_t* j_res;
+    unused__ int ret;
+    char* sql;
+    db_ctx_t* db_res;
+
+    ret = asprintf(&sql, "select * from campaign where status = \"%s\" order by rand() limit 1;",
+            "start"
+            );
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get campaign info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+
+    return j_res;
+}
+
+/**
  * Get dial list array info by dl_table and status
  * @param dl_table
  * @param status
@@ -2042,12 +2075,40 @@ static json_t* get_dl_lists_info_by_status(const char* dl_table, const char* sta
 }
 
 /**
+ * Get dial list info from dl_table by camp_uuid and status
+ * @return
+ */
+static json_t* get_dl_list_info_by_camp_and_status(const char* dl_table, const char* camp_uuid, const char* status)
+{
+    json_t* j_res;
+    char* sql;
+    unused__ int ret;
+    db_ctx_t* db_res;
+
+    ret = asprintf(&sql, "select * from %s where camp_uuid = \"%s\" and status = \"%s\" limit 1;", dl_table, camp_uuid, status);
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dl_list info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+
+    return j_res;
+
+}
+
+/**
  * Get dial list info by dl_table and status
  * @param dl_table
  * @param status
  * @return
  */
-static json_t* get_dl_list_info_by_status(const char* dl_table, const char* status)
+unused__ static json_t* get_dl_list_info_by_status(const char* dl_table, const char* status)
 {
     json_t* j_res;
     char* sql;
@@ -2106,7 +2167,7 @@ static json_t* get_dl_list_info_by_uuid(const char* dl_table, const char* uuid)
  * @param j_camp
  * @return
  */
-static bool check_dialing_list_by_camp(const json_t* j_camp)
+unused__ static bool check_dialing_list_by_camp(const json_t* j_camp)
 {
 
     json_t* j_dlma;
@@ -2132,6 +2193,41 @@ static bool check_dialing_list_by_camp(const json_t* j_camp)
         return false;
     }
 
+    return true;
+}
+
+/**
+ * Return is there dialing list or not.
+ * If there's no currently dialing list, return false.
+ * @param j_camp
+ * @return
+ */
+static bool check_campaign_has_no_dialing(const json_t* j_camp)
+{
+
+    json_t* j_dlma;
+    json_t* j_dl;
+
+    j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
+    if(j_dlma == NULL)
+    {
+        // We can't know about this campaign really has no dialing dl list now.
+        // So just return false.
+        slog(LOG_ERR, "Could not get dl master info.");
+        return false;
+    }
+
+    j_dl = get_dl_list_info_by_camp_and_status(
+            json_string_value(json_object_get(j_dlma, "dl_table")),
+            json_string_value(json_object_get(j_camp, "uuid")),
+            "dialing"
+            );
+    json_decref(j_dlma);
+    if(j_dl != NULL)
+    {
+        json_decref(j_dl);
+        return false;
+    }
     return true;
 }
 

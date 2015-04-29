@@ -11,7 +11,7 @@
 #include <jansson.h>
 
 
-json_t* sip_get_peer(json_t* j_agent, const char* status);
+json_t* sip_get_peer_by_agent_and_status(json_t* j_agent, const char* status);
 char* sip_gen_call_addr(json_t* j_peer, const char* dial_to);
 json_t* sip_get_trunk_avaialbe(const char* grou_uuid);
 

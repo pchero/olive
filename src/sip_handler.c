@@ -26,7 +26,7 @@
  * @param status
  * @return
  */
-json_t* sip_get_peer(json_t* j_agent, const char* status)
+json_t* sip_get_peer_by_agent_and_status(json_t* j_agent, const char* status)
 {
     json_t* j_peer;
     json_t* j_agent_peer;

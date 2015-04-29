@@ -50,10 +50,13 @@ create table campaign_result(
     info_dl     text    not null,   -- dl info. json format.    
     
     -- timestamp(UTC)
-    tm_dial             datetime(6),   -- timestamp for dialing request.
-    tm_dial_end         datetime(6),   -- timestamp for dialing start.
-    tm_redirect         datetime(6),   -- timestamp for dialing end.
-    tm_hangup           datetime(6),   -- timestamp for dialing end.
+    tm_dial             datetime(6),   -- timestamp for dialing requested.
+    tm_dial_end         datetime(6),   -- timestamp for dialing ended.
+    
+    tm_redirect         datetime(6),   -- timestamp for call redirected.
+    tm_bridge           datetime(6),   -- timestamp for call bridged.
+    tm_hangup           datetime(6),   -- timestamp for call hanguped.
+    
     tm_tr_dial          datetime(6),   -- timestamp for dialing to agent.
     tm_tr_dial_end      datetime(6),   -- timestamp for transfer to agent.
     tm_tr_hangup        datetime(6),   -- timestamp for agent hangup.
