@@ -70,7 +70,7 @@ bool load_table_agent(void)
  * But not detail info.
  * @return
  */
-json_t* agent_all_get(void)
+json_t* agent_get_all(void)
 {
     char* sql;
     json_t* j_agents;

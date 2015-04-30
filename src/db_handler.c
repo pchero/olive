@@ -282,6 +282,12 @@ void db_free(db_ctx_t* ctx)
     return;
 }
 
+/**
+ * Insert j_data into table.
+ * @param table
+ * @param j_data
+ * @return
+ */
 int db_insert(const char* table, json_t* j_data)
 {
     char*       sql;

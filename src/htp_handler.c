@@ -168,8 +168,14 @@ static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused))
     return EVHTP_RES_OK;
 }
 
-
-static bool create_common_result(evhtp_request_t *r, json_t* j_res)
+/**
+ * Create olive API result format.
+ * {"result":json_object, "timestamp":UTC_time_clock}
+ * @param r
+ * @param j_res
+ * @return
+ */
+static bool create_common_result(evhtp_request_t *r, OLIVE_RESULT res_code, json_t* j_res)
 {
     json_t* j_out;
     char* timestamp;
@@ -177,9 +183,10 @@ static bool create_common_result(evhtp_request_t *r, json_t* j_res)
 
     timestamp = get_utc_timestamp();
 
-    j_out = json_pack("{s:O, s:s}",
-            "result", j_res,
-            "timestamp", timestamp
+    j_out = json_pack("{s:O, s:i, s:s}",
+            "message",      j_res,
+            "result",       res_code,
+            "timestamp",    timestamp
             );
     free(timestamp);
 
@@ -195,7 +202,7 @@ static bool create_common_result(evhtp_request_t *r, json_t* j_res)
 }
 
 /**
- * Ger received data
+ * Get received data
  * @param r
  * @return
  */
@@ -237,15 +244,22 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
     json_t* j_res;
+    json_t* j_recv;
     htp_method method;
     int htp_ret;
+    char* id;
+    char* pass;
 
     slog(LOG_DEBUG, "htpcb_campaign_list called.");
 
+    ret = get_agent_id_pass(req, &id, &pass);
     ret = is_auth(req);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
         return;
     }
 
@@ -259,19 +273,25 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
         {
             // get all campaign list
             j_res = campaign_get_all();
-            if(j_res == NULL)
-            {
-                htp_ret = EVHTP_RES_SERVERR;
-            }
-            else
-            {
-                htp_ret = EVHTP_RES_OK;
-            }
+            htp_ret = EVHTP_RES_OK;
         }
         break;
 
         // POST : new campaign.
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                break;
+            }
 
+            j_res = campaign_create(j_recv);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
 
         // PUT : update several campaign info
 
@@ -287,6 +307,10 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
     ret = create_common_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+
 
     return;
 }
@@ -359,7 +383,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
         // GET :  agent list
         case htp_method_GET:
         {
-            j_res = agent_all_get();
+            j_res = agent_get_all();
             if(j_res == NULL)
             {
                 htp_ret = EVHTP_RES_SERVERR;
@@ -503,7 +527,7 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
  * @param req
  * @return Success:true, Fail:false
  */
-static bool is_auth(evhtp_request_t* req)
+static bool is_auth(evhtp_request_t* req, const char* id, const char* pass)
 {
     evhtp_connection_t* conn;
     char *auth_hdr, *auth_b64;
@@ -531,37 +555,11 @@ static bool is_auth(evhtp_request_t* req)
         return false;
     }
 
-    // decode base_64
-    auth_b64 = auth_hdr;
-    while(*auth_b64++ != ' ');  // Something likes.. "Basic cGNoZXJvOjEyMzQ="
-    base64decode(auth_b64, &outstr);
-    if(outstr == NULL)
-    {
-        slog(LOG_ERR, "Could not decode base64. info[%s]", auth_b64);
-        evhtp_send_reply(req, EVHTP_RES_SERVERR);
-        return false;
-    }
-    slog(LOG_DEBUG, "Decoded userinfo. info[%s]", outstr);
-
-    // parsing user:pass
-    for(i = 0; i < strlen(outstr); i++)
-    {
-        if(outstr[i] == ':')
-        {
-            break;
-        }
-        username[i] = outstr[i];
-    }
-    username[i] = '\0';
-    strncpy(password, outstr + i + 1, sizeof(password));
-    free(outstr);
-    slog(LOG_DEBUG, "User info[%s:%s]", username, password);
-
     // get user info
-    ret = asprintf(&sql, "select * from agent where id = \"%s\" and password = \"%s\"", username, password);
+    ret = asprintf(&sql, "select * from agent where id = \"%s\" and password = \"%s\"", id, pass);
     if(ret == -1)
     {
-        slog(LOG_ERR, "Could not get query. user[%s:%s]", username, password);
+        slog(LOG_ERR, "Could not get query. user[%s:%s]", id, pass);
         evhtp_send_reply(req, EVHTP_RES_SERVERR);
         return false;
     }
@@ -587,6 +585,70 @@ static bool is_auth(evhtp_request_t* req)
 
     return true;
 }
+
+/**
+ *
+ * @param req
+ * @param agent_id      (out) agent id
+ * @param agent_pass    (out) agent pass
+ * @return
+ */
+static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass)
+{
+    evhtp_connection_t* conn;
+    char *auth_hdr, *auth_b64;
+    char *outstr;
+    char username[1024], password[1024];
+    char* sql;
+    db_ctx_t* db_res;
+    int  i, ret;
+    json_t* j_res;
+
+    conn = evhtp_request_get_connection(req);
+
+    *agent_id   = NULL;
+    *agent_pass = NULL;
+
+    // get Authorization
+    if((conn->request->headers_in == NULL)
+            || ((auth_hdr = (char*)evhtp_kv_find(conn->request->headers_in, "Authorization")) == NULL)
+            )
+    {
+        slog(LOG_WARN, "Could not find Authorization header.");
+        return false;
+    }
+
+    // decode base_64
+    auth_b64 = auth_hdr;
+    while(*auth_b64++ != ' ');  // Something likes.. "Basic cGNoZXJvOjEyMzQ="
+    base64decode(auth_b64, &outstr);
+    if(outstr == NULL)
+    {
+        slog(LOG_ERR, "Could not decode base64. info[%s]", auth_b64);
+        return false;
+    }
+    slog(LOG_DEBUG, "Decoded userinfo. info[%s]", outstr);
+
+    // parsing user:pass
+    for(i = 0; i < strlen(outstr); i++)
+    {
+        if(outstr[i] == ':')
+        {
+            break;
+        }
+        username[i] = outstr[i];
+    }
+    username[i] = '\0';
+    strncpy(password, outstr + i + 1, sizeof(password));
+    free(outstr);
+    slog(LOG_DEBUG, "User info[%s:%s]", username, password);
+
+    ret = sprintf(agent_id, "%s", username);
+    ret = sprintf(agent_pass, "%s", password);
+
+    return true;
+}
+
 
 
 /**

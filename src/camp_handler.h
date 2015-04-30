@@ -43,7 +43,7 @@ bool load_table_trunk_group(void);
 
 // interfaces
 OLIVE_RESULT campaign_update(json_t* j_camp);
-OLIVE_RESULT campaign_create(json_t* j_camp);
+OLIVE_RESULT campaign_create(const json_t* j_camp, const char* agent_uuid, json_t** j_res);
 
 json_t* campaign_get_all(void);
 

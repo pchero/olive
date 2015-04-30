@@ -12,7 +12,7 @@
 
 bool load_table_agent(void);
 
-json_t* agent_all_get(void);
+json_t* agent_get_all(void);
 json_t* agent_update(const json_t* j_agent);
 json_t* agent_create(const json_t* j_agent);
 

@@ -52,6 +52,11 @@ static json_t*  get_dl_list_info_by_uuid(const char* dl_table, const char* uuid)
 static int      update_dl_list(const char* table, const json_t* j_dlinfo);
 static int      update_dl_result_clear(const json_t* j_dialing);
 
+// campaign
+static bool     create_campaign(json_t* j_camp);
+static json_t*  get_campaigns_by_status(const char* status);
+static json_t*  get_campaign_for_dial(void);
+
 // dial misc
 static char*    get_dial_number(const json_t* j_dlist, const int cnt);
 static int      get_dial_num_point(const json_t* j_dl_list, const json_t* j_plan);
@@ -61,8 +66,6 @@ static json_t*  create_dial_info(json_t* j_dialing);
 
 // etc
 static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma, const json_t* j_dl_list);
-static json_t* get_campaigns_by_status(const char* status);
-static json_t* get_campaign_for_dial(void);
 static int write_dialing_result(const json_t* j_dialing);
 
 
@@ -923,12 +926,37 @@ OLIVE_RESULT campaign_update(json_t* j_camp)
 }
 
 /**
- * Create campaign
+ * Create campaign API handler.
  * @param j_camp
  * @return
  */
-OLIVE_RESULT campaign_create(json_t* j_camp)
+OLIVE_RESULT campaign_create(const json_t* j_camp, const char* agent_uuid, json_t** j_res)
 {
+    int ret;
+    char* tmp;
+    json_t* j_tmp;
+
+    j_tmp = json_deep_copy(j_camp);
+
+    // set create_agent_uuid
+    json_object_set(j_tmp, "create_agent_uuid", json_string(agent_uuid));
+
+    // utc create timestamp
+    tmp = get_utc_timestamp();
+    json_object_set(j_tmp, "tm_create", json_string(tmp));
+    free(tmp);
+
+    ret = create_campaign(j_tmp);
+    json_decref(j_tmp);
+    if(ret == false)
+    {
+        // currently, just set to null.
+        *j_res = json_null();
+
+        return OLIVE_INTERNAL_ERROR;
+    }
+
+    *j_res = json_null();
     return OLIVE_OK;
 }
 
@@ -1956,6 +1984,25 @@ static json_t* create_dial_info(json_t* j_dialing)
     free(tmp);
 
     return j_dial;
+}
+
+/**
+ * Create campaign.
+ * @param j_camp
+ * @return
+ */
+static bool create_campaign(json_t* j_camp)
+{
+    int ret;
+
+    ret = db_insert("campaign", j_camp);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not create campaign.");
+        return false;
+    }
+
+    return true;
 }
 
 static json_t* get_campaigns_by_status(const char* status)

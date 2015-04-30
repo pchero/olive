@@ -41,14 +41,17 @@
 // Global
 app_* g_app = NULL;
 
-static bool init_optarg(int argc, char** argv);
+static bool init_essential(int argc, char** argv);
+static bool init_libraries(void);
+static bool init_services(void);
 
+static bool init_optarg(int argc, char** argv);
 static int init_zmq(void);
 static int init_log(void);
 static int init_libevent(void);
 static int init_database(void);
 static int init_ast_int(void);
-static int init_service(void);
+static int init_db_data(void);
 static int init_callback(void);
 static int init_memdb(void);
 
@@ -62,28 +65,12 @@ int main(int argc, char** argv)
 
     g_app = calloc(1, sizeof(app_));
 
-    // init options
-    ret = init_optarg(argc, argv);
+    // init essential.
+    ret = init_essential(argc, argv);
     if(ret == false)
     {
-        fprintf(stderr, "Could not get options.\n");
-        exit(0);
-    }
-
-    // init zmq
-    ret = init_zmq();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate zmq.\n");
-        exit(0);
-    }
-
-    // init log
-    ret = init_log();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate log.\n");
-        exit(0);
+        fprintf(stderr, "Could not initiate essential.\n");
+        exit(false);
     }
 
     // Start log!!!!!!!!!!!!!!!!!!!!!!
@@ -93,69 +80,20 @@ int main(int argc, char** argv)
     slog(LOG_INFO, "");
     slog(LOG_INFO, "Process start. Process[%s], PREFIX[%s]", argv[0], PREFIX);
 
-    // init libevent
-    ret = init_libevent();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate libevent.\n");
-        exit(0);
-    }
-    slog(LOG_INFO, "Initiated libevent");
-
-    // init evhtp
-    ret = init_evhtp();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate evhtp.\n");
-        exit(0);
-    }
-    slog(LOG_INFO, "Initiated evhtp");
-
-    // init database
-    ret = init_database();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate database. ret[%d]\n", ret);
-        exit(0);
-    }
-    slog(LOG_INFO, "Initiated database");
-
-    // init memory db
-    ret = init_memdb();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate memory db. ret[%d]\n", ret);
-        exit(0);
-    }
-    slog(LOG_INFO, "Initiate memory db");
-
-    // asterisk initiate
-    ret = init_ast_int();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate asterisk interface. ret[%d]\n", ret);
-        exit(0);
-    }
-    slog(LOG_INFO, "Initiated asterisk interface");
-
-    // campaign initiate
-    ret = init_service();
-    if(ret != true)
-    {
-        fprintf(stderr, "Could not initiate service. ret[%d]\n", ret);
-        exit(0);
-    }
-    slog(LOG_INFO, "Initiated service");
-
-    // register callbacks
-    ret = init_callback();
+    ret = init_libraries();
     if(ret == false)
     {
-        fprintf(stderr, "Could not initiate callbacks. ret[%d]\n", ret);
-        exit(0);
+        fprintf(stderr, "Could not initiate libraries.\n");
+        exit(false);
     }
-    slog(LOG_INFO, "Initiated callback");
+    slog(LOG_INFO, "Complete initiated libraries.");
 
+    ret = init_services();
+    if(ret == false)
+    {
+        fprintf(stderr, "Could not initiate services.\n");
+        exit(false);
+    }
 
     // start loop.
     event_base_loop(g_app->ev_base, 0);
@@ -207,6 +145,101 @@ static bool init_optarg(int argc, char** argv)
         return false;
     }
     free(conf);
+
+    return true;
+}
+
+/**
+ * Initiate essential stuffs.
+ * We can use logs after this.
+ * Logs are print to stderr directly.
+ * @param argc
+ * @param argv
+ * @return
+ */
+static bool init_essential(int argc, char** argv)
+{
+    int ret;
+
+    // init options
+    ret = init_optarg(argc, argv);
+    if(ret == false)
+    {
+        fprintf(stderr, "Could not get options.\n");
+        return false;
+    }
+
+    // init zmq
+    ret = init_zmq();
+    if(ret != true)
+    {
+        fprintf(stderr, "Could not initiate zmq.\n");
+        return false;
+    }
+
+    // init log
+    ret = init_log();
+    if(ret != true)
+    {
+        fprintf(stderr, "Could not initiate log.\n");
+        exit(0);
+    }
+
+    return true;
+}
+
+/**
+ * Initiate libraries.
+ * @return
+ */
+static bool init_libraries(void)
+{
+    int ret;
+
+    // init libevent
+    ret = init_libevent();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not initiate libevent.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiated libevent");
+
+    // init evhtp
+    ret = init_evhtp();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not initiate evhtp.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiated evhtp");
+
+    // init database
+    ret = init_database();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not initiate database.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiated database");
+
+    // init memory db
+    ret = init_memdb();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not initiate database.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiate memory db");
+
+    // asterisk initiate
+    ret = init_ast_int();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not initiate asterisk interface.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiated asterisk interface");
 
     return true;
 }
@@ -340,6 +373,10 @@ static int init_database(void)
     json_decref(j_tmp);
 
     ret = db_init(host, user, pass, db, port);
+    if(ret == false)
+    {
+        return false;
+    }
 
     return ret;
 }
@@ -421,11 +458,37 @@ static int init_ast_int(void)
 }
 
 
+static bool init_services(void)
+{
+    int ret;
+
+    // campaign initiate
+    ret = init_db_data();
+    if(ret != true)
+    {
+        slog(LOG_ERR, "Could not initiate database load data.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiated service");
+
+    // register callbacks
+    ret = init_callback();
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not initiate callbacks.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiated callback");
+
+    return true;
+
+}
+
 /**
- * Initiate services
+ * Initiate database data.
  * @return
  */
-static int init_service(void)
+static int init_db_data(void)
 {
     int ret;
 
@@ -531,8 +594,6 @@ static int init_memdb(void)
 {
     int ret;
     int ret_exec;
-//    memdb_res* mem_res;
-//    json_t* j_res;
 
 //    ret = memdb_init(":memory:");
     ret = memdb_init("test.db");
