@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 #include <uuid/uuid.h>
 
 #include "common.h"
@@ -42,6 +43,8 @@ static int check_dialing_by_channel(const json_t* j_chan);
 
 /**
  * Dial ended call handler.
+ * Update dialing.
+ * If channel was BUSY,
  */
 void cb_chan_dial_end(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
@@ -56,11 +59,24 @@ void cb_chan_dial_end(unused__ evutil_socket_t fd, unused__ short what, unused__
     json_array_foreach(j_chans, idx, j_chan)
     {
         // update dialing status, tm_dialend
-        j_tmp = json_pack("{s:s, s:s, s:s}",
+        slog(LOG_INFO, "Updating dialing info. res_dial[%s], tm_dial_end[%s], status[%s], chan_unique_id[%s]",
+                json_string_value(json_object_get(j_chan, "dial_status")),
+                json_string_value(json_object_get(j_chan, "tm_dial_end")),
+                "dial_end",
+                json_string_value(json_object_get(j_chan, "unique_id"))
+                );
+        j_tmp = json_pack("{s:s, s:s, s:s, s:s}",
+                "res_dial",         json_string_value(json_object_get(j_chan, "dial_status")),
                 "tm_dial_end",      json_string_value(json_object_get(j_chan, "tm_dial_end")),
                 "status",           "dial_end",
                 "chan_unique_id",   json_string_value(json_object_get(j_chan, "unique_id"))
                 );
+        if(j_tmp == NULL)
+        {
+            slog(LOG_ERR, "Could not create update dialing info.");
+            continue;
+        }
+
         ret = update_dialing_info(j_tmp);
         json_decref(j_tmp);
         if(ret == false)
@@ -85,7 +101,6 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     json_t* j_camp;         // db. campaign info
     json_t* j_plan;         // db. plan
     json_t* j_chans;        // memdb. channels to be distribute. json_array
-    json_t* j_tmp;
     json_error_t j_err;
     const char* dial_mode;
     unused__ int ret;
@@ -113,19 +128,6 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
             json_decref(j_camp);
             json_decref(j_plan);
             continue;
-        }
-
-        // update tm_dial_end and status
-        ret = strlen(json_string_value(json_object_get(j_dialing, "tm_dial_end")));
-        if(ret == 0)
-        {
-            j_tmp = json_pack("{s:s, s:s, s:s}",
-                    "status",           "dial_end",
-                    "tm_dial_end",      json_string_value(json_object_get(j_chan, "tm_dial_end")),
-                    "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id"))
-                    );
-            update_dialing_info(j_tmp);
-            json_decref(j_tmp);
         }
 
         dial_mode = json_string_value(json_object_get(j_plan, "dial_mode"));
@@ -335,6 +337,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     char* call_addr;
     int ret;
     char* uuid;
+    const char* tmp;
 
 
     // get AMD result
@@ -346,16 +349,28 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
     // update res_dial.
     // update once only.
-    ret = strlen(json_string_value(json_object_get(j_dialing, "res_dial")));
-    if(ret == 0)
+//    ret = strlen(json_string_value(json_object_get(j_dialing, "res_dial")));
+//    if(ret == 0)
+    tmp = json_string_value(json_object_get(j_dialing, "res_dial"));
+    if(tmp == NULL)
     {
         // update dialing AMD result info.
-        j_tmp = json_pack("{s:s, s:s, s:s}",
+        j_tmp = json_pack("{s:s, s:s, s:s, s:s}",
                 "res_dial",             json_string_value(json_object_get(j_chan, "dial_status")),
-                "res_answer",           json_string_value(json_object_get(j_chan, "AMDSTATUS")),
-                "res_answer_detail",    json_string_value(json_object_get(j_chan, "AMDCAUSE")),
+                "res_answer",           json_string_value(json_object_get(j_chan, "AMDSTATUS"))     ? : "null",
+                "res_answer_detail",    json_string_value(json_object_get(j_chan, "AMDCAUSE"))      ? : "null",
                 "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
                 );
+        if(j_tmp == NULL)
+        {
+            slog(LOG_ERR, "Could not create dialing update json info. res_dial[%s], res_answer[%s], res_answer_detail[%s], chan_unique_id[%s]",
+                    json_string_value(json_object_get(j_chan, "dial_status")),
+                    json_string_value(json_object_get(j_chan, "AMDSTATUS")),
+                    json_string_value(json_object_get(j_chan, "AMDCAUSE")),
+                    json_string_value(json_object_get(j_chan, "unique_id"))
+                    );
+            return;
+        }
 
         ret = update_dialing_info(j_tmp);
         json_decref(j_tmp);
@@ -1028,7 +1043,7 @@ static json_t* get_chans_to_dist(void)
 
     // get answered channel.
     ret = asprintf(&sql, "select * from channel "
-            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dialing\" or status = \"dial_end\");");
+            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dial_end\" and res_dial = \"ANSWER\");");
 
     mem_res = memdb_query(sql);
     free(sql);
@@ -1251,6 +1266,13 @@ static int check_dialing_by_tr_channel(const json_t* j_chan)
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not update dialing object. tm_tr_hangup[%s]", json_string_value(json_object_get(j_chan, "tm_hangup")));
+        return -1;
+    }
+
+    ret = json_object_set(j_dialing, "status", json_string("hangup"));
+    if(ret == -1)
+    {
+        slog(LOG_ERR, "Could not update dialing status info. status[%s]", "hangup");
         return -1;
     }
 

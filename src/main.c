@@ -554,9 +554,13 @@ static int init_callback(void)
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_start, NULL);
     event_add(ev, &tm_fast);
 
+    // campaign result write.
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_result, NULL);
+    event_add(ev, &tm_fast);
+
 //    // dial end handle
-//    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_dial_end, NULL);
-//    event_add(ev, &tm_fast);
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_dial_end, NULL);
+    event_add(ev, &tm_fast);
 
     // call distribute
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_distribute, NULL);

@@ -190,7 +190,7 @@ char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "dest_context text,             -- DestContext\n"
         "dest_exten text,               -- DestExten\n"
         "dial_string text,              -- DialString\n"
-        "dial_status text,              -- DialStatus. (BUSY, ANSWER, ...)\n"
+        "dial_status text,              -- DialStatus. (BUSY, ANSWER, NOANSWER, CANCEL, CONGESTION, CHANUNAVAIL, DONTCALL, TORTURE, INVALIDARGS, ...)\n"
 
         "-- VarSet values\n"
         "SIPCALLID          text,   -- SIPCALLID\n"

@@ -24,9 +24,10 @@
 
 static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
 static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg);
-static bool create_common_result(evhtp_request_t *r, json_t* j_res);
+static bool create_common_result(evhtp_request_t *r, const json_t* j_res);
 
-static bool is_auth(evhtp_request_t* req);
+static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass);
+static bool is_auth(evhtp_request_t* req, const char* id, const char* pass);
 static json_t* get_receivedata(evhtp_request_t *r);
 
 static char* get_uuid(char* buf);
@@ -175,30 +176,41 @@ static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused))
  * @param j_res
  * @return
  */
-static bool create_common_result(evhtp_request_t *r, OLIVE_RESULT res_code, json_t* j_res)
+static bool create_common_result(evhtp_request_t *r, const json_t* j_res)
 {
-    json_t* j_out;
-    char* timestamp;
     char* tmp;
 
-    timestamp = get_utc_timestamp();
-
-    j_out = json_pack("{s:O, s:i, s:s}",
-            "message",      j_res,
-            "result",       res_code,
-            "timestamp",    timestamp
-            );
-    free(timestamp);
-
     evhtp_headers_add_header(r->headers_out, evhtp_header_new("Content-Type", "application/json", 0, 0));
-    tmp = json_dumps(j_out, JSON_ENCODE_ANY);
-    json_decref(j_out);
+    tmp = json_dumps(j_res, JSON_ENCODE_ANY);
     slog(LOG_DEBUG, "Result buf. res[%s]", tmp);
 
     evbuffer_add_printf(r->buffer_out, "%s", tmp);
     free(tmp);
 
     return true;
+}
+
+
+/**
+ * Create olive API result format.
+ * {"result":olive_code, "message":result_message, "timestamp":UTC_time_clock}
+ * @param r
+ * @param j_res
+ * @return
+ */
+json_t* htp_create_olive_result(const OLIVE_RESULT res_olive, const json_t* j_res)
+{
+    json_t* j_out;
+    char* timestamp;
+
+    timestamp = get_utc_timestamp();
+    j_out = json_pack("{s:s, s:O, s:s}",
+            "result",       res_olive,
+            "message",      j_res,
+            "timestamp",    timestamp
+            );
+    free(timestamp);
+    return j_out;
 }
 
 /**
@@ -253,7 +265,7 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
     slog(LOG_DEBUG, "htpcb_campaign_list called.");
 
     ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req);
+    ret = is_auth(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -287,7 +299,7 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
                 break;
             }
 
-            j_res = campaign_create(j_recv);
+            j_res = campaign_create(j_recv, id);
             json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
@@ -322,15 +334,15 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
  */
 void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
-    int ret;
-
-    slog(LOG_DEBUG, "srv_campaign_update_cb called!");
-
-    ret = is_auth(req);
-    if(ret == false)
-    {
-        return;
-    }
+//    int ret;
+//
+//    slog(LOG_DEBUG, "srv_campaign_update_cb called!");
+//
+//    ret = is_auth(req);
+//    if(ret == false)
+//    {
+//        return;
+//    }
 
     // get json
 
@@ -350,10 +362,17 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     json_t* j_recv;
     htp_method method;
     int htp_ret;
+    char* id;
+    char* pass;
 
-    ret = is_auth(req);
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
     if(ret == false)
     {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
         return;
     }
 
@@ -406,6 +425,9 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     ret = create_common_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
+    free(id);
+    free(pass);
+
 
     return;
 }
@@ -417,14 +439,14 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
  */
 void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
-    int ret;
+//    int ret;
     int req_method;
 
-    ret = is_auth(req);
-    if(ret == false)
-    {
-        return;
-    }
+//    ret = is_auth(req);
+//    if(ret == false)
+//    {
+//        return;
+//    }
 
     req_method = evhtp_request_get_method(req);
 
@@ -454,18 +476,18 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
 
 void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
-    int ret;
+    unused__ int ret;
     htp_method req_method;
     char* uuid;
     json_t* j_res;
     json_t* j_recv;
     int htp_ret;
 
-    ret = is_auth(req);
-    if(ret == false)
-    {
-        return;
-    }
+//    ret = is_auth(req);
+//    if(ret == false)
+//    {
+//        return;
+//    }
 
     uuid = get_uuid(req->uri->path->full);
     if(uuid == NULL)
@@ -530,12 +552,9 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
 static bool is_auth(evhtp_request_t* req, const char* id, const char* pass)
 {
     evhtp_connection_t* conn;
-    char *auth_hdr, *auth_b64;
-    char *outstr;
-    char username[1024], password[1024];
     char* sql;
     db_ctx_t* db_res;
-    int  i, ret;
+    int  ret;
     json_t* j_res;
 
     slog(LOG_DEBUG, "is_auth.");
@@ -543,7 +562,7 @@ static bool is_auth(evhtp_request_t* req, const char* id, const char* pass)
 
     // get Authorization
     if((conn->request->headers_in == NULL)
-            || ((auth_hdr = (char*)evhtp_kv_find(conn->request->headers_in, "Authorization")) == NULL)
+            || (evhtp_kv_find(conn->request->headers_in, "Authorization") == NULL)
             )
     {
         evhtp_headers_add_header(
@@ -599,10 +618,8 @@ static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agen
     char *auth_hdr, *auth_b64;
     char *outstr;
     char username[1024], password[1024];
-    char* sql;
-    db_ctx_t* db_res;
-    int  i, ret;
-    json_t* j_res;
+    int  i;
+    unused__ int ret;
 
     conn = evhtp_request_get_connection(req);
 
@@ -643,8 +660,8 @@ static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agen
     free(outstr);
     slog(LOG_DEBUG, "User info[%s:%s]", username, password);
 
-    ret = sprintf(agent_id, "%s", username);
-    ret = sprintf(agent_pass, "%s", password);
+    ret = asprintf(agent_id, "%s", username);
+    ret = asprintf(agent_pass, "%s", password);
 
     return true;
 }

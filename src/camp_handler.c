@@ -26,6 +26,7 @@
 #include "ast_handler.h"
 #include "sip_handler.h"
 #include "chan_handler.h"
+#include "htp_handler.h"
 
 // dial
 static void dial_desktop(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
@@ -35,7 +36,7 @@ static void dial_robo(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma);
 
 // checks
-static int  check_dial_avaiable(const json_t* j_camp, const json_t* j_plan);
+static int  check_dial_avaiable(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma);
 static bool check_campaign_end(const json_t* j_camp);
 static bool check_dialing_list_by_camp(const json_t* j_camp);
 static bool check_dialing_finshed(const json_t* j_dialing);
@@ -301,7 +302,7 @@ void cb_campaign_check_end(unused__ int fd, unused__ short event, unused__ void 
 
     json_array_foreach(j_camps, index, j_camp)
     {
-        slog(LOG_DEBUG, "Value check. uuid[%s]", json_string_value(json_object_get(j_camp, "uuid")));
+//        slog(LOG_DEBUG, "Value check. uuid[%s]", json_string_value(json_object_get(j_camp, "uuid")));
 
         ret = check_campaign_end(j_camp);
         if(ret == false)
@@ -448,12 +449,12 @@ static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const js
     if(j_dl_list == NULL)
     {
         // No available list
-        slog(LOG_INFO, "No available dial list.");
+//        slog(LOG_INFO, "No available dial list.");
         return;
     }
 
     // check available outgoing call.
-    ret = check_dial_avaiable(j_camp, j_plan);
+    ret = check_dial_avaiable(j_camp, j_plan, j_dlma);
     if(ret == false)
     {
         // No available outgoing call.
@@ -499,13 +500,20 @@ static void dial_predictive(const json_t* j_camp, const json_t* j_plan, const js
 
     // update dl_list
     sprintf(try_cnt, "trycnt_%d", (int)json_integer_value(json_object_get(j_dialing, "dial_index")));
-    j_dl_update = json_pack("{s:s, s:i, s:s, s:s}",
+    j_dl_update = json_pack("{s:s, s:i, s:s, s:s, s:s}",
             "status",                   "dialing",
             try_cnt,                    json_integer_value(json_object_get(j_dialing, "dial_trycnt")) + 1,
             "dialing_camp_uuid",        json_string_value(json_object_get(j_dialing, "camp_uuid")),
             "dialing_chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id")),
             "uuid",                     json_string_value(json_object_get(j_dialing, "dl_uuid"))
             );
+    if(j_dl_update == NULL)
+    {
+        slog(LOG_ERR, "Could not create dl update info json.");
+        json_decref(j_dialing);
+        return;
+    }
+
     ret = update_dl_list(json_string_value(json_object_get(j_dlma, "dl_table")), j_dl_update);
     json_decref(j_dl_update);
     if(ret == false)
@@ -930,11 +938,12 @@ OLIVE_RESULT campaign_update(json_t* j_camp)
  * @param j_camp
  * @return
  */
-OLIVE_RESULT campaign_create(const json_t* j_camp, const char* agent_uuid, json_t** j_res)
+json_t* campaign_create(const json_t* j_camp, const char* agent_uuid)
 {
     int ret;
     char* tmp;
     json_t* j_tmp;
+    json_t* j_res;
 
     j_tmp = json_deep_copy(j_camp);
 
@@ -948,16 +957,16 @@ OLIVE_RESULT campaign_create(const json_t* j_camp, const char* agent_uuid, json_
 
     ret = create_campaign(j_tmp);
     json_decref(j_tmp);
-    if(ret == false)
+    if(ret == true)
     {
-        // currently, just set to null.
-        *j_res = json_null();
-
-        return OLIVE_INTERNAL_ERROR;
+        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+    }
+    else
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
     }
 
-    *j_res = json_null();
-    return OLIVE_OK;
+    return j_res;
 }
 
 /**
@@ -1030,6 +1039,45 @@ json_t* get_campaign_info(const char* uuid)
 
     return j_res;
 
+}
+
+/**
+ * Get all campaigns.
+ * @return
+ */
+json_t* get_campaigns_all(void)
+{
+    char* sql;
+    unused__ int ret;
+    db_ctx_t* db_res;
+    json_t* j_res;
+    json_t* j_tmp;
+
+    ret = asprintf(&sql, "select * from campaign;");
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get campaign info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = db_get_record(db_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        json_array_append(j_res, j_tmp);
+        json_decref(j_tmp);
+    }
+
+    db_free(db_res);
+    return j_res;
 }
 
 /**
@@ -1172,11 +1220,10 @@ static bool check_campaign_end(const json_t* j_camp)
  * @param j_plan
  * @return
  */
-static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan)
+static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan, const json_t* j_dlma)
 {
     char* sql;
     db_ctx_t* db_res;
-    memdb_res* mem_res;
     json_t* j_tmp;
     int cnt_agent;
     int cnt_dialing;
@@ -1207,29 +1254,33 @@ static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan)
     cnt_agent = json_integer_value(json_object_get(j_tmp, "count(*)"));
     json_decref(j_tmp);
 
-    // get count of curretnly dailings.
-    ret = asprintf(&sql, "select count(*) from dialing where camp_uuid = \"%s\";",
-            json_string_value(json_object_get(j_camp, "uuid"))
+    // get count of currently dailings.
+    ret = asprintf(&sql, "select count(*) from %s where dialing_camp_uuid = \"%s\" and status = \"%s\";",
+            json_string_value(json_object_get(j_dlma, "dl_table")),
+            json_string_value(json_object_get(j_camp, "uuid")),
+            "dialing"
             );
-    mem_res = memdb_query(sql);
+    db_res = db_query(sql);
     free(sql);
-    if(mem_res == NULL)
+    if(db_res == NULL)
     {
         slog(LOG_ERR, "Could not get dialing count.");
         return false;
     }
 
-    j_tmp = memdb_get_result(mem_res);
+    j_tmp = db_get_record(db_res);
     if(j_tmp == NULL)
     {
         // shouldn't be reach to here.
         slog(LOG_ERR, "Could not get dialing count.");
         return false;
     }
+    db_free(db_res);
 
     cnt_dialing = json_integer_value(json_object_get(j_tmp, "count(*)"));
     json_decref(j_tmp);
 
+//    slog(LOG_DEBUG, "Check value. cnt_agent[%d], cnt_dialing[%d]", cnt_agent, cnt_dialing);
     // compare
     if(cnt_agent <= cnt_dialing)
     {
@@ -1940,7 +1991,7 @@ static json_t* create_dialing_info(const json_t* j_camp, const json_t* j_plan, c
             "dlma_uuid",        json_string_value(json_object_get(j_dlma, "uuid")),
             "camp_uuid",        json_string_value(json_object_get(j_camp, "uuid")),
 
-            "status",           "idle",
+            "status",           "dialing",
 
             "dial_index",       dial_num_point,
             "dial_addr",        dial_addr,
@@ -2132,7 +2183,7 @@ static json_t* get_dl_list_info_by_camp_and_status(const char* dl_table, const c
     unused__ int ret;
     db_ctx_t* db_res;
 
-    ret = asprintf(&sql, "select * from %s where camp_uuid = \"%s\" and status = \"%s\" limit 1;", dl_table, camp_uuid, status);
+    ret = asprintf(&sql, "select * from %s where dialing_camp_uuid = \"%s\" and status = \"%s\" limit 1;", dl_table, camp_uuid, status);
 
     db_res = db_query(sql);
     free(sql);
