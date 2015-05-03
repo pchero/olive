@@ -325,7 +325,7 @@ static void ast_recv_handler(json_t* j_evt)
 int ast_load_peers(void)
 {
     int ret;
-    memdb_res* res;
+    memdb_res* mem_res;
     json_t* j_res;
 
     // get sip peers
@@ -337,8 +337,8 @@ int ast_load_peers(void)
     }
     slog(LOG_DEBUG, "Finished cmd_sippeers.");
 
-    res = memdb_query("select name from peer;");
-    if(res == NULL)
+    mem_res = memdb_query("select name from peer;");
+    if(mem_res == NULL)
     {
         slog(LOG_ERR, "Could not get peer names.");
         return false;
@@ -346,7 +346,7 @@ int ast_load_peers(void)
 
     while(1)
     {
-        j_res = memdb_get_result(res);
+        j_res = memdb_get_result(mem_res);
         if(j_res == NULL)
         {
             break;
@@ -354,16 +354,15 @@ int ast_load_peers(void)
 
         slog(LOG_DEBUG, "Check value. name[%s]", json_string_value(json_object_get(j_res, "name")));
         ret = cmd_sipshowpeer(json_string_value(json_object_get(j_res, "name")));
+        json_decref(j_res);
         if(ret == false)
         {
             slog(LOG_ERR, "Could not get peer info.");
-            json_decref(j_res);
-            memdb_free(res);
+            memdb_free(mem_res);
             return false;
         }
-        json_decref(j_res);
     }
-    memdb_free(res);
+    memdb_free(mem_res);
 
     return true;
 }

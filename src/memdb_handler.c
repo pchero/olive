@@ -73,6 +73,7 @@ int memdb_exec(const char* sql)
         sqlite3_free(err);
         return false;
     }
+    sqlite3_free(err);
 
     return true;
 }

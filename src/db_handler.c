@@ -23,7 +23,7 @@ MYSQL* g_db_conn = NULL;
 
  @return Success:TRUE, Fail:FALSE
  */
-int db_init(char* host, char* user, char* pass, char* dbname, int port)
+int db_init(const char* host, const char* user, const char* pass, const char* dbname, int port)
 {
     g_db_conn = mysql_init(NULL);
     if(g_db_conn == NULL)
@@ -304,6 +304,8 @@ int db_insert(const char* table, json_t* j_data)
     // set keys
     is_first = true;
     tmp = NULL;
+    sql_keys    = NULL;
+    sql_values  = NULL;
     json_object_foreach(j_data, key, j_val)
     {
         if(is_first == true)
@@ -444,8 +446,8 @@ char* db_get_update_str(const json_t* j_data)
         {
             ret = asprintf(&tmp, "%s, ", res);
         }
-
         free(res);
+
         type = json_typeof(j_val);
         switch(type)
         {

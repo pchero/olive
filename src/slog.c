@@ -170,6 +170,7 @@ void _slog(const char *_FILE, int _LINE, const char *_func, LOG_LEVEL level, con
 
     // create send buf
     buf = json_dumps(j_log, JSON_ENCODE_ANY);
+    json_decref(j_log);
 
     // check zlog sock.
     if(g_slog_zsock == NULL)

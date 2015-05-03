@@ -44,10 +44,10 @@ int init_evhtp(void)
     // Initiate http/https interface
     evhtp_t* evhtp;
     evhtp_t* evhtp_ssl;
-    json_t*	j_tmp;
-    char* ip;
-    int	http_port;
-    int https_port;
+//    json_t*	j_tmp;
+//    char* ip;
+//    int	http_port;
+//    int https_port;
     int ret;
 
     evhtp_ssl_cfg_t ssl_cfg = {
@@ -80,39 +80,51 @@ int init_evhtp(void)
         return false;
     }
 
-    j_tmp = json_object_get(g_app->j_conf, "addr_server");
-    if(j_tmp == NULL)
-    {
-        slog(LOG_ERR, "Could not get value. addr_server");
-        return false;
-    }
-    ret = asprintf(&ip, "%s", json_string_value(j_tmp));
-
-    j_tmp = json_object_get(g_app->j_conf, "http_port");
-    if(j_tmp == NULL)
-    {
-        slog(LOG_ERR, "Could not get value. http_port");
-        return false;
-    }
-    http_port = atoi(json_string_value(j_tmp));
-
-    j_tmp = json_object_get(g_app->j_conf, "https_port");
-    if(j_tmp == NULL)
-    {
-        slog(LOG_ERR, "Could not get value. https_port");
-        return false;
-    }
-    https_port = atoi(json_string_value(j_tmp));
-
-    slog(LOG_INFO, "Bind http/https. ip[%s], http_port[%d], https_port[%d]", ip, http_port, https_port);
-    ret = evhtp_bind_socket(evhtp, ip, http_port, 1024);
+//    j_tmp = json_object_get(g_app->j_conf, "addr_server");
+//    if(j_tmp == NULL)
+//    {
+//        slog(LOG_ERR, "Could not get value. addr_server");
+//        return false;
+//    }
+//    ret = asprintf(&ip, "%s", json_string_value(j_tmp));
+//
+//    j_tmp = json_object_get(g_app->j_conf, "http_port");
+//    if(j_tmp == NULL)
+//    {
+//        slog(LOG_ERR, "Could not get value. http_port");
+//        return false;
+//    }
+//    http_port = atoi(json_string_value(j_tmp));
+//
+//    j_tmp = json_object_get(g_app->j_conf, "https_port");
+//    if(j_tmp == NULL)
+//    {
+//        slog(LOG_ERR, "Could not get value. https_port");
+//        return false;
+//    }
+//    https_port = atoi(json_string_value(j_tmp));
+//
+//    slog(LOG_INFO, "Bind http/https. ip[%s], http_port[%d], https_port[%d]", ip, http_port, https_port);
+//    ret = evhtp_bind_socket(evhtp, ip, http_port, 1024);
+    ret = evhtp_bind_socket(
+            evhtp,
+            json_string_value(json_object_get(g_app->j_conf, "addr_server")),
+            atoi(json_string_value(json_object_get(g_app->j_conf, "http_port"))),
+            1024
+            );
     if(ret < 0)
     {
         slog(LOG_ERR, "Could not bind http socket. err[%s]", strerror(errno));
         return false;
     }
 
-    ret = evhtp_bind_socket(evhtp_ssl, ip, https_port, 1024);
+    ret = evhtp_bind_socket(
+            evhtp_ssl,
+            json_string_value(json_object_get(g_app->j_conf, "addr_server")),
+            atoi(json_string_value(json_object_get(g_app->j_conf, "https_port"))),
+            1024
+            );
+//    ret = evhtp_bind_socket(evhtp_ssl, ip, https_port, 1024);
     if(ret < 0)
     {
         slog(LOG_ERR, "Could not bind https socket. err[%s]", strerror(errno));

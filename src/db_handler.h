@@ -19,7 +19,7 @@ typedef struct db_ctx
 
 } db_ctx_t;
 
-int         db_init(char* host, char* user, char* pass, char* dbname, int port);
+int db_init(const char* host, const char* user, const char* pass, const char* dbname, int port);
 
 void        db_exit(void);
 

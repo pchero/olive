@@ -78,6 +78,7 @@ create table campaign_result(
     res_answer_detail       varchar(255),   -- AMD result detail.(AMDCAUSE)\n"
     res_hangup              varchar(255),   -- hangup code.\n"
     res_hangup_detail       varchar(255),   -- hangup detail.\n"
+    res_tr_dial             varchar(255),   -- transferred dial result(answer, no_answer, ...)\n"
     res_tr_hangup           varchar(255),   -- hangup code.\n"
     res_tr_hangup_detail    varchar(255),   -- hangup detail.\n"
         
@@ -323,7 +324,7 @@ insert into trunk_group(group_uuid, trunk_name) values ("trunkgroup-445df643-f8a
 insert into peer(name, mode, agent_uuid) values ("test-01", "peer", "agent-56b02510-66d2-478d-aa5e-e703247c029c");
 
 -- insert plan
-insert into plan(uuid, name, dial_mode) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan", "predictive");
+insert into plan(uuid, name, dial_mode, answer_handle) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan", "predictive", "all");
 
 -- insert campaign
 insert into campaign(uuid, name, status, agent_group, plan_uuid, dlma_uuid, trunk_group) 

@@ -41,6 +41,8 @@
 // Global
 app_* g_app = NULL;
 
+static void terminate(void);
+
 static bool init_essential(int argc, char** argv);
 static bool init_libraries(void);
 static bool init_services(void);
@@ -53,6 +55,7 @@ static int init_database(void);
 static int init_ast_int(void);
 static int init_db_data(void);
 static int init_callback(void);
+static bool init_signals(void);
 static int init_memdb(void);
 
 static void sigterm_cb(unused__ int fd, unused__ short event, unused__ void *arg);
@@ -98,7 +101,9 @@ int main(int argc, char** argv)
     // start loop.
     event_base_loop(g_app->ev_base, 0);
 
-    memdb_term();
+    terminate();
+
+//    memdb_term();
 
 //    // Release http/https events
 //    evhtp_unbind_socket(evhtp);
@@ -114,6 +119,34 @@ int main(int argc, char** argv)
 //    printf("End\n");
 
     return 0;
+}
+
+static void terminate(void)
+{
+
+    // release libevent.
+    while(1)
+    {
+        if(g_app->ev_cnt < 0)
+        {
+            break;
+        }
+
+        event_free(g_app->ev[g_app->ev_cnt]);
+        g_app->ev_cnt--;
+    }
+    event_base_free(g_app->ev_base);
+
+    // release db
+    memdb_term();
+
+    // release zmq
+    zmq_ctx_destroy(g_app->zctx);
+
+    free(g_app);
+
+
+    return;
 }
 
 /**
@@ -311,28 +344,12 @@ static int init_log(void)
  */
 static int init_libevent(void)
 {
-    struct event *ev_sigterm, *ev_sigint, *ev_sigusr1, *ev_sigusr2, *ev_siginfo;
-
     g_app->ev_base = event_base_new();
     if(g_app->ev_base == NULL)
     {
         slog(LOG_ERR, "Could not initiate event base. err[%d:%s]", errno, strerror(errno));
         return false;
     }
-
-    /* Setup some default signal handlers */
-    ev_sigterm = evsignal_new(g_app->ev_base, SIGTERM, sigterm_cb, NULL);
-    evsignal_add(ev_sigterm, NULL);
-    ev_sigint = evsignal_new(g_app->ev_base, SIGINT, sigterm_cb, NULL);
-    evsignal_add(ev_sigint, NULL);
-    ev_sigusr1 = evsignal_new(g_app->ev_base, SIGUSR1, sigusr_cb, NULL);
-    evsignal_add(ev_sigusr1, NULL);
-    ev_sigusr2 = evsignal_new(g_app->ev_base, SIGUSR2, sigusr_cb, NULL);
-    evsignal_add(ev_sigusr2, NULL);
-    ev_siginfo = evsignal_new(g_app->ev_base, SIGIO, siginfo_cb, NULL);
-    evsignal_add(ev_siginfo, NULL);
-
-    slog(LOG_INFO, "Initiated signal register");
 
     return true;
 
@@ -345,38 +362,51 @@ static int init_libevent(void)
 static int init_database(void)
 {
     int ret;
-    json_t* j_tmp;
-    char*   user;
-    char*   pass;
-    char*   host;
-    char*   db;
-    int     port;
+//    json_t* j_tmp;
+//    char*   user;
+//    char*   pass;
+//    char*   host;
+//    char*   db;
+//    int     port;
 
-    j_tmp = json_object_get(g_app->j_conf, "db_host");
-    ret = asprintf(&host, "%s", json_string_value(j_tmp));
-    json_decref(j_tmp);
+//    j_tmp = json_object_get(g_app->j_conf, "db_host");
+//    ret = asprintf(&host, "%s", json_string_value(j_tmp));
+//    json_decref(j_tmp);
+//
+//    j_tmp = json_object_get(g_app->j_conf, "db_user");
+//    ret = asprintf(&user, "%s", json_string_value(j_tmp));
+//    json_decref(j_tmp);
+//
+//    j_tmp = json_object_get(g_app->j_conf, "db_pass");
+//    ret = asprintf(&pass, "%s", json_string_value(j_tmp));
+//    json_decref(j_tmp);
+//
+//    j_tmp = json_object_get(g_app->j_conf, "db_dbname");
+//    ret = asprintf(&db, "%s", json_string_value(j_tmp));
+//    json_decref(j_tmp);
+//
+//    j_tmp = json_object_get(g_app->j_conf, "db_port");
+//    port = json_integer_value(j_tmp);
+//    json_decref(j_tmp);
 
-    j_tmp = json_object_get(g_app->j_conf, "db_user");
-    ret = asprintf(&user, "%s", json_string_value(j_tmp));
-    json_decref(j_tmp);
-
-    j_tmp = json_object_get(g_app->j_conf, "db_pass");
-    ret = asprintf(&pass, "%s", json_string_value(j_tmp));
-    json_decref(j_tmp);
-
-    j_tmp = json_object_get(g_app->j_conf, "db_dbname");
-    ret = asprintf(&db, "%s", json_string_value(j_tmp));
-    json_decref(j_tmp);
-
-    j_tmp = json_object_get(g_app->j_conf, "db_port");
-    port = json_integer_value(j_tmp);
-    json_decref(j_tmp);
-
-    ret = db_init(host, user, pass, db, port);
+    ret = db_init(
+            json_string_value(json_object_get(g_app->j_conf, "db_host")),
+            json_string_value(json_object_get(g_app->j_conf, "db_user")),
+            json_string_value(json_object_get(g_app->j_conf, "db_pass")),
+            json_string_value(json_object_get(g_app->j_conf, "db_dbname")),
+            json_integer_value(json_object_get(g_app->j_conf, "db_port"))
+            );
+//    ret = db_init(host, user, pass, db, port);
     if(ret == false)
     {
         return false;
     }
+
+//    free(host);
+//    free(user);
+//    free(pass);
+//    free(db);
+//    free(port);
 
     return ret;
 }
@@ -461,6 +491,15 @@ static int init_ast_int(void)
 static bool init_services(void)
 {
     int ret;
+
+    // registar signals
+    ret = init_signals();
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not initiate signal handlers.");
+        return false;
+    }
+    slog(LOG_INFO, "Initiated signal handlers.");
 
     // campaign initiate
     ret = init_db_data();
@@ -549,44 +588,92 @@ static int init_callback(void)
     // campaign end check.
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_check_end, NULL);
     event_add(ev, &tm_slow);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // campaign start
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_start, NULL);
     event_add(ev, &tm_fast);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // campaign result write.
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_result, NULL);
     event_add(ev, &tm_fast);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
-//    // dial end handle
+    // dial end handle
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_dial_end, NULL);
     event_add(ev, &tm_fast);
+    g_app->ev[g_app->ev_cnt++] = ev;
+
+    // transfer dial end handle
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_tr_dial_end, NULL);
+    event_add(ev, &tm_fast);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // call distribute
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_distribute, NULL);
     event_add(ev, &tm_fast);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // call transfer
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_transfer, NULL);
     event_add(ev, &tm_fast);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // channel hangup handler
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
     event_add(ev, &tm_slow);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // campaign_stop
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_stop, NULL);
     event_add(ev, &tm_slow);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // campaign_forcestop
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_forcestop, NULL);
     event_add(ev, &tm_slow);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     // cmd handler
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_cmd_handler, NULL);
     event_add(ev, &tm_slow);
+    g_app->ev[g_app->ev_cnt++] = ev;
 
     return true;
+}
+
+
+static bool init_signals(void)
+{
+    struct event* ev;
+
+    /* Setup some default signal handlers */
+    ev = evsignal_new(g_app->ev_base, SIGTERM, sigterm_cb, NULL);
+    evsignal_add(ev, NULL);
+    g_app->ev[g_app->ev_cnt++] = ev;
+
+    ev = evsignal_new(g_app->ev_base, SIGINT, sigterm_cb, NULL);
+    evsignal_add(ev, NULL);
+    g_app->ev[g_app->ev_cnt++] = ev;
+
+    ev = evsignal_new(g_app->ev_base, SIGUSR1, sigusr_cb, NULL);
+    evsignal_add(ev, NULL);
+    g_app->ev[g_app->ev_cnt++] = ev;
+
+    ev = evsignal_new(g_app->ev_base, SIGUSR2, sigusr_cb, NULL);
+    evsignal_add(ev, NULL);
+    g_app->ev[g_app->ev_cnt++] = ev;
+
+    ev = evsignal_new(g_app->ev_base, SIGIO, siginfo_cb, NULL);
+    evsignal_add(ev, NULL);
+    g_app->ev[g_app->ev_cnt++] = ev;
+
+    slog(LOG_INFO, "Initiated signal register");
+
+
+    return true;
+
 }
 
 /**

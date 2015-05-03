@@ -47,7 +47,12 @@ typedef struct
     void*   zcmd;       ///< command socket with asterisk-zmq
     void*   zevt;       ///< event socket with asterisk-zmq
     void*   zlog;       ///< log socket with logstash.
+
+    // event
     struct event_base*  ev_base;    //!< event base.(libevent)
+    int ev_cnt;
+    struct event* ev[128];
+
 } app_;
 
 extern app_* g_app;

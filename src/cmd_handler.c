@@ -41,6 +41,7 @@ void cb_cmd_handler(unused__ int fd, unused__ short event, unused__ void *arg)
     }
 
     j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
     if(j_res == NULL)
     {
         // Nothing to do.

@@ -12,6 +12,7 @@
 
 #include <event2/event.h>
 #include <evhtp.h>
+#include <stdbool.h>
 
 #include "common.h"
 #include "olive_result.h"
@@ -60,12 +61,14 @@ json_t* get_dialing_info_by_tr_chan_unique_id(const char* unique_id);
 json_t* get_dialing_info_by_dl_uuid(const char* uuid);
 json_t* get_dialings_info_by_status(const char* status);
 
-int delete_dialing_info_all(json_t* j_dialing);
 //int update_dialing_info(json_t* j_dialing);
 int update_db_dialing_info(json_t* j_dialing);
 int update_dialing_info(const json_t* j_dialing);
 
+// dialing
 int update_dialing_timestamp(const char* column, const char* unique_id);
+
+
 int update_dl_list_timestamp(const char* table, const char* column, const char* chan_unique_id);
 
 int update_campaign_info_status(const char* uuid, const char* status);
