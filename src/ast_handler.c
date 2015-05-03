@@ -560,6 +560,7 @@ static void evt_shutdown(json_t* j_recv)
             "shutdown",
             tmp
             );
+
     ret = memdb_exec(sql);
     free(sql);
     free(tmp);
@@ -655,6 +656,7 @@ static void evt_reload(json_t* j_recv)
             "reload",
             tmp
             );
+
     ret = memdb_exec(sql);
     free(sql);
     free(tmp);
@@ -1814,54 +1816,6 @@ static void evt_parkedcallgiveup(json_t* j_recv)
             json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
             );
 
-    ret = asprintf(&sql, "update park set "
-            "channel_state = \"%s\", "
-            "channel_state_desc = \"%s\", "
-            "caller_id_num = \"%s\", "
-            "caller_id_name = \"%s\", "
-            "connected_line_num = \"%s\", "
-
-            "connected_line_name = \"%s\", "
-            "language = \"%s\", "
-            "account_code = \"%s\", "
-            "context = \"%s\", "
-            "exten = \"%s\", "
-
-            "priority = \"%s\", "
-            "dial_string = \"%s\", "
-            "parking_lot = \"%s\", "
-            "parking_space = \"%s\", "
-            "parking_timeout = \"%s\", "
-
-            "parking_duration = \"%s\", "
-            "tm_parkedout = %s"
-
-            "where unique_id = \"%s\""
-            ";",
-            json_string_value(json_object_get(j_recv, "ParkeeChannelState")),
-            json_string_value(json_object_get(j_recv, "ParkeeChannelStateDesc")),
-            json_string_value(json_object_get(j_recv, "ParkeeCallerIDNum")),
-            json_string_value(json_object_get(j_recv, "ParkeeCallerIDName")),
-            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineNum")),
-
-            json_string_value(json_object_get(j_recv, "ParkeeConnectedLineName")),
-            json_string_value(json_object_get(j_recv, "ParkeeLanguage")),
-            json_string_value(json_object_get(j_recv, "ParkeeAccountCode")),
-            json_string_value(json_object_get(j_recv, "ParkeeContext")),
-            json_string_value(json_object_get(j_recv, "ParkeeExten")),
-
-            json_string_value(json_object_get(j_recv, "ParkeePriority")),
-            json_string_value(json_object_get(j_recv, "ParkerDialString")),
-            json_string_value(json_object_get(j_recv, "Parkinglot")),
-            json_string_value(json_object_get(j_recv, "ParkingSpace")),
-            json_string_value(json_object_get(j_recv, "ParkingTimeout")),
-
-            json_string_value(json_object_get(j_recv, "ParkingDuration")),
-            "strftime('%Y-%m-%d %H:%m:%f', 'now')",
-
-            json_string_value(json_object_get(j_recv, "ParkeeUniqueid"))
-            );
-
     ret = memdb_exec(sql);
     free(sql);
     if(ret == false)
@@ -1897,42 +1851,66 @@ static void evt_bridgecreate(json_t* j_recv)
 //    BridgeNumChannels - Number of channels in the bridge
 
     int ret;
-    char* sql;
+//    char* sql;
+    char* tmp;
+    json_t* j_tmp;
 
-    ret = asprintf(&sql, "insert into bridge_ma("
-            // identity
-            "unique_id, "
+    tmp = get_utc_timestamp();
+    j_tmp = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s}"
+            "unique_id",        json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
+            "tm_create",        tmp,
+            "type",             json_string_value(json_object_get(j_recv, "BridgeType")),
+            "tech",             json_string_value(json_object_get(j_recv, "BridgeTechnology")),
+            "creator",          json_string_value(json_object_get(j_recv, "BridgeCreator")),
 
-            // timestamp
-            "tm_create, "
-
-            // bridge info.
-            "type, tech, creator, name, num_channels "
-            ") values ("
-            "\"%s\", "
-
-            "%s, "
-
-            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
-            ");",
-            json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
-
-            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
-
-            json_string_value(json_object_get(j_recv, "BridgeType")),
-            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
-            json_string_value(json_object_get(j_recv, "BridgeCreator")),
-            json_string_value(json_object_get(j_recv, "BridgeName")),
-            json_string_value(json_object_get(j_recv, "BridgeNumChannels"))
+            "name",             json_string_value(json_object_get(j_recv, "BridgeName")),
+            "num_channels",     json_string_value(json_object_get(j_recv, "BridgeNumChannels"))
             );
+    free(tmp);
 
-    ret = memdb_exec(sql);
-    free(sql);
+    ret = memdb_insert("bridge_ma", j_tmp);
+    json_decref(j_tmp);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not update evt_bridgecreate.");
     }
     return;
+
+
+//    ret = asprintf(&sql, "insert into bridge_ma("
+//            // identity
+//            "unique_id, "
+//
+//            // timestamp
+//            "tm_create, "
+//
+//            // bridge info.
+//            "type, tech, creator, name, num_channels "
+//            ") values ("
+//            "\"%s\", "
+//
+//            "%s, "
+//
+//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
+//            ");",
+//            json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
+//
+//            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+//
+//            json_string_value(json_object_get(j_recv, "BridgeType")),
+//            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
+//            json_string_value(json_object_get(j_recv, "BridgeCreator")),
+//            json_string_value(json_object_get(j_recv, "BridgeName")),
+//            json_string_value(json_object_get(j_recv, "BridgeNumChannels"))
+//            );
+//
+//    ret = memdb_exec(sql);
+//    free(sql);
+//    if(ret == false)
+//    {
+//        slog(LOG_ERR, "Could not update evt_bridgecreate.");
+//    }
+//    return;
 }
 
 /**
@@ -1965,7 +1943,7 @@ static void evt_bridgedestory(json_t* j_recv)
 
     ret = asprintf(&sql, "update bridge_ma set "
             // timestamp
-            "tm_detroy = %s, "
+            "tm_destroy = %s, "
 
             // info
             "type = \"%s\", "
@@ -2384,16 +2362,14 @@ int cmd_sippeers(void)
         // insert name only into mysql
         ret = asprintf(&sql, "insert ignore into peer (name) values (\"%s\");", json_string_value(j_tmp));
         ret = db_exec(sql);
+        free(sql);
         if(ret == false)
         {
             slog(LOG_ERR, "Could init peer info. ret[%d]", ret);
 
-            free(sql);
             json_decref(j_res);
             return false;
         }
-
-        free(sql);
     }
 
     json_decref(j_res);
@@ -2440,125 +2416,6 @@ int cmd_sipshowpeer(const char* peer)
         json_decref(j_res);
         return false;
     }
-
-//    ret = asprintf(&sql, "insert or replace into peer("
-//            "name, secret, md5secret, remote_secret, context, "
-//            "language, ama_flags, transfer_mode, calling_pres, "
-//            "call_group, pickup_group, moh_suggest, mailbox, "
-//            "last_msg_sent, call_limit, max_forwards, dynamic, caller_id, "
-//            "max_call_br, reg_expire, auth_insecure, force_rport, acl, "
-//
-//            "t_38_support, t_38_ec_mode, t_38_max_dtgram, direct_media, "
-//            "promisc_redir, user_phone, video_support, text_support, "
-//            "dtmp_mode, "
-//            "to_host, addr_ip, defaddr_ip, "
-//            "def_username, codecs, "
-//
-//            "status, user_agent, reg_contact, "
-//            "qualify_freq, sess_timers, sess_refresh, sess_expires, min_sess, "
-//            "rtp_engine, parking_lot, use_reason, encryption, "
-//            "chan_type, chan_obj_type, tone_zone, named_pickup_group, busy_level, "
-//            "named_call_group, def_addr_port, comedia, description, addr_port, "
-//            "can_reinvite "
-//            ") values ("
-//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-//            "\"%s\", \"%s\", \"%s\", \"%s\", "
-//            "\"%s\", \"%s\", \"%s\", \"%s\", "
-//            "%d, %d, %d, \"%s\", \"%s\", "
-//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-//
-//            "\"%s\", \"%s\", %d, \"%s\", "
-//            "\"%s\", \"%s\", \"%s\", \"%s\", "
-//            "\"%s\", "
-//            "\"%s\", \"%s\", \"%s\", "
-//            "\"%s\", \"%s\", "
-//
-//            "\"%s\", \"%s\", \"%s\", "
-//            "\"%s\", \"%s\", \"%s\", %d, %d, "
-//            "\"%s\", \"%s\", \"%s\", \"%s\", "
-//            "\"%s\", \"%s\", \"%s\", \"%s\", %d, "
-//            "\"%s\", %d, \"%s\", \"%s\", %d, "
-//
-//            "\"%s\""
-//            ");",
-//            json_string_value(json_object_get(j_tmp, "ObjectName")),
-//            json_string_value(json_object_get(j_tmp, "SecretExist")),
-//            json_string_value(json_object_get(j_tmp, "MD5SecretExist")),
-//            json_string_value(json_object_get(j_tmp, "RemoteSecretExist")),
-//            json_string_value(json_object_get(j_tmp, "Context")),
-//
-//            json_string_value(json_object_get(j_tmp, "Language")),
-//            json_string_value(json_object_get(j_tmp, "AMAflags")),
-//            json_string_value(json_object_get(j_tmp, "TransferMode")),
-//            json_string_value(json_object_get(j_tmp, "CallingPres")),
-//
-//            json_string_value(json_object_get(j_tmp, "Callgroup")),
-//            json_string_value(json_object_get(j_tmp, "Pickupgroup")),
-//            json_string_value(json_object_get(j_tmp, "MOHSuggest")),
-//            json_string_value(json_object_get(j_tmp, "VoiceMailbox")),
-//
-//            (int)json_integer_value(json_object_get(j_tmp, "LastMsgsSent")),
-//            (int)json_integer_value(json_object_get(j_tmp, "Call-limit")),
-//            (int)json_integer_value(json_object_get(j_tmp, "Maxforwards")),
-//            json_string_value(json_object_get(j_tmp, "Dynamic")),
-//            json_string_value(json_object_get(j_tmp, "Callerid")),
-//
-//            json_string_value(json_object_get(j_tmp, "MaxCallBR")),
-//            json_string_value(json_object_get(j_tmp, "RegExpire")),
-//            json_string_value(json_object_get(j_tmp, "SIP-AuthInsecure")),
-//            json_string_value(json_object_get(j_tmp, "SIP-Forcerport")),
-//            json_string_value(json_object_get(j_tmp, "ACL")),
-//
-//
-//            json_string_value(json_object_get(j_tmp, "SIP-T.38Support")),
-//            json_string_value(json_object_get(j_tmp, "SIP-T.38EC")),
-//            (int)json_integer_value(json_object_get(j_tmp, "SIP-T.38MaxDtgrm")),
-//            json_string_value(json_object_get(j_tmp, "SIP-DirectMedia")),
-//
-//            json_string_value(json_object_get(j_tmp, "SIP-PromiscRedir")),
-//            json_string_value(json_object_get(j_tmp, "SIP-UserPhone")),
-//            json_string_value(json_object_get(j_tmp, "SIP-VideoSupport")),
-//            json_string_value(json_object_get(j_tmp, "SIP-TextSupport")),
-//
-//            json_string_value(json_object_get(j_tmp, "SIP-DTMFmode")),
-//
-//            json_string_value(json_object_get(j_tmp, "ToHost")),
-//            json_string_value(json_object_get(j_tmp, "Address-IP")),
-//            json_string_value(json_object_get(j_tmp, "Default-addr-IP")),
-//
-//            json_string_value(json_object_get(j_tmp, "Default-Username")),
-//            json_string_value(json_object_get(j_tmp, "Codecs")),
-//
-//
-//            json_string_value(json_object_get(j_tmp, "Status")),
-//            json_string_value(json_object_get(j_tmp, "SIP-Useragent")),
-//            json_string_value(json_object_get(j_tmp, "Reg-Contact")),
-//
-//            json_string_value(json_object_get(j_tmp, "QualifyFreq")),
-//            json_string_value(json_object_get(j_tmp, "SIP-Sess-Timers")),
-//            json_string_value(json_object_get(j_tmp, "SIP-Sess-Refresh")),
-//            (int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Expires")),
-//            (int)json_integer_value(json_object_get(j_tmp, "SIP-Sess-Min")),
-//
-//            json_string_value(json_object_get(j_tmp, "SIP-RTP-Engine")),
-//            json_string_value(json_object_get(j_tmp, "Parkinglot")),
-//            json_string_value(json_object_get(j_tmp, "SIP-Use-Reason-Header")),
-//            json_string_value(json_object_get(j_tmp, "SIP-Encryption")),
-//
-//            json_string_value(json_object_get(j_tmp, "Channeltype")),
-//            json_string_value(json_object_get(j_tmp, "ChanObjectType")),
-//            json_string_value(json_object_get(j_tmp, "ToneZone")),
-//            json_string_value(json_object_get(j_tmp, "Named Pickupgroup")),
-//            (int)json_integer_value(json_object_get(j_tmp, "Busy-level")),
-//
-//            json_string_value(json_object_get(j_tmp, "Named Callgroup")),
-//            (int)json_integer_value(json_object_get(j_tmp, "Default-addr-port")),
-//            json_string_value(json_object_get(j_tmp, "SIP-Comedia")),
-//            json_string_value(json_object_get(j_tmp, "Description")),
-//            (int)json_integer_value(json_object_get(j_tmp, "Address-Port")),
-//
-//            json_string_value(json_object_get(j_tmp, "SIP-CanReinvite"))
-//            );
 
     ret = asprintf(&sql, "update peer set "
             "secret = \"%s\", md5secret = \"%s\", remote_secret = \"%s\", context = \"%s\", "
@@ -2860,14 +2717,14 @@ int cmd_originate(json_t* j_dial)
             json_string_value(json_object_get(j_dial, "Context"))? : "",
             json_string_value(json_object_get(j_dial, "Priority"))? : ""
             );
+
     res = ast_send_cmd(cmd);
+    free(cmd);
     if(res == NULL)
     {
         slog(LOG_ERR, "Could not send Action:Originate. c[%s]", cmd);
-        free(cmd);
         return false;
     }
-    free(cmd);
 
     j_res = json_loads(res, 0, &j_err);
     free(res);
@@ -2941,6 +2798,7 @@ json_t* cmd_getvar(
             chan,
             var
             );
+
     res = ast_send_cmd(cmd);
     free(cmd);
     if(res == NULL)
@@ -3176,20 +3034,14 @@ int cmd_redirect(
 
     ret = asprintf(&cmd, "{\"Action\": \"Redirect\", "
             "\"Channel\": \"%s\", "
-//            "\"ExtraChannel\": \"%s\", "
             "\"Exten\": \"%s\", "
-//            "\"ExtraExten\": \"%s\", "
             "\"Context\": \"%s\", "
             "\"Priority\": \"%s\" "
-//            "\"ExtraPriority\": \"%s\" "
             "}",
             json_string_value(json_object_get(j_redir, "Channel")),
-//            json_string_value(json_object_get(j_redir, "ExtraChannel")),
             json_string_value(json_object_get(j_redir, "Exten")),
-//            json_string_value(json_object_get(j_redir, "ExtraExten")),
             json_string_value(json_object_get(j_redir, "Context")),
             json_string_value(json_object_get(j_redir, "Priority"))
-//            json_string_value(json_object_get(j_redir, "ExtraPriority"))
             );
 
     res = ast_send_cmd(cmd);
@@ -3344,6 +3196,7 @@ int cmd_bridge(json_t* j_bridge)
     }
 
     cmd = json_dumps(j_cmd, JSON_ENCODE_ANY);
+    json_decref(j_cmd);
 
     res = ast_send_cmd(cmd);
     free(cmd);

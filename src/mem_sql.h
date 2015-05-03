@@ -320,7 +320,7 @@ char* SQL_CREATE_BRIDGE_MA = "create table bridge_ma(\n"
 
         "-- timestamp. UTC\n"
         "tm_create      text,   -- create time.\n"
-        "tm_detroy      text,   -- destroy time.\n"
+        "tm_destroy     text,   -- destroy time.\n"
         "tm_update      text,   -- last update time.\n"
 
         "-- Bridge info\n"

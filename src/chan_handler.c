@@ -34,14 +34,19 @@ static json_t*  get_chans_to_dist(void);
 static json_t*  get_chans_hangup(void);
 static bool     delete_chan_info(const char* unique_id);
 
+// bridges
+static json_t*  get_bridge_ma_infos_for_destroy(void);
+static bool     delete_bridge_info(const char* unique_id);
+static bool     delete_bridge_ma_info(const char* unique_id);
+
 // check
-static int check_dialing_by_tr_channel(const json_t* j_chan);
-static int check_dialing_by_channel(const json_t* j_chan);
+static int  check_dialing_by_tr_channel(const json_t* j_chan);
+static int  check_dialing_by_channel(const json_t* j_chan);
 static bool check_answer_handle(json_t* j_dialing, json_t* j_plan);
 
 // etc
 static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing);
-static int update_dialing_after_transferred(json_t* j_dialing);
+static int  update_dialing_after_transferred(json_t* j_dialing);
 
 /**
  * Dial ended call handler.
@@ -375,92 +380,47 @@ void cb_chan_transfer(unused__ evutil_socket_t fd, unused__ short what, unused__
     json_decref(j_dialings);
 
     return;
+}
 
-//
-//
-//
-//    while(1)
-//    {
-//        j_dialing = memdb_get_result(mem_res);
-//        if(j_dialing == NULL)
-//        {
-//            break;
-//        }
-//
-//        // get channel to customer
-//        j_chan_customer = get_chan_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-//        if(j_chan_customer == NULL)
-//        {
-//            slog(LOG_ERR, "Could not get customer channel info. chan_unique_id[%s]",
-//                    json_string_value(json_object_get(j_dialing, "chan_unique_id"))
-//                    );
-//            json_decref(j_dialing);
-//            continue;
-//        }
-//
-//        // get channel to agent
-//        j_chan_agent = get_chan_info(json_string_value(json_object_get(j_dialing, "tr_chan_unique_id")));
-//        if(j_chan_agent == NULL)
-//        {
-//            slog(LOG_ERR, "Could not get agent channel info. chan_unique_id[%s]",
-//                    json_string_value(json_object_get(j_dialing, "tr_chan_unique_id"))
-//                    );
-//            json_decref(j_chan_customer);
-//            json_decref(j_dialing);
-//            continue;
-//        }
-//
-//        // create bridge json.
-//        slog(LOG_INFO, "Bridging channels. customer[%s], agent[%s]",
-//                json_string_value(json_object_get(j_chan_customer, "channel")),
-//                json_string_value(json_object_get(j_chan_agent, "channel"))
-//                );
-//        j_bridge = json_pack("{s:s, s:s, s:s}",
-//                "Channel1", json_string_value(json_object_get(j_chan_customer, "channel")),
-//                "Channel2", json_string_value(json_object_get(j_chan_agent, "channel")),
-//                "Tone", "Both"
-//                );
-//        json_decref(j_chan_customer);
-//
-//        // bridge
-//        ret = cmd_bridge(j_bridge);
-//        json_decref(j_bridge);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not bridge channels.");
-//            json_decref(j_dialing);
-//            json_decref(j_chan_agent);
-//            continue;
-//        }
-//        slog(LOG_INFO, "Bridge complete.");
-//
-//        // update dialing.
-//        j_tmp = json_pack("{s:s, s:s}"
-//                "status",           "transferred",
-//                "tm_tr_dial_end",   json_string_value(json_object_get(j_chan_agent, "tm_dial_end")),
-//                "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id"))
-//                );
-//        json_decref(j_chan_agent);
-//        ret = update_dialing_info(j_tmp);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not update dialing info.");
-//            continue;
-//        }
-//        json_decref(j_tmp);
-//
-//        ret = update_dialing_timestamp("tm_bridge", json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-//        json_decref(j_dialing);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not update dialing timestamp.");
-//            continue;
-//        }
-//
-//    }
-//    memdb_free(mem_res);
-//
-//    return;
+/**
+ * Callback function for destroyed bridge
+ */
+void cb_bridge_destroy(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
+{
+    json_t* j_bridges;
+    json_t* j_bridge;
+    int idx;
+    int ret;
+
+    // get destroyed bridge
+    j_bridges = get_bridge_ma_infos_for_destroy();
+
+    json_array_foreach(j_bridges, idx, j_bridge)
+    {
+        slog(LOG_INFO, "Deleting bridge info. unique_id[%s], tm_destroy[%s]",
+                json_string_value(json_object_get(j_bridge, "unique_id")),
+                json_string_value(json_object_get(j_bridge, "tm_destroy"))
+                );
+
+        // delete bridge info
+        ret = delete_bridge_info(json_string_value(json_object_get(j_bridge, "unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge info.");
+            continue;
+        }
+
+        ret = delete_bridge_ma_info(json_string_value(json_object_get(j_bridge, "unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_bridges);
+
+
+    return;
 }
 
 /**
@@ -500,12 +460,11 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
     // update res_dial.
     // update once only.
-    tmp = json_string_value(json_object_get(j_dialing, "res_dial"));
+    tmp = json_string_value(json_object_get(j_dialing, "AMDSTATUS"));
     if(tmp == NULL)
     {
         // update dialing AMD result info.
-        j_tmp = json_pack("{s:s, s:s, s:s, s:s}",
-                "res_dial",             json_string_value(json_object_get(j_chan, "dial_status")),
+        j_tmp = json_pack("{s:s, s:s, s:s}",
                 "res_answer",           json_string_value(json_object_get(j_chan, "AMDSTATUS")),
                 "res_answer_detail",    json_string_value(json_object_get(j_chan, "AMDCAUSE")),
                 "chan_unique_id",       json_string_value(json_object_get(j_chan, "unique_id"))
@@ -521,6 +480,12 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
             return;
         }
 
+        slog(LOG_INFO, "Update dialing dial result info. unique_id[%s], res_dial[%s], res_answer[%s], res_answer_detail[%s]",
+                json_string_value(json_object_get(j_chan, "unique_id")),
+                json_string_value(json_object_get(j_chan, "res_dial")),
+                json_string_value(json_object_get(j_chan, "res_answer")),
+                json_string_value(json_object_get(j_chan, "res_answer_detail"))
+                );
         ret = update_dialing_info(j_tmp);
         json_decref(j_tmp);
         if(ret == false)
@@ -1109,6 +1074,58 @@ static bool delete_chan_info(const char* unique_id)
 }
 
 /**
+ * Delete bridge info from table.
+ * @param unique_id
+ * @return
+ */
+static bool delete_bridge_info(const char* unique_id)
+{
+    char* sql;
+    int ret;
+
+    slog(LOG_INFO, "Delete bridge info. unique_id[%s]", unique_id);
+
+    ret = asprintf(&sql, "delete from bridge where brid_uuid = \"%s\";", unique_id);
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not delete bridge info.");
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Delete bridge master info from table.
+ * @param unique_id
+ * @return
+ */
+static bool delete_bridge_ma_info(const char* unique_id)
+{
+    char* sql;
+    int ret;
+
+    slog(LOG_INFO, "Delete bridge_ma info. unique_id[%s]", unique_id);
+
+    ret = asprintf(&sql, "delete from bridge_ma where unique_id = \"%s\";", unique_id);
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not delete bridge master info.");
+        return false;
+    }
+
+    return true;
+}
+
+
+
+/**
  * Get park table info.
  * Return as json.
  * @param unique_id
@@ -1310,6 +1327,48 @@ static json_t* get_chans_hangup(void)
     memdb_free(mem_res);
 
     return j_chans;
+}
+
+/**
+ * Get bridge_ma informations for destroy.
+ * @return
+ */
+static json_t* get_bridge_ma_infos_for_destroy(void)
+{
+    json_t* j_bridges;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    // get answered channel.
+    ret = asprintf(&sql, "select * from bridge_ma where tm_destroy is not null;");
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get channels info.");
+        return NULL;
+    }
+
+    j_bridges = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        ret = json_array_append(j_bridges, j_tmp);
+
+        json_decref(j_tmp);
+    }
+
+    memdb_free(mem_res);
+
+    return j_bridges;
 }
 
 /**

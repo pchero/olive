@@ -1664,8 +1664,8 @@ static int update_dl_result_clear(const json_t* j_dialing)
             "status",                   "idle",
             "dialing_camp_uuid",        "",
             "dialing_chan_unique_id",   "",
-            "res_dial",                 json_string_value(json_object_get(j_dialing, "res_dial")),
-            "res_hangup",               json_string_value(json_object_get(j_dialing, "res_hangup")),
+            "res_dial",                 json_string_value(json_object_get(j_dialing, "res_dial"))?      : "null",
+            "res_hangup",               json_string_value(json_object_get(j_dialing, "res_hangup"))?    : "null",
             "uuid",                     json_string_value(json_object_get(j_dialing, "dl_uuid"))
             );
     if(j_tmp == NULL)
