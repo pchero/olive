@@ -33,16 +33,34 @@ static json_t*  get_chans_tr_dial_end(void);
 static json_t*  get_chans_to_dist(void);
 static json_t*  get_chans_hangup(void);
 static bool     delete_chan_info(const char* unique_id);
+static void     destroy_chan_info(void);
+static json_t*  get_chan_infos_for_destroy(void);
 
-// bridges
+
+// bridge
+static void     destroy_bridge_info(void);
+static json_t*  get_bridge_infos_for_destroy(void);
+static bool     delete_bridge_info(const char* chan_unique_id);
+
+// bridge_ma
 static json_t*  get_bridge_ma_infos_for_destroy(void);
-static bool     delete_bridge_info(const char* unique_id);
 static bool     delete_bridge_ma_info(const char* unique_id);
+static void     destroy_bridge_ma_info(void);
+
+// park
+static void     destroy_park_info(void);
+static json_t*  get_park_infos_for_destroy(void);
+static bool     delete_park_info(const char* unique_id);
 
 // check
 static int  check_dialing_by_tr_channel(const json_t* j_chan);
 static int  check_dialing_by_channel(const json_t* j_chan);
 static bool check_answer_handle(json_t* j_dialing, json_t* j_plan);
+
+// dialing
+static void     destroy_dialing_info(void);
+static bool     delete_dialing_info(const char* chan_unique_id);
+static json_t*  get_dialing_infos_for_destroy(void);
 
 // etc
 static void call_result(json_t* j_chan, json_t* j_park, json_t* j_dialing);
@@ -264,14 +282,6 @@ void cb_chan_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ v
             slog(LOG_ERR, "Could not check dialing channel by tr_chan_unique_id");
             continue;
         }
-
-        // delete channel info.
-        ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
-        if(ret == false)
-        {
-            slog(LOG_ERR, "Could not delete channel info.");
-            continue;
-        }
     }
 
     json_decref(j_chans);
@@ -383,42 +393,25 @@ void cb_chan_transfer(unused__ evutil_socket_t fd, unused__ short what, unused__
 }
 
 /**
- * Callback function for destroyed bridge
+ * Callback function for destroy useless data
  */
-void cb_bridge_destroy(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
+void cb_destroy_useless_data(unused__ evutil_socket_t fd, unused__ short what, unused__ void *arg)
 {
-    json_t* j_bridges;
-    json_t* j_bridge;
-    int idx;
-    int ret;
 
-    // get destroyed bridge
-    j_bridges = get_bridge_ma_infos_for_destroy();
+    // destroy dialing info.
+    destroy_dialing_info();
 
-    json_array_foreach(j_bridges, idx, j_bridge)
-    {
-        slog(LOG_INFO, "Deleting bridge info. unique_id[%s], tm_destroy[%s]",
-                json_string_value(json_object_get(j_bridge, "unique_id")),
-                json_string_value(json_object_get(j_bridge, "tm_destroy"))
-                );
+    // destroy not in use channel info
+    destroy_chan_info();
 
-        // delete bridge info
-        ret = delete_bridge_info(json_string_value(json_object_get(j_bridge, "unique_id")));
-        if(ret == false)
-        {
-            slog(LOG_ERR, "Could not delete bridge info.");
-            continue;
-        }
+    // destroy not in use bridge_ma info.
+    destroy_bridge_ma_info();
 
-        ret = delete_bridge_ma_info(json_string_value(json_object_get(j_bridge, "unique_id")));
-        if(ret == false)
-        {
-            slog(LOG_ERR, "Could not delete bridge_ma info.");
-            continue;
-        }
-    }
-    json_decref(j_bridges);
+    // destroy not in use bridge info.
+    destroy_bridge_info();
 
+    // destroy not in use park info.
+    destroy_park_info();
 
     return;
 }
@@ -1058,7 +1051,7 @@ static bool delete_chan_info(const char* unique_id)
     char* sql;
     int ret;
 
-    slog(LOG_INFO, "Delete channel info. unique_id[%s]", unique_id);
+    slog(LOG_DEBUG, "Delete channel info. unique_id[%s]", unique_id);
 
     ret = asprintf(&sql, "delete from channel where unique_id = \"%s\";", unique_id);
 
@@ -1074,18 +1067,255 @@ static bool delete_chan_info(const char* unique_id)
 }
 
 /**
+ * Destroy not in use channle info.
+ */
+static void destroy_chan_info(void)
+{
+    json_t* j_chans;
+    json_t* j_chan;
+    int idx;
+    int ret;
+
+    // get channel informations for destroy.
+    j_chans = get_chan_infos_for_destroy();
+
+    json_array_foreach(j_chans, idx, j_chan)
+    {
+        slog(LOG_INFO, "Deleting channel info. unique_id[%s], channel[%s], status[%s], status_desc[%s]",
+                json_string_value(json_object_get(j_chan, "unique_id")),
+                json_string_value(json_object_get(j_chan, "channel")),
+                json_string_value(json_object_get(j_chan, "status")),
+                json_string_value(json_object_get(j_chan, "status_desc"))
+                );
+        ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete channel info.");
+            continue;
+        }
+    }
+    json_decref(j_chans);
+
+    return;
+}
+
+
+/**
+ * Destroy not in use bridge_ma info.
+ */
+static void destroy_bridge_ma_info(void)
+{
+    json_t* j_bridges;
+    json_t* j_tmp;
+    int idx;
+    int ret;
+
+    // get channel informations for destroy.
+    j_bridges = get_bridge_ma_infos_for_destroy();
+
+    json_array_foreach(j_bridges, idx, j_tmp)
+    {
+        slog(LOG_INFO, "Deleting bridge_ma info. unique_id[%s], type[%s], tech[%s], creator[%s]",
+                json_string_value(json_object_get(j_tmp, "unique_id")),
+                json_string_value(json_object_get(j_tmp, "type")),
+                json_string_value(json_object_get(j_tmp, "tech")),
+                json_string_value(json_object_get(j_tmp, "creator"))
+                );
+        ret = delete_bridge_ma_info(json_string_value(json_object_get(j_tmp, "unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_bridges);
+
+    return;
+}
+
+/**
+ * Destroy not in use bridge info.
+ */
+static void destroy_bridge_info(void)
+{
+    json_t* j_bridges;
+    json_t* j_tmp;
+    int idx;
+    int ret;
+
+    // get channel informations for destroy.
+    j_bridges = get_bridge_infos_for_destroy();
+
+    json_array_foreach(j_bridges, idx, j_tmp)
+    {
+        slog(LOG_INFO, "Deleting bridge_ma info. bridge_uuid[%s], channel[%s], chan_unique_id[%s]",
+                json_string_value(json_object_get(j_tmp, "bridge_uuid")),
+                json_string_value(json_object_get(j_tmp, "channel")),
+                json_string_value(json_object_get(j_tmp, "chan_unique_id"))
+                );
+
+        ret = delete_bridge_info(json_string_value(json_object_get(j_tmp, "chan_unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_bridges);
+
+    return;
+}
+
+/**
+ * Destroy not in use park info.
+ */
+static void destroy_park_info(void)
+{
+    json_t* j_datas;
+    json_t* j_tmp;
+    int idx;
+    int ret;
+
+    // get channel informations for destroy.
+    j_datas = get_park_infos_for_destroy();
+
+    json_array_foreach(j_datas, idx, j_tmp)
+    {
+        slog(LOG_INFO, "Deleting park info. unique_id[%s], channel[%s]",
+                json_string_value(json_object_get(j_tmp, "unique_id")),
+                json_string_value(json_object_get(j_tmp, "channel"))
+                );
+
+        ret = delete_park_info(json_string_value(json_object_get(j_tmp, "unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_datas);
+
+    return;
+}
+
+
+/**
+ * Destroy not in use dialing info.
+ */
+static void destroy_dialing_info(void)
+{
+    json_t* j_datas;
+    json_t* j_tmp;
+    int idx;
+    int ret;
+
+    // get channel informations for destroy.
+    j_datas = get_dialing_infos_for_destroy();
+
+    json_array_foreach(j_datas, idx, j_tmp)
+    {
+        slog(LOG_INFO, "Deleting dialing info. chan_unique_id[%s], camp_uuid[%s]",
+                json_string_value(json_object_get(j_tmp, "chan_unique_id")),
+                json_string_value(json_object_get(j_tmp, "camp_uuid"))
+                );
+
+        ret = delete_dialing_info(json_string_value(json_object_get(j_tmp, "chan_unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_datas);
+
+    return;
+}
+
+
+static json_t* get_dialing_infos_for_destroy(void)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    ret = asprintf(&sql, "select * from dialing where status = \"finished\";");
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get destroy dialing info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        json_array_append(j_res, j_tmp);
+        json_decref(j_tmp);
+    }
+    memdb_free(mem_res);
+
+    return j_res;
+}
+
+
+static json_t* get_chan_infos_for_destroy(void)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    ret = asprintf(&sql, "select * from channel where status = \"Down\""
+            " and unique_id != (select chan_unique_id from dialing)"
+            " and unique_id != (select tr_chan_unique_id from dialing)"
+            " or tm_create is null "
+            " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s"
+            ";",
+            json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        json_array_append(j_res, j_tmp);
+        json_decref(j_tmp);
+    }
+    memdb_free(mem_res);
+
+    return j_res;
+}
+
+/**
  * Delete bridge info from table.
  * @param unique_id
  * @return
  */
-static bool delete_bridge_info(const char* unique_id)
+static bool delete_bridge_info(const char* chan_unique_id)
 {
     char* sql;
     int ret;
 
-    slog(LOG_INFO, "Delete bridge info. unique_id[%s]", unique_id);
-
-    ret = asprintf(&sql, "delete from bridge where brid_uuid = \"%s\";", unique_id);
+    ret = asprintf(&sql, "delete from bridge where chan_unique_id = \"%s\";", chan_unique_id);
 
     ret = memdb_exec(sql);
     free(sql);
@@ -1099,7 +1329,7 @@ static bool delete_bridge_info(const char* unique_id)
 }
 
 /**
- * Delete bridge master info from table.
+ * Delete bridge info from table.
  * @param unique_id
  * @return
  */
@@ -1108,21 +1338,41 @@ static bool delete_bridge_ma_info(const char* unique_id)
     char* sql;
     int ret;
 
-    slog(LOG_INFO, "Delete bridge_ma info. unique_id[%s]", unique_id);
-
     ret = asprintf(&sql, "delete from bridge_ma where unique_id = \"%s\";", unique_id);
 
     ret = memdb_exec(sql);
     free(sql);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not delete bridge master info.");
+        slog(LOG_ERR, "Could not delete bridge_ma info.");
         return false;
     }
 
     return true;
 }
 
+/**
+ * Delete bridge info from table.
+ * @param unique_id
+ * @return
+ */
+static bool delete_park_info(const char* unique_id)
+{
+    char* sql;
+    int ret;
+
+    ret = asprintf(&sql, "delete from park where unique_id = \"%s\";", unique_id);
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not delete park info.");
+        return false;
+    }
+
+    return true;
+}
 
 
 /**
@@ -1169,8 +1419,8 @@ static json_t* get_chans_dial_end(void)
     unused__ int ret;
 
     // get answered channel.
-    ret = asprintf(&sql, "select * from channel where tm_dial_end is not null and "
-            "unique_id = (select chan_unique_id from dialing where status = \"dialing\")"
+    ret = asprintf(&sql, "select * from channel where tm_dial_end is not null"
+            " and unique_id = (select chan_unique_id from dialing where status = \"dialing\")"
             ";");
 
     mem_res = memdb_query(sql);
@@ -1213,8 +1463,8 @@ static json_t* get_chans_tr_dial_end(void)
     unused__ int ret;
 
     // get answered channel.
-    ret = asprintf(&sql, "select * from channel where tm_dial_end is not null and "
-            "unique_id = (select tr_chan_unique_id from dialing where tr_status = \"dialing\")"
+    ret = asprintf(&sql, "select * from channel where tm_dial_end is not null"
+            " and unique_id = (select tr_chan_unique_id from dialing where tr_status = \"dialing\")"
             ";");
 
     mem_res = memdb_query(sql);
@@ -1257,8 +1507,8 @@ static json_t* get_chans_to_dist(void)
     unused__ int ret;
 
     // get answered channel.
-    ret = asprintf(&sql, "select * from channel "
-            "where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dial_end\" and res_dial = \"ANSWER\");");
+    ret = asprintf(&sql, "select * from channel"
+            " where tm_dial_end is not null and unique_id = (select chan_unique_id from dialing where status = \"dial_end\" and res_dial = \"ANSWER\");");
 
     mem_res = memdb_query(sql);
     free(sql);
@@ -1300,8 +1550,10 @@ static json_t* get_chans_hangup(void)
     char* sql;
     unused__ int ret;
 
-    // get answered channel.
-    ret = asprintf(&sql, "select * from channel where cause is not null;");
+    // get hangup channel.
+    ret = asprintf(&sql, "select * from channel where status = \"Down\" or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s;",
+            json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
+            );
 
     mem_res = memdb_query(sql);
     free(sql);
@@ -1342,7 +1594,12 @@ static json_t* get_bridge_ma_infos_for_destroy(void)
     unused__ int ret;
 
     // get answered channel.
-    ret = asprintf(&sql, "select * from bridge_ma where tm_destroy is not null;");
+    ret = asprintf(&sql, "select * from bridge_ma where tm_destroy is not null"
+            " or tm_update is null"
+            " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_update) > %s"
+            ";",
+            json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
+            );
 
     mem_res = memdb_query(sql);
     free(sql);
@@ -1365,10 +1622,102 @@ static json_t* get_bridge_ma_infos_for_destroy(void)
 
         json_decref(j_tmp);
     }
-
     memdb_free(mem_res);
 
     return j_bridges;
+}
+
+/**
+ * Get bridge informations for destroy.
+ * @return
+ */
+static json_t* get_bridge_infos_for_destroy(void)
+{
+    json_t* j_bridges;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    // get answered channel.
+    ret = asprintf(&sql, "select * from bridge where tm_leave is not null"
+            " or tm_enter is null"
+            " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_enter) > %s"
+            ";",
+            json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get bridge info.");
+        return NULL;
+    }
+
+    j_bridges = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        ret = json_array_append(j_bridges, j_tmp);
+
+        json_decref(j_tmp);
+    }
+    memdb_free(mem_res);
+
+    return j_bridges;
+}
+
+/**
+ * Get park informations for destroy.
+ * @return
+ */
+static json_t* get_park_infos_for_destroy(void)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    // get answered channel.
+    ret = asprintf(&sql, "select * from park where tm_parkedout is not null"
+            " or tm_parkedin is null"
+            " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_parkedin) > %s"
+            ";",
+            json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get channels info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        ret = json_array_append(j_res, j_tmp);
+
+        json_decref(j_tmp);
+    }
+
+    memdb_free(mem_res);
+
+    return j_res;
 }
 
 /**
@@ -1582,5 +1931,166 @@ static int check_dialing_by_tr_channel(const json_t* j_chan)
     return true;
 }
 
+/**
+ * Delete dialing info.
+ * @param chan_unique_id
+ * @return
+ */
+static bool delete_dialing_info(const char* chan_unique_id)
+{
+    char* sql;
+    int ret;
 
+    ret = asprintf(&sql, "delete from dialing where chan_unique_id = \"%s\";",
+            chan_unique_id
+            );
 
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not delete dialing info.");
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Get dialing info from dialing table using unique_id.
+ * Return json should be release after use.
+ * @param uuid
+ * @return
+ */
+json_t* get_dialing_info_by_chan_unique_id(const char* unique_id)
+{
+    char* sql;
+    unused__ int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
+
+    ret = asprintf(&sql, "select * from dialing where chan_unique_id = \"%s\";",
+            unique_id
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dialing info.");
+        return NULL;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+
+    return j_res;
+}
+
+/**
+ * Get dialing info from dialing table using dl_uuid.
+ * Return json should be release after use.
+ * @param uuid
+ * @return
+ */
+json_t* get_dialing_info_by_dl_uuid(const char* uuid)
+{
+    char* sql;
+    unused__ int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
+
+    ret = asprintf(&sql, "select * from dialing where dl_uuid = \"%s\";",
+            uuid
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dialing info.");
+        return NULL;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+
+    return j_res;
+}
+
+/**
+ * Get dialing info from dialing table using dl_uuid.
+ * Return json should be release after use.
+ * @param uuid
+ * @return
+ */
+json_t* get_dialing_info_by_tr_chan_unique_id(const char* unique_id)
+{
+    char* sql;
+    unused__ int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
+
+    ret = asprintf(&sql, "select * from dialing where tr_chan_unique_id = \"%s\";",
+            unique_id
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dialing info.");
+        return NULL;
+    }
+
+    j_res = memdb_get_result(mem_res);
+    memdb_free(mem_res);
+
+    return j_res;
+}
+
+/**
+ * Get dialings info from dialing table using status
+ * Return json should be release after use.
+ * Return json array.
+ * @param status
+ * @return Errror:NULL
+ */
+json_t* get_dialings_info_by_status(const char* status)
+{
+    char* sql;
+    unused__ int ret;
+    memdb_res* mem_res;
+    json_t* j_res;
+    json_t* j_tmp;
+
+    ret = asprintf(&sql, "select * from dialing where status = \"%s\";",
+            status
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get dialing info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        json_array_append(j_res, j_tmp);
+        json_decref(j_tmp);
+
+    }
+
+    memdb_free(mem_res);
+
+    return j_res;
+}

@@ -66,8 +66,7 @@ static char*    create_dial_addr_from_dl(const json_t* j_camp, const json_t* j_p
 static json_t*  create_dial_info(json_t* j_dialing);
 
 // dialing
-static int delete_dialing_info_all(const json_t* j_dialing);
-static bool delete_dialing_info(const char* chan_unique_id);
+//static int delete_dialing_info_all(const json_t* j_dialing);
 static int write_dialing_result(const json_t* j_dialing);
 
 // etc
@@ -378,13 +377,16 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
                 continue;
             }
 
-            // delete dialing
-            ret = delete_dialing_info_all(j_dialing);
-            if(ret == false)
-            {
-                slog(LOG_ERR, "Could not delete dialing info.");
-                continue;
-            }
+            // update dialing info
+            // todo:
+
+//            // delete dialing
+//            ret = delete_dialing_info_all(j_dialing);
+//            if(ret == false)
+//            {
+//                slog(LOG_ERR, "Could not delete dialing info.");
+//                continue;
+//            }
             continue;
         }
 
@@ -404,13 +406,16 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
             continue;
         }
 
-        // delete dialing
-        ret = delete_dialing_info_all(j_dialing);
-        if(ret == false)
-        {
-            slog(LOG_ERR, "Could not delete dialing info.");
-            continue;
-        }
+        // update dialing info to "finished"
+        // todo:
+
+//        // delete dialing
+//        ret = delete_dialing_info_all(j_dialing);
+//        if(ret == false)
+//        {
+//            slog(LOG_ERR, "Could not delete dialing info.");
+//            continue;
+//        }
     }
 
     json_decref(j_dialings);
@@ -1406,190 +1411,6 @@ static char* get_dial_number(const json_t* j_dlist, const int cnt)
     return res;
 }
 
-//static int insert_dialing_info(json_t* j_dialing)
-//{
-//    char* sql;
-//    int ret;
-//
-//    ret = asprintf(&sql, "insert into dialing("
-//            // identity
-//            "dl_uuid, chan_unique_id, camp_uuid, "
-//
-//            // info
-//            "status, dial_index, dial_addr, dial_trycnt, "
-//
-//            // timestamp
-//            "tm_dial "
-//            ") values ("
-//            "\"%s\", \"%s\", \"%s\", "
-//
-//            "\"%s\", %d, \"%s\", %d, "
-//
-//            "%s"
-//            ");",
-//
-//            json_string_value(json_object_get(j_dialing, "dl_uuid")),
-//            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-//            json_string_value(json_object_get(j_dialing, "camp_uuid")),
-//
-//            json_string_value(json_object_get(j_dialing, "status")),
-//            (int)json_integer_value(json_object_get(j_dialing, "dial_index")),
-//            json_string_value(json_object_get(j_dialing, "dial_addr")),
-//            (int)json_integer_value(json_object_get(j_dialing, "dial_trycnt")),
-//
-//            "strftime('%Y-%m-%d %H:%m:%f', 'now')"
-//            );
-//    ret = memdb_exec(sql);
-//    if(ret == false)
-//    {
-//        slog(LOG_ERR, "Could not insert dialing info.");
-//        return false;
-//    }
-//
-//    return true;
-//}
-//
-/**
- * Get dialing info from dialing table using unique_id.
- * Return json should be release after use.
- * @param uuid
- * @return
- */
-json_t* get_dialing_info_by_chan_unique_id(const char* unique_id)
-{
-    char* sql;
-    unused__ int ret;
-    memdb_res* mem_res;
-    json_t* j_res;
-
-    ret = asprintf(&sql, "select * from dialing where chan_unique_id = \"%s\";",
-            unique_id
-            );
-
-    mem_res = memdb_query(sql);
-    free(sql);
-    if(mem_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get dialing info.");
-        return NULL;
-    }
-
-    j_res = memdb_get_result(mem_res);
-    memdb_free(mem_res);
-
-    return j_res;
-}
-
-/**
- * Get dialing info from dialing table using dl_uuid.
- * Return json should be release after use.
- * @param uuid
- * @return
- */
-json_t* get_dialing_info_by_dl_uuid(const char* uuid)
-{
-    char* sql;
-    unused__ int ret;
-    memdb_res* mem_res;
-    json_t* j_res;
-
-    ret = asprintf(&sql, "select * from dialing where dl_uuid = \"%s\";",
-            uuid
-            );
-
-    mem_res = memdb_query(sql);
-    free(sql);
-    if(mem_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get dialing info.");
-        return NULL;
-    }
-
-    j_res = memdb_get_result(mem_res);
-    memdb_free(mem_res);
-
-    return j_res;
-}
-
-/**
- * Get dialing info from dialing table using dl_uuid.
- * Return json should be release after use.
- * @param uuid
- * @return
- */
-json_t* get_dialing_info_by_tr_chan_unique_id(const char* unique_id)
-{
-    char* sql;
-    unused__ int ret;
-    memdb_res* mem_res;
-    json_t* j_res;
-
-    ret = asprintf(&sql, "select * from dialing where tr_chan_unique_id = \"%s\";",
-            unique_id
-            );
-
-    mem_res = memdb_query(sql);
-    free(sql);
-    if(mem_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get dialing info.");
-        return NULL;
-    }
-
-    j_res = memdb_get_result(mem_res);
-    memdb_free(mem_res);
-
-    return j_res;
-}
-
-/**
- * Get dialings info from dialing table using status
- * Return json should be release after use.
- * Return json array.
- * @param status
- * @return Errror:NULL
- */
-json_t* get_dialings_info_by_status(const char* status)
-{
-    char* sql;
-    unused__ int ret;
-    memdb_res* mem_res;
-    json_t* j_res;
-    json_t* j_tmp;
-
-    ret = asprintf(&sql, "select * from dialing where status = \"%s\";",
-            status
-            );
-
-    mem_res = memdb_query(sql);
-    free(sql);
-    if(mem_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get dialing info.");
-        return NULL;
-    }
-
-    j_res = json_array();
-    while(1)
-    {
-        j_tmp = memdb_get_result(mem_res);
-        if(j_tmp == NULL)
-        {
-            break;
-        }
-
-        json_array_append(j_res, j_tmp);
-        json_decref(j_tmp);
-
-    }
-
-    memdb_free(mem_res);
-
-    return j_res;
-}
-
-
-
 /**
  * Update dl list info.
  * @param j_dlinfo
@@ -1829,57 +1650,33 @@ static int write_dialing_result(const json_t* j_dialing)
     return true;
 }
 
-/**
- * Delete all info releated with dialing.
- * @param j_dialing
- * @return
- */
-int delete_dialing_info_all(const json_t* j_dialing)
-{
-    int ret;
+///**
+// * Delete all info releated with dialing.
+// * @param j_dialing
+// * @return
+// */
+//int delete_dialing_info_all(const json_t* j_dialing)
+//{
+//    int ret;
+//
+//    slog(LOG_INFO, "Delete dialing info. chan_unique_id[%s], res_dial[%s]",
+//            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+//            json_string_value(json_object_get(j_dialing, "res_dial"))
+//            );
+//
+//    // delete dialing info.
+//    ret = delete_dialing_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+//    if(ret == false)
+//    {
+//        slog(LOG_ERR, "Could not delete dialing info.");
+//        return false;
+//    }
+//
+//    // delete other info.
+//
+//    return true;
+//}
 
-    slog(LOG_INFO, "Delete dialing info. chan_unique_id[%s], res_dial[%s]",
-            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-            json_string_value(json_object_get(j_dialing, "res_dial"))
-            );
-
-    // delete dialing info.
-    ret = delete_dialing_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not delete dialing info.");
-        return false;
-    }
-
-    // delete other info.
-
-    return true;
-}
-
-/**
- * Delete dialing info.
- * @param chan_unique_id
- * @return
- */
-static bool delete_dialing_info(const char* chan_unique_id)
-{
-    char* sql;
-    int ret;
-
-    ret = asprintf(&sql, "delete from dialing where chan_unique_id = \"%s\";",
-            chan_unique_id
-            );
-
-    ret = memdb_exec(sql);
-    free(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not delete dialing info.");
-        return false;
-    }
-
-    return true;
-}
 
 /**
  * Update database dialing info

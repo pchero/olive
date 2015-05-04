@@ -635,8 +635,8 @@ static int init_callback(void)
     event_add(ev, &tm_slow);
     g_app->ev[g_app->ev_cnt++] = ev;
 
-    // bridge destroy
-    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_bridge_destroy, NULL);
+    // destroy useless data
+    ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_destroy_useless_data, NULL);
     event_add(ev, &tm_slow);
     g_app->ev[g_app->ev_cnt++] = ev;
 
