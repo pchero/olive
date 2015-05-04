@@ -66,8 +66,7 @@ static char*    create_dial_addr_from_dl(const json_t* j_camp, const json_t* j_p
 static json_t*  create_dial_info(json_t* j_dialing);
 
 // dialing
-static int delete_dialing_info_all(const json_t* j_dialing);
-static bool delete_dialing_info(const char* chan_unique_id);
+//static int delete_dialing_info_all(const json_t* j_dialing);
 static int write_dialing_result(const json_t* j_dialing);
 
 // etc
@@ -378,13 +377,16 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
                 continue;
             }
 
-            // delete dialing
-            ret = delete_dialing_info_all(j_dialing);
-            if(ret == false)
-            {
-                slog(LOG_ERR, "Could not delete dialing info.");
-                continue;
-            }
+            // update dialing info
+            // todo:
+
+//            // delete dialing
+//            ret = delete_dialing_info_all(j_dialing);
+//            if(ret == false)
+//            {
+//                slog(LOG_ERR, "Could not delete dialing info.");
+//                continue;
+//            }
             continue;
         }
 
@@ -404,13 +406,16 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
             continue;
         }
 
-        // delete dialing
-        ret = delete_dialing_info_all(j_dialing);
-        if(ret == false)
-        {
-            slog(LOG_ERR, "Could not delete dialing info.");
-            continue;
-        }
+        // update dialing info to "finished"
+        // todo:
+
+//        // delete dialing
+//        ret = delete_dialing_info_all(j_dialing);
+//        if(ret == false)
+//        {
+//            slog(LOG_ERR, "Could not delete dialing info.");
+//            continue;
+//        }
     }
 
     json_decref(j_dialings);
@@ -1829,57 +1834,33 @@ static int write_dialing_result(const json_t* j_dialing)
     return true;
 }
 
-/**
- * Delete all info releated with dialing.
- * @param j_dialing
- * @return
- */
-int delete_dialing_info_all(const json_t* j_dialing)
-{
-    int ret;
+///**
+// * Delete all info releated with dialing.
+// * @param j_dialing
+// * @return
+// */
+//int delete_dialing_info_all(const json_t* j_dialing)
+//{
+//    int ret;
+//
+//    slog(LOG_INFO, "Delete dialing info. chan_unique_id[%s], res_dial[%s]",
+//            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+//            json_string_value(json_object_get(j_dialing, "res_dial"))
+//            );
+//
+//    // delete dialing info.
+//    ret = delete_dialing_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
+//    if(ret == false)
+//    {
+//        slog(LOG_ERR, "Could not delete dialing info.");
+//        return false;
+//    }
+//
+//    // delete other info.
+//
+//    return true;
+//}
 
-    slog(LOG_INFO, "Delete dialing info. chan_unique_id[%s], res_dial[%s]",
-            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
-            json_string_value(json_object_get(j_dialing, "res_dial"))
-            );
-
-    // delete dialing info.
-    ret = delete_dialing_info(json_string_value(json_object_get(j_dialing, "chan_unique_id")));
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not delete dialing info.");
-        return false;
-    }
-
-    // delete other info.
-
-    return true;
-}
-
-/**
- * Delete dialing info.
- * @param chan_unique_id
- * @return
- */
-static bool delete_dialing_info(const char* chan_unique_id)
-{
-    char* sql;
-    int ret;
-
-    ret = asprintf(&sql, "delete from dialing where chan_unique_id = \"%s\";",
-            chan_unique_id
-            );
-
-    ret = memdb_exec(sql);
-    free(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not delete dialing info.");
-        return false;
-    }
-
-    return true;
-}
 
 /**
  * Update database dialing info

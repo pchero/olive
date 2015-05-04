@@ -162,7 +162,7 @@ char* SQL_CREATE_CHANNEL = "create table channel(\n"
         "tm_hangup          text,   -- hangup time. UTC timestamp.\n"
 
         "-- status\n"
-        "status         text,   -- ChannelState code\n"
+        "status         text,   -- ChannelState code. (Down, Rsrvd, OffHook, Dialing, Ring, Ringing, Up, Busy, Dialing Offhook, Pre-ring, Unknown)\n"
         "status_desc    text,   -- ChannelStateDesc\n"
         "cause          text,   -- Hangup cause code\n"
         "cause_desc     text,   -- Hangup cause\n"
