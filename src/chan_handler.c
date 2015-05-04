@@ -1081,11 +1081,13 @@ static void destroy_chan_info(void)
 
     json_array_foreach(j_chans, idx, j_chan)
     {
-        slog(LOG_INFO, "Deleting channel info. unique_id[%s], channel[%s], status[%s], status_desc[%s]",
+        slog(LOG_INFO, "Deleting channel info. unique_id[%s], channel[%s], status[%s], status_desc[%s], cause[%s], cuase_desc[%s]",
                 json_string_value(json_object_get(j_chan, "unique_id")),
                 json_string_value(json_object_get(j_chan, "channel")),
                 json_string_value(json_object_get(j_chan, "status")),
-                json_string_value(json_object_get(j_chan, "status_desc"))
+                json_string_value(json_object_get(j_chan, "status_desc")),
+                json_string_value(json_object_get(j_chan, "cause")),
+                json_string_value(json_object_get(j_chan, "cause_desc"))
                 );
         ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
         if(ret == false)
@@ -1231,7 +1233,10 @@ static void destroy_dialing_info(void)
     return;
 }
 
-
+/**
+ * Get dialing informations for destroy.
+ * @return
+ */
 static json_t* get_dialing_infos_for_destroy(void)
 {
     json_t* j_res;
@@ -1267,6 +1272,10 @@ static json_t* get_dialing_infos_for_destroy(void)
     return j_res;
 }
 
+/**
+ * Get channel informations for destroy.
+ * @return
+ */
 static json_t* get_chan_infos_for_destroy(void)
 {
     json_t* j_res;
@@ -1275,9 +1284,9 @@ static json_t* get_chan_infos_for_destroy(void)
     char* sql;
     unused__ int ret;
 
-    ret = asprintf(&sql, "select * from channel where status = \"Down\""
-            " and unique_id != (select chan_unique_id from dialing)"
-            " and unique_id != (select tr_chan_unique_id from dialing)"
+    ret = asprintf(&sql, "select * from channel where status_desc = \"Down\""
+            " and unique_id is not (select chan_unique_id from dialing)"
+            " and unique_id is not (select tr_chan_unique_id from dialing)"
             " or tm_create is null "
             " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s"
             ";",
@@ -1550,7 +1559,7 @@ static json_t* get_chans_hangup(void)
     unused__ int ret;
 
     // get hangup channel.
-    ret = asprintf(&sql, "select * from channel where status = \"Down\" or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s;",
+    ret = asprintf(&sql, "select * from channel where status_desc = \"Down\" or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s;",
             json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
             );
 
@@ -1813,28 +1822,28 @@ static int check_dialing_by_channel(const json_t* j_chan)
         return -1;
     }
 
-    ret = json_object_set(j_dialing, "res_hangup", json_object_get(j_chan, "cause"));
+    ret = json_object_set(j_dialing, "res_hangup", json_object_get(j_chan, "cause") ? : json_null());
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not update dialing object. res_hangup[%s]", json_string_value(json_object_get(j_chan, "cause")));
         return -1;
     }
 
-    ret = json_object_set(j_dialing, "res_hangup_detail", json_object_get(j_chan, "cause_desc"));
+    ret = json_object_set(j_dialing, "res_hangup_detail", json_object_get(j_chan, "cause_desc")? : json_null());
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not update dialing object. res_hangup_detail[%s]", json_string_value(json_object_get(j_chan, "cause_desc")));
         return -1;
     }
 
-    ret = json_object_set(j_dialing, "tm_dial_end", json_object_get(j_chan, "tm_dial_end"));
+    ret = json_object_set(j_dialing, "tm_dial_end", json_object_get(j_chan, "tm_dial_end")? : json_null());
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not update dialing object. tm_dial_end[%s]", json_string_value(json_object_get(j_chan, "tm_dial_end")));
         return -1;
     }
 
-    ret = json_object_set(j_dialing, "tm_hangup", json_object_get(j_chan, "tm_hangup"));
+    ret = json_object_set(j_dialing, "tm_hangup", json_object_get(j_chan, "tm_hangup")? : json_null());
     if(ret == -1)
     {
         slog(LOG_ERR, "Could not update dialing object. tm_hangup[%s]", json_string_value(json_object_get(j_chan, "tm_hangup")));
@@ -2092,4 +2101,38 @@ json_t* get_dialings_info_by_status(const char* status)
     memdb_free(mem_res);
 
     return j_res;
+}
+
+/**
+ * Update database dialing info
+ * @param j_dialing
+ * @return
+ */
+int update_dialing_info(const json_t* j_dialing)
+{
+    char* sql;
+    int ret;
+    char* tmp;
+
+    tmp = memdb_get_update_str(j_dialing);
+    if(tmp == NULL)
+    {
+        slog(LOG_ERR, "Could not get update sql.");
+        return false;
+    }
+
+    ret = asprintf(&sql, "update dialing set %s where chan_unique_id = \"%s\";",
+            tmp, json_string_value(json_object_get(j_dialing, "chan_unique_id"))
+            );
+    free(tmp);
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update memdb_dialing info.");
+        return false;
+    }
+
+    return true;
 }

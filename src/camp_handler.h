@@ -56,18 +56,8 @@ json_t* campaign_get_all(void);
 json_t* get_plan_info(const char* uuid);
 json_t* get_dl_master_info(const char* uuid);
 
-json_t* get_dialing_info_by_chan_unique_id(const char* uuid);
-json_t* get_dialing_info_by_tr_chan_unique_id(const char* unique_id);
-json_t* get_dialing_info_by_dl_uuid(const char* uuid);
-json_t* get_dialings_info_by_status(const char* status);
-
 //int update_dialing_info(json_t* j_dialing);
 int update_db_dialing_info(json_t* j_dialing);
-int update_dialing_info(const json_t* j_dialing);
-
-// dialing
-int update_dialing_timestamp(const char* column, const char* unique_id);
-
 
 int update_dl_list_timestamp(const char* table, const char* column, const char* chan_unique_id);
 

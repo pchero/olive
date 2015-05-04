@@ -332,6 +332,7 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
 {
     json_t* j_dialings;
     json_t* j_dialing;
+    json_t* j_tmp;
     int index;
     int ret;
 
@@ -378,15 +379,12 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
             }
 
             // update dialing info
-            // todo:
-
-//            // delete dialing
-//            ret = delete_dialing_info_all(j_dialing);
-//            if(ret == false)
-//            {
-//                slog(LOG_ERR, "Could not delete dialing info.");
-//                continue;
-//            }
+            j_tmp = json_pack("{s:s, s:s}",
+                    "status",           "finished",
+                    "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id"))
+                    );
+            update_dialing_info(j_tmp);
+            json_decref(j_tmp);
             continue;
         }
 
@@ -407,15 +405,12 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
         }
 
         // update dialing info to "finished"
-        // todo:
-
-//        // delete dialing
-//        ret = delete_dialing_info_all(j_dialing);
-//        if(ret == false)
-//        {
-//            slog(LOG_ERR, "Could not delete dialing info.");
-//            continue;
-//        }
+        j_tmp = json_pack("{s:s, s:s}",
+                "status",           "finished",
+                "chan_unique_id",   json_string_value(json_object_get(j_dialing, "chan_unique_id"))
+                );
+        update_dialing_info(j_tmp);
+        json_decref(j_tmp);
     }
 
     json_decref(j_dialings);
@@ -1712,41 +1707,6 @@ int update_db_dialing_info(json_t* j_dialing)
 
     return true;
 }
-
-/**
- * Update database dialing info
- * @param j_dialing
- * @return
- */
-int update_dialing_info(const json_t* j_dialing)
-{
-    char* sql;
-    int ret;
-    char* tmp;
-
-    tmp = memdb_get_update_str(j_dialing);
-    if(tmp == NULL)
-    {
-        slog(LOG_ERR, "Could not get update sql.");
-        return false;
-    }
-
-    ret = asprintf(&sql, "update dialing set %s where chan_unique_id = \"%s\";",
-            tmp, json_string_value(json_object_get(j_dialing, "chan_unique_id"))
-            );
-    free(tmp);
-
-    ret = memdb_exec(sql);
-    free(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not update memdb_dialing info.");
-        return false;
-    }
-
-    return true;
-}
-
 
 /**
  * Update dialing table column timestamp info.
