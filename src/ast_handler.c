@@ -1851,66 +1851,42 @@ static void evt_bridgecreate(json_t* j_recv)
 //    BridgeNumChannels - Number of channels in the bridge
 
     int ret;
-//    char* sql;
-    char* tmp;
-    json_t* j_tmp;
+    char* sql;
 
-    tmp = get_utc_timestamp();
-    j_tmp = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s}"
-            "unique_id",        json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
-            "tm_create",        tmp,
-            "type",             json_string_value(json_object_get(j_recv, "BridgeType")),
-            "tech",             json_string_value(json_object_get(j_recv, "BridgeTechnology")),
-            "creator",          json_string_value(json_object_get(j_recv, "BridgeCreator")),
+    ret = asprintf(&sql, "insert into bridge_ma("
+            // identity
+            "unique_id, "
 
-            "name",             json_string_value(json_object_get(j_recv, "BridgeName")),
-            "num_channels",     json_string_value(json_object_get(j_recv, "BridgeNumChannels"))
+            // timestamp
+            "tm_create, "
+
+            // bridge info.
+            "type, tech, creator, name, num_channels "
+            ") values ("
+            "\"%s\", "
+
+            "%s, "
+
+            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
+            ");",
+            json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
+
+            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
+
+            json_string_value(json_object_get(j_recv, "BridgeType")),
+            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
+            json_string_value(json_object_get(j_recv, "BridgeCreator")),
+            json_string_value(json_object_get(j_recv, "BridgeName")),
+            json_string_value(json_object_get(j_recv, "BridgeNumChannels"))
             );
-    free(tmp);
 
-    ret = memdb_insert("bridge_ma", j_tmp);
-    json_decref(j_tmp);
+    ret = memdb_exec(sql);
+    free(sql);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not update evt_bridgecreate.");
     }
     return;
-
-
-//    ret = asprintf(&sql, "insert into bridge_ma("
-//            // identity
-//            "unique_id, "
-//
-//            // timestamp
-//            "tm_create, "
-//
-//            // bridge info.
-//            "type, tech, creator, name, num_channels "
-//            ") values ("
-//            "\"%s\", "
-//
-//            "%s, "
-//
-//            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\""
-//            ");",
-//            json_string_value(json_object_get(j_recv, "BridgeUniqueid")),
-//
-//            "strftime('%Y-%m-%d %H:%m:%f', 'now')", // utc milliseconds.
-//
-//            json_string_value(json_object_get(j_recv, "BridgeType")),
-//            json_string_value(json_object_get(j_recv, "BridgeTechnology")),
-//            json_string_value(json_object_get(j_recv, "BridgeCreator")),
-//            json_string_value(json_object_get(j_recv, "BridgeName")),
-//            json_string_value(json_object_get(j_recv, "BridgeNumChannels"))
-//            );
-//
-//    ret = memdb_exec(sql);
-//    free(sql);
-//    if(ret == false)
-//    {
-//        slog(LOG_ERR, "Could not update evt_bridgecreate.");
-//    }
-//    return;
 }
 
 /**
