@@ -40,7 +40,11 @@ static json_t*  get_chan_infos_for_destroy(void);
 // bridge
 static void     destroy_bridge_info(void);
 static json_t*  get_bridge_infos_for_destroy(void);
+<<<<<<< HEAD
 static bool     delete_bridge_info(const char* chan_unique_id);
+=======
+static bool     delete_bridge_info(const int seq);
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
 
 // bridge_ma
 static json_t*  get_bridge_ma_infos_for_destroy(void);
@@ -282,6 +286,17 @@ void cb_chan_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ v
             slog(LOG_ERR, "Could not check dialing channel by tr_chan_unique_id");
             continue;
         }
+<<<<<<< HEAD
+=======
+
+//        // delete channel info.
+//        ret = delete_chan_info(json_string_value(json_object_get(j_chan, "unique_id")));
+//        if(ret == false)
+//        {
+//            slog(LOG_ERR, "Could not delete channel info.");
+//            continue;
+//        }
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
     }
 
     json_decref(j_chans);
@@ -1148,6 +1163,7 @@ static void destroy_bridge_info(void)
 
     json_array_foreach(j_bridges, idx, j_tmp)
     {
+<<<<<<< HEAD
         slog(LOG_INFO, "Deleting bridge_ma info. bridge_uuid[%s], channel[%s], chan_unique_id[%s]",
                 json_string_value(json_object_get(j_tmp, "bridge_uuid")),
                 json_string_value(json_object_get(j_tmp, "channel")),
@@ -1263,6 +1279,123 @@ static json_t* get_dialing_infos_for_destroy(void)
         json_decref(j_tmp);
     }
     memdb_free(mem_res);
+=======
+        slog(LOG_INFO, "Deleting bridge_ma info. seq[%d], bridge_uuid[%s], channel[%s], chan_unique_id[%s]",
+                json_integer_value(json_object_get(j_tmp, "seq")),
+                json_string_value(json_object_get(j_tmp, "bridge_uuid")),
+                json_string_value(json_object_get(j_tmp, "channel")),
+                json_string_value(json_object_get(j_tmp, "chan_unique_id"))
+                );
+
+        ret = delete_bridge_info(json_integer_value(json_object_get(j_tmp, "seq")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_bridges);
+
+    return;
+}
+
+/**
+ * Destroy not in use park info.
+ */
+static void destroy_park_info(void)
+{
+    json_t* j_datas;
+    json_t* j_tmp;
+    int idx;
+    int ret;
+
+    // get channel informations for destroy.
+    j_datas = get_park_infos_for_destroy();
+
+    json_array_foreach(j_datas, idx, j_tmp)
+    {
+        slog(LOG_INFO, "Deleting park info. unique_id[%s], channel[%s]",
+                json_string_value(json_object_get(j_tmp, "unique_id")),
+                json_string_value(json_object_get(j_tmp, "channel"))
+                );
+
+        ret = delete_park_info(json_string_value(json_object_get(j_tmp, "unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_datas);
+
+    return;
+}
+
+
+/**
+ * Destroy not in use dialing info.
+ */
+static void destroy_dialing_info(void)
+{
+    json_t* j_datas;
+    json_t* j_tmp;
+    int idx;
+    int ret;
+
+    // get channel informations for destroy.
+    j_datas = get_dialing_infos_for_destroy();
+
+    json_array_foreach(j_datas, idx, j_tmp)
+    {
+        slog(LOG_INFO, "Deleting dialing info. chan_unique_id[%s], camp_uuid[%s]",
+                json_string_value(json_object_get(j_tmp, "chan_unique_id")),
+                json_string_value(json_object_get(j_tmp, "camp_uuid"))
+                );
+
+        ret = delete_dialing_info(json_string_value(json_object_get(j_tmp, "chan_unique_id")));
+        if(ret == false)
+        {
+            slog(LOG_ERR, "Could not delete bridge_ma info.");
+            continue;
+        }
+    }
+    json_decref(j_datas);
+
+    return;
+}
+
+
+static json_t* get_dialing_infos_for_destroy(void)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    ret = asprintf(&sql, "select * from dialing where status = \"finished\";");
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get destroy dialing info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        json_array_append(j_res, j_tmp);
+        json_decref(j_tmp);
+    }
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
 
     return j_res;
 }
@@ -1310,12 +1443,20 @@ static json_t* get_chan_infos_for_destroy(void)
  * @param unique_id
  * @return
  */
+<<<<<<< HEAD
 static bool delete_bridge_info(const char* chan_unique_id)
+=======
+static bool delete_bridge_info(const int seq)
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
 {
     char* sql;
     int ret;
 
+<<<<<<< HEAD
     ret = asprintf(&sql, "delete from bridge where chan_unique_id = \"%s\";", chan_unique_id);
+=======
+    ret = asprintf(&sql, "delete from bridge where seq = %d;", seq);
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
 
     ret = memdb_exec(sql);
     free(sql);
@@ -1361,7 +1502,11 @@ static bool delete_park_info(const char* unique_id)
     char* sql;
     int ret;
 
+<<<<<<< HEAD
     ret = asprintf(&sql, "delete from park where unique_id = \"%s\";", unique_id);
+=======
+    ret = asprintf(&sql, "delete from park where unique_id = %s;", unique_id);
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
 
     ret = memdb_exec(sql);
     free(sql);
@@ -1549,11 +1694,23 @@ static json_t* get_chans_hangup(void)
     memdb_res* mem_res;
     char* sql;
     unused__ int ret;
+    char* cur_time;
 
+<<<<<<< HEAD
     // get hangup channel.
     ret = asprintf(&sql, "select * from channel where status = \"Down\" or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s;",
             json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
             );
+=======
+    // get answered channel.
+    cur_time = get_utc_timestamp();
+    ret = asprintf(&sql, "select * from channel where status = \"%s\" or timestampdiff(second, tm_create, \"%s\") > %s;",
+            "Down",
+            cur_time,
+            json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
+            );
+    free(cur_time);
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
 
     mem_res = memdb_query(sql);
     free(sql);
@@ -1595,8 +1752,13 @@ static json_t* get_bridge_ma_infos_for_destroy(void)
 
     // get answered channel.
     ret = asprintf(&sql, "select * from bridge_ma where tm_destroy is not null"
+<<<<<<< HEAD
             " or tm_update is null"
             " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_update) > %s"
+=======
+            "or tm_update is null"
+            "or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_update) > %s"
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
             ";",
             json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
             );
@@ -1640,6 +1802,7 @@ static json_t* get_bridge_infos_for_destroy(void)
     unused__ int ret;
 
     // get answered channel.
+<<<<<<< HEAD
     ret = asprintf(&sql, "select * from bridge where tm_leave is not null"
             " or tm_enter is null"
             " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_enter) > %s"
@@ -1689,6 +1852,58 @@ static json_t* get_park_infos_for_destroy(void)
     ret = asprintf(&sql, "select * from park where tm_parkedout is not null"
             " or tm_parkedin is null"
             " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_parkedin) > %s"
+=======
+    ret = asprintf(&sql, "select * from bridge_ma where tm_leave is not null"
+            "or tm_enter is null"
+            "or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_enter) > %s"
+            ";",
+            json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
+            );
+
+    mem_res = memdb_query(sql);
+    free(sql);
+    if(mem_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get channels info.");
+        return NULL;
+    }
+
+    j_bridges = json_array();
+    while(1)
+    {
+        j_tmp = memdb_get_result(mem_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        ret = json_array_append(j_bridges, j_tmp);
+
+        json_decref(j_tmp);
+    }
+
+    memdb_free(mem_res);
+
+    return j_bridges;
+}
+
+/**
+ * Get park informations for destroy.
+ * @return
+ */
+static json_t* get_park_infos_for_destroy(void)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    memdb_res* mem_res;
+    char* sql;
+    unused__ int ret;
+
+    // get answered channel.
+    ret = asprintf(&sql, "select * from park where tm_parkedout is not null"
+            "or tm_parkedin is null"
+            "or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_parkedin) > %s"
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
             ";",
             json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
             );
@@ -1940,6 +2155,24 @@ static bool delete_dialing_info(const char* chan_unique_id)
 {
     char* sql;
     int ret;
+<<<<<<< HEAD
+=======
+
+    ret = asprintf(&sql, "delete from dialing where chan_unique_id = \"%s\";",
+            chan_unique_id
+            );
+
+    ret = memdb_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not delete dialing info.");
+        return false;
+    }
+
+    return true;
+}
+>>>>>>> branch 'master' of https://github.com/pchero/olive.git
 
     ret = asprintf(&sql, "delete from dialing where chan_unique_id = \"%s\";",
             chan_unique_id
