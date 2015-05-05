@@ -480,9 +480,9 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
         slog(LOG_INFO, "Update dialing dial result info. unique_id[%s], res_dial[%s], res_answer[%s], res_answer_detail[%s]",
                 json_string_value(json_object_get(j_chan, "unique_id")),
-                json_string_value(json_object_get(j_chan, "res_dial")),
-                json_string_value(json_object_get(j_chan, "res_answer")),
-                json_string_value(json_object_get(j_chan, "res_answer_detail"))
+                json_string_value(json_object_get(j_tmp, "res_dial")),
+                json_string_value(json_object_get(j_tmp, "res_answer")),
+                json_string_value(json_object_get(j_tmp, "res_answer_detail"))
                 );
         ret = update_dialing_info(j_tmp);
         json_decref(j_tmp);
@@ -533,7 +533,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
     // distribute call info.
     slog(LOG_INFO, "Call transfer. channel[%s], agent[%s], agent_name[%s], peer[%s]",
             json_string_value(json_object_get(j_chan, "channel")),
-            json_string_value(json_object_get(j_agent, "uuid")),
+            json_string_value(json_object_get(j_agent, "id")),
             json_string_value(json_object_get(j_agent, "name")),
             json_string_value(json_object_get(j_peer, "name"))
             );
@@ -594,12 +594,12 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
     // update agent status
     j_tmp = json_pack("{s:s, s:s}",
-            "uuid", json_string_value(json_object_get(j_agent, "uuid")),
+            "id", json_string_value(json_object_get(j_agent, "id")),
             "status", "busy"
             );
     json_decref(j_agent);
 
-    ret = agent_status_update(j_tmp);
+    ret = update_agent_status(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
@@ -1289,7 +1289,8 @@ static json_t* get_chan_infos_for_destroy(void)
     char* sql;
     unused__ int ret;
 
-    ret = asprintf(&sql, "select * from channel where status_desc = \"Down\""
+    ret = asprintf(&sql, "select * from channel where"
+            " cause is not null"
             " and unique_id is not (select chan_unique_id from dialing)"
             " and unique_id is not (select tr_chan_unique_id from dialing)"
             " or tm_create is null "
@@ -1565,7 +1566,7 @@ static json_t* get_chans_hangup(void)
 
     // get hangup channel.
     ret = asprintf(&sql, "select * from channel where"
-            " status_desc = \"Down\""
+            " cause is not null"
             " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s;",
             json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
             );
@@ -1814,6 +1815,7 @@ static int update_dialing_hangup_by_channel(const json_t* j_chan)
 {
     json_t* j_dialing;
     json_t* j_tmp;
+    const char* tmp;
     int ret;
 
     // get dialing
@@ -1821,6 +1823,15 @@ static int update_dialing_hangup_by_channel(const json_t* j_chan)
     if(j_tmp == NULL)
     {
         return false;
+    }
+
+    // check status
+    tmp = json_string_value(json_object_get(j_tmp, "status"));
+    ret = strcmp(tmp, "hangup");
+    if(tmp == 0)
+    {
+        // already hangup.
+        return true;
     }
 
     j_dialing = json_deep_copy(j_tmp);
@@ -1863,15 +1874,29 @@ static int update_dialing_hangup_by_channel(const json_t* j_chan)
  */
 static int update_dialing_hangup_by_tr_channel(const json_t* j_chan)
 {
+    json_t* j_tmp;
     json_t* j_dialing;
+    const char* tmp;
     int ret;
 
     // get dialing
-    j_dialing = get_dialing_info_by_tr_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
-    if(j_dialing == NULL)
+    j_tmp = get_dialing_info_by_tr_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
+    if(j_tmp == NULL)
     {
         return false;
     }
+
+    // check status
+    tmp = json_string_value(json_object_get(j_tmp, "status"));
+    ret = strcmp(tmp, "hangup");
+    if(tmp == 0)
+    {
+        // already hangup.
+        return true;
+    }
+
+    j_dialing = json_deep_copy(j_tmp);
+    json_decref(j_tmp);
 
     // update hangup info.
     ret = json_object_set_new(j_dialing, "tr_status", json_string("hangup")? : json_null());

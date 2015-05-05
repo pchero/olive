@@ -9,6 +9,7 @@
 #define SRC_AGENT_HANDLER_H_
 
 #include <jansson.h>
+#include <stdbool.h>
 
 bool load_table_agent(void);
 
@@ -19,7 +20,12 @@ json_t* agent_get_info(const json_t* j_agent);
 json_t* agent_update(const json_t* j_agent);
 json_t* agent_status_get(const char* uuid);
 int     agent_status_update(const json_t* j_agent);
+json_t* agent_update_info(const json_t* j_agent, const char* id);
+json_t* agent_delete_info(const json_t* j_agent, const char* id);
+
+
 json_t* get_agent_longest_update(json_t* j_camp, const char* status);
+bool    update_agent_status(const json_t* j_agent);
 
 
 #endif /* SRC_AGENT_HANDLER_H_ */

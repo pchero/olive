@@ -131,7 +131,7 @@ char* SQL_CREATE_AGENT = "create table agent(\n"
         "-- info.\n"
         "status text default \"logout\",    -- \"logout\", \"ready\", \"not ready\", \"busy\", \"after call work\"\n"
 
-        "primary key(uuid)\n"
+        "primary key(id)\n"
         ");";
 
 /**

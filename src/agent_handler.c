@@ -25,6 +25,8 @@
 static bool     create_agent(const json_t* j_agent);
 static json_t*  get_agents_all(void);
 static json_t*  get_agent_info(const char* id);
+static bool     update_agent_info(json_t* j_agent);
+static bool     delete_agent_info(json_t* j_agent);
 
 
 bool load_table_agent(void)
@@ -211,7 +213,63 @@ json_t* agent_get_info(const json_t* j_agent)
     json_decref(j_tmp);
 
     return j_res;
+}
 
+/**
+ * Update agent info API handler
+ * @return
+ */
+json_t* agent_update_info(const json_t* j_agent, const char* id)
+{
+    json_t* j_tmp;
+    json_t* j_res;
+    int ret;
+
+    j_tmp = json_deep_copy(j_agent);
+
+    json_object_set_new(j_tmp, "update_agent_id", json_string(id));
+
+    ret = update_agent_info(j_tmp);
+    json_decref(j_tmp);
+    if(ret == false)
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+    }
+    else
+    {
+        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+    }
+
+    return j_res;
+}
+
+/**
+ * Delete agent info API handler.
+ * Not really delete, just set delete flag.
+ * @return
+ */
+json_t* agent_delete_info(const json_t* j_agent, const char* id)
+{
+    json_t* j_tmp;
+    json_t* j_res;
+    int ret;
+
+    j_tmp = json_deep_copy(j_agent);
+
+    json_object_set_new(j_tmp, "delete_agent_id", json_string(id));
+
+    ret = delete_agent_info(j_tmp);
+    json_decref(j_tmp);
+    if(ret == false)
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+    }
+    else
+    {
+        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+    }
+
+    return j_res;
 }
 
 
@@ -242,6 +300,117 @@ json_t* agent_status_get(const char* id)
     return j_res;
 }
 
+bool update_agent_status(const json_t* j_agent)
+{
+    char* sql;
+    char* cur_time;
+    int ret;
+
+    cur_time = get_utc_timestamp();
+    ret = asprintf(&sql, "update agent set status = \"%s\", tm_status_update = \"%s\" where id = \"%s\";",
+            json_string_value(json_object_get(j_agent, "status")),
+            cur_time,
+            json_string_value(json_object_get(j_agent, "id"))
+            );
+    free(cur_time);
+
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update agent status info. id[%s], status[%s]",
+                json_string_value(json_object_get(j_agent, "id")),
+                json_string_value(json_object_get(j_agent, "status"))
+                );
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Update agent info.
+ * @param j_agent
+ * @return
+ */
+static bool update_agent_info(json_t* j_agent)
+{
+    int ret;
+    char* sql;
+    char* tmp;
+    char* cur_time;
+    json_t* j_tmp;
+
+    j_tmp = json_deep_copy(j_agent);
+
+    cur_time = get_utc_timestamp();
+    json_object_set_new(j_tmp, "tm_info_update", json_string(cur_time));
+    free(cur_time);
+
+    tmp = db_get_update_str(j_agent);
+    ret = asprintf(&sql, "update agent set %s where id = \"%s\";",
+            tmp,
+            json_string_value(json_object_get(j_tmp, "id"))
+            );
+    free(tmp);
+
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update agent info.");
+        return false;
+    }
+
+    json_decref(j_tmp);
+
+    return true;
+}
+
+/**
+ * Delete agent info.
+ * @param j_agent
+ * @return
+ */
+static bool delete_agent_info(json_t* j_agent)
+{
+    int ret;
+    char* sql;
+    char* tmp;
+    char* cur_time;
+    json_t* j_tmp;
+
+    j_tmp = json_deep_copy(j_agent);
+
+    cur_time = get_utc_timestamp();
+    json_object_set_new(j_tmp, "tm_delete", json_string(cur_time));
+    free(cur_time);
+
+    tmp = db_get_update_str(j_agent);
+    ret = asprintf(&sql, "update agent set %s where id = \"%s\";",
+            tmp,
+            json_string_value(json_object_get(j_tmp, "id"))
+            );
+    free(tmp);
+
+    ret = db_exec(sql);
+    free(sql);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update agent info.");
+        return false;
+    }
+
+    json_decref(j_tmp);
+
+    return true;
+}
+
+/**
+ *
+ * @param j_agent
+ * @return
+ */
 int agent_status_update(const json_t* j_agent)
 {
     char* sql;

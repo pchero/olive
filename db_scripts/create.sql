@@ -109,10 +109,10 @@ create table agent(
     update_agent_id   varchar(255),
     
     -- timestamp
-    tm_info_update      datetime,   -- last agent info modified time
-    tm_create           datetime,   -- created time.
-    tm_delete           datetiem,   -- deleted time.
-    tm_status_update    datetime,   -- last status changed time.    
+    tm_info_update      datetime(6),    -- last agent info modified time
+    tm_create           datetime(6),    -- created time.
+    tm_delete           datetime(6),    -- deleted time.
+    tm_status_update    datetime(6),    -- last status changed time.    
     
     -- agent level (permission). -- to-be
     
@@ -138,7 +138,7 @@ create table agent_group(
     group_uuid    varchar(255)  not null,
     agent_id    varchar(255)  not null,
     
-    primary key(group_uuid, agent_uuid)
+    primary key(group_uuid, agent_id)
 );
 
 
@@ -170,15 +170,15 @@ create table plan(
     max_retry_cnt_8     int default 5,  -- max retry count for dial number 8
 
     -- ownership
-    create_agent_uuid           varchar(255),       -- create agent uuid
-    delete_agent_uuid           varchar(255),       -- delete agent uuid
-    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
+    create_agent_id           varchar(255),       -- create agent uuid
+    delete_agent_id           varchar(255),       -- delete agent uuid
+    update_property_agent_id  varchar(255),       -- last propery update agent uuid
     
     -- timestamp. UTC.
-    tm_create           datetime,   -- create time.
-    tm_delete           datetime,   -- delete time.
-    tm_update_property  datetime,   -- last property update time.(Except status)
-    tm_update_status    datetime,   -- last status updated time.
+    tm_create           datetime(6),    -- create time.
+    tm_delete           datetime(6),    -- delete time.
+    tm_update_property  datetime(6),    -- last property update time.(Except status)
+    tm_update_status    datetime(6),    -- last status updated time.
     
     primary key(uuid)
 );
@@ -248,10 +248,10 @@ create table dl_org(
 --    call_detail text,               -- more detail info about call result
 
     -- timestamp. UTC.
-    tm_create       datetime,   -- create time
-    tm_delete       datetime,   -- delete time
-    tm_update       datetime,   -- last update time
-    tm_last_dial    datetime,   -- last tried dial time
+    tm_create       datetime(6),   -- create time
+    tm_delete       datetime(6),   -- delete time
+    tm_update       datetime(6),   -- last update time
+    tm_last_dial    datetime(6),   -- last tried dial time
     
     primary key(uuid)
 );
@@ -265,13 +265,13 @@ create table peer(
 
     -- information
     mode        varchar(255)    not null,           -- "peer", "trunk"
-    agent_uuid  varchar(255),                       -- owned agent uuid.
+    agent_id    varchar(255),                       -- owned agent uuid.
     favorite    int default 0,                      -- favorite number. if close to 0, it has more favor value.
     
     -- timestamp. UTC
-    tm_create       datetime,   -- create time
-    tm_delete       datetime,   -- delete time
-    tm_update       datetime,   -- last update time
+    tm_create       datetime(6),   -- create time
+    tm_delete       datetime(6),   -- delete time
+    tm_update       datetime(6),   -- last update time
     
     primary key(name, protocol)
 );
@@ -284,10 +284,10 @@ create table trunk_group_ma(
     detail  text,
 
     -- timestamp. UTC
-    tm_create       datetime,   -- create time
-    tm_delete       datetime,   -- delete time
-    tm_update       datetime,   -- last update time
-    tm_last_dial    datetime,   -- last tried dial time
+    tm_create       datetime(6),   -- create time
+    tm_delete       datetime(6),   -- delete time
+    tm_update       datetime(6),   -- last update time
+    tm_last_dial    datetime(6),   -- last tried dial time
 
     primary key(uuid)
 );
@@ -304,9 +304,9 @@ create table trunk_group(
 
 
 -- Add admin user
-insert into agent(uuid, id, password) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "admin", "1234");
+insert into agent(id, password) values ("admin", "1234");
 insert into agent_group_ma(uuid, name) values ("agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "master_agent_group");
-insert into agent_group(agent_uuid, group_uuid) values ("agent-56b02510-66d2-478d-aa5e-e703247c029c", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
+insert into agent_group(agent_id, group_uuid) values ("admin", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
 
 -- create dial list
 drop table if exists dl_e276d8be;
@@ -324,7 +324,7 @@ insert into trunk_group_ma(uuid, name, detail) values ("trunkgroup-445df643-f8a6
 insert into trunk_group(group_uuid, trunk_name) values ("trunkgroup-445df643-f8a6-4a08-8b11-d6ca3dff4c56", "trunk-sample_01");
 
 -- insert test peer
-insert into peer(name, mode, agent_uuid) values ("test-01", "peer", "agent-56b02510-66d2-478d-aa5e-e703247c029c");
+insert into peer(name, mode, agent_id) values ("test-01", "peer", "admin");
 
 -- insert plan
 insert into plan(uuid, name, dial_mode, answer_handle) values ("plan-5ad6c7d8-535c-4cd3-b3e5-83ab420dcb56", "sample_plan", "predictive", "all");
