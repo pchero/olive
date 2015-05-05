@@ -12,13 +12,13 @@
 
 bool load_table_agent(void);
 
+json_t* agent_create(const json_t* j_agent, const char* id);
 json_t* agent_get_all(void);
+json_t* agent_get_info(const json_t* j_agent);
+
 json_t* agent_update(const json_t* j_agent);
-json_t* agent_create(const json_t* j_agent);
-
 json_t* agent_status_get(const char* uuid);
-int agent_status_update(const json_t* j_agent);
-
+int     agent_status_update(const json_t* j_agent);
 json_t* get_agent_longest_update(json_t* j_camp, const char* status);
 
 

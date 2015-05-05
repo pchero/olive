@@ -33,7 +33,7 @@ json_t*     db_get_record(db_ctx_t* ctx);
 void        db_free(db_ctx_t* ctx);
 
 char*       db_get_update_str(const json_t* j_data);
-int         db_insert(const char* table, json_t* j_data);
+int         db_insert(const char* table, const json_t* j_data);
 
 
 #endif /* DB_HANDLER_H_ */

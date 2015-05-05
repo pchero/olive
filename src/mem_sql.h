@@ -123,7 +123,7 @@ char* SQL_CREATE_REGISTRY = "create table registry(\n"
  */
 char* SQL_CREATE_AGENT = "create table agent(\n"
         "-- identity\n"
-        "uuid text,                 -- uuid\n"
+        "id text,                 -- id\n"
 
         "-- timestamp. utc.\n"
         "tm_status_update text,   -- last status update time\n"
@@ -275,7 +275,7 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
 
         "-- transfer info.\n"
         "tr_trycnt          int default 0,  -- transfer try count.\n"
-        "tr_agent_uuid      text,           -- transfered agent.\n"
+        "tr_agent_id        text,           -- transferred agent id.\n"
         "tr_chan_unique_id  text,           -- trying transfer chan unique id.\n"
 
         "-- result.\n"

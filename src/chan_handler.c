@@ -53,8 +53,8 @@ static json_t*  get_park_infos_for_destroy(void);
 static bool     delete_park_info(const char* unique_id);
 
 // check
-static int  check_dialing_by_tr_channel(const json_t* j_chan);
-static int  check_dialing_by_channel(const json_t* j_chan);
+static int  update_dialing_hangup_by_tr_channel(const json_t* j_chan);
+static int  update_dialing_hangup_by_channel(const json_t* j_chan);
 static bool check_answer_handle(json_t* j_dialing, json_t* j_plan);
 
 // dialing
@@ -268,15 +268,20 @@ void cb_chan_hangup(unused__ evutil_socket_t fd, unused__ short what, unused__ v
     json_array_foreach(j_chans, index, j_chan)
     {
         // check chan_unique_id in dialing.
-        ret = check_dialing_by_channel(j_chan);
+        ret = update_dialing_hangup_by_channel(j_chan);
         if(ret == -1)
         {
             slog(LOG_ERR, "Could not check dialing channel by chan_unique_id");
             continue;
         }
+        else if(ret == true)
+        {
+            // updated
+            continue;
+        }
 
         // check tr_chan_unique_id in dialing.
-        ret = check_dialing_by_tr_channel(j_chan);
+        ret = update_dialing_hangup_by_tr_channel(j_chan);
         if(ret == -1)
         {
             slog(LOG_ERR, "Could not check dialing channel by tr_chan_unique_id");
@@ -572,7 +577,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
             // transfer info
             "tr_trycnt",            json_integer_value(json_object_get(j_dialing, "tr_trycnt")) + 1,
-            "tr_agent_uuid",        json_string_value(json_object_get(j_agent, "uuid")),
+            "tr_agent_id",          json_string_value(json_object_get(j_agent, "id")),
             "tr_chan_unique_id",    json_string_value(json_object_get(j_dial, "ChannelId")),
             "tm_tr_dial",           cur_time,
 
@@ -632,11 +637,11 @@ static void chan_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, j
     int ret;
 
     // get ready agent
-    ret = asprintf(&sql, "select * from agent where "
-            "uuid = (select agent_uuid from agent_group where group_uuid = \"%s\") "
-            "and status = \"%s\" "
-            "order by tm_status_update "
-            "limit 1",
+    ret = asprintf(&sql, "select * from agent where"
+            " id = (select agent_id from agent_group where group_uuid = \"%s\")"
+            " and status = \"%s\""
+            " order by tm_status_update"
+            " limit 1",
 
             json_string_value(json_object_get(j_camp, "agent_group")),
             "ready"
@@ -736,14 +741,14 @@ static void chan_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, j
     // update dialing info
     ret = asprintf(&sql, "update dialing set "
             "tm_redirect = %s, "
-            "tr_agent_uuid = \"%s\", "
+            "tr_agent_id = \"%s\", "
             "tr_trycnt = %s,"
             "status = \"%s\" "
             "where chan_unique_id = \"%s\""
             ";",
 
             "strftime('%Y-%m-%d %H:%m:%f', 'now'), ",
-            json_string_value(json_object_get(j_agent, "uuid")),
+            json_string_value(json_object_get(j_agent, "id")),
             "tr_trycnt + 1",
             "transferred",
             json_string_value(json_object_get(j_chan, "unique_id"))
@@ -1559,7 +1564,9 @@ static json_t* get_chans_hangup(void)
     unused__ int ret;
 
     // get hangup channel.
-    ret = asprintf(&sql, "select * from channel where status_desc = \"Down\" or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s;",
+    ret = asprintf(&sql, "select * from channel where"
+            " status_desc = \"Down\""
+            " or strftime(\"%%s\", \"now\") - strftime(\"%%s\", tm_create) > %s;",
             json_string_value(json_object_get(g_app->j_conf, "limit_update_timeout"))? : "3600"
             );
 
@@ -1798,7 +1805,12 @@ static bool check_answer_handle(json_t* j_dialing, json_t* j_plan)
     return true;
 }
 
-static int check_dialing_by_channel(const json_t* j_chan)
+/**
+ * Update dialing info to hangup by chan_uqnieu_id,
+ * @param j_chan
+ * @return
+ */
+static int update_dialing_hangup_by_channel(const json_t* j_chan)
 {
     json_t* j_dialing;
     json_t* j_tmp;
@@ -1815,40 +1827,11 @@ static int check_dialing_by_channel(const json_t* j_chan)
     json_decref(j_tmp);
 
     // set update hangup info.
-    ret = json_object_set_new(j_dialing, "status", json_string("hangup"));
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. status[%s]", "hangup");
-        return -1;
-    }
-
+    ret = json_object_set_new(j_dialing, "status",  json_string("hangup"));
     ret = json_object_set(j_dialing, "res_hangup", json_object_get(j_chan, "cause") ? : json_null());
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. res_hangup[%s]", json_string_value(json_object_get(j_chan, "cause")));
-        return -1;
-    }
-
     ret = json_object_set(j_dialing, "res_hangup_detail", json_object_get(j_chan, "cause_desc")? : json_null());
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. res_hangup_detail[%s]", json_string_value(json_object_get(j_chan, "cause_desc")));
-        return -1;
-    }
-
     ret = json_object_set(j_dialing, "tm_dial_end", json_object_get(j_chan, "tm_dial_end")? : json_null());
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. tm_dial_end[%s]", json_string_value(json_object_get(j_chan, "tm_dial_end")));
-        return -1;
-    }
-
     ret = json_object_set(j_dialing, "tm_hangup", json_object_get(j_chan, "tm_hangup")? : json_null());
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. tm_hangup[%s]", json_string_value(json_object_get(j_chan, "tm_hangup")));
-        return -1;
-    }
 
     slog(LOG_INFO, "Update dialing info. chan_unique_id[%s], dl_uuid[%s], camp_uuid[%s], status[%s], tm_dial_end[%s], tm_hangup[%s], res_hangup[%s], res_hangup_detail[%s]",
             json_string_value(json_object_get(j_dialing, "chan_unique_id")),
@@ -1874,12 +1857,11 @@ static int check_dialing_by_channel(const json_t* j_chan)
 }
 
 /**
- * Check suitable dialing info by tr_chan_uqnieu_id,
- * then update dialing info.
+ * Update dialing info to hangup by tr_chan_uqnieu_id,
  * @param j_chan
  * @return
  */
-static int check_dialing_by_tr_channel(const json_t* j_chan)
+static int update_dialing_hangup_by_tr_channel(const json_t* j_chan)
 {
     json_t* j_dialing;
     int ret;
@@ -1892,40 +1874,22 @@ static int check_dialing_by_tr_channel(const json_t* j_chan)
     }
 
     // update hangup info.
-    ret = json_object_set(j_dialing, "tr_status", json_string("hangup"));
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing status info. status[%s]", "hangup");
-        return -1;
-    }
+    ret = json_object_set_new(j_dialing, "tr_status", json_string("hangup")? : json_null());
+    ret = json_object_set(j_dialing, "res_tr_hangup", json_object_get(j_chan, "cause")? : json_null());
+    ret = json_object_set(j_dialing, "res_tr_hangup_detail", json_object_get(j_chan, "cause_desc")? : json_null());
+    ret = json_object_set(j_dialing, "tm_tr_dial_end", json_object_get(j_chan, "tm_dial_end")? : json_null());
+    ret = json_object_set(j_dialing, "tm_tr_hangup", json_object_get(j_chan, "tm_hangup")? : json_null());
 
-    ret = json_object_set(j_dialing, "res_tr_hangup", json_object_get(j_chan, "cause"));
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. res_tr_hangup[%s]", json_string_value(json_object_get(j_chan, "cause")));
-        return -1;
-    }
-
-    ret = json_object_set(j_dialing, "res_tr_hangup_detail", json_object_get(j_chan, "cause_desc"));
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. res_tr_hangup_detail[%s]", json_string_value(json_object_get(j_chan, "cause_desc")));
-        return -1;
-    }
-
-    ret = json_object_set(j_dialing, "tm_tr_dial_end", json_object_get(j_chan, "tm_dial_end"));
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. tm_tr_dial_end[%s]", json_string_value(json_object_get(j_chan, "tm_dial_end")));
-        return -1;
-    }
-
-    ret = json_object_set(j_dialing, "tm_tr_hangup", json_object_get(j_chan, "tm_hangup"));
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not update dialing object. tm_tr_hangup[%s]", json_string_value(json_object_get(j_chan, "tm_hangup")));
-        return -1;
-    }
+    slog(LOG_INFO, "Update dialing info. chan_unique_id[%s], dl_uuid[%s], camp_uuid[%s], tr_status[%s], res_tr_hangup[%s], res_tr_hangup_detail[%s], tm_tr_dial_end[%s], tm_tr_hangup[%s]",
+            json_string_value(json_object_get(j_dialing, "chan_unique_id")),
+            json_string_value(json_object_get(j_dialing, "dl_uuid")),
+            json_string_value(json_object_get(j_dialing, "camp_uuid")),
+            json_string_value(json_object_get(j_dialing, "tr_status")),
+            json_string_value(json_object_get(j_dialing, "res_tr_hangup")),
+            json_string_value(json_object_get(j_dialing, "res_tr_hangup_detail")),
+            json_string_value(json_object_get(j_dialing, "tm_tr_dial_end")),
+            json_string_value(json_object_get(j_dialing, "tm_tr_hangup"))
+            );
 
     ret = update_dialing_info(j_dialing);
     if(ret == false)
@@ -1933,7 +1897,6 @@ static int check_dialing_by_tr_channel(const json_t* j_chan)
         slog(LOG_ERR, "Could not hangup channel info.");
         return -1;
     }
-
     json_decref(j_dialing);
 
     return true;

@@ -140,13 +140,13 @@ int init_evhtp(void)
 //    evhtp_set_regex_cb(evhtp, "^/simple", testcb, NULL);
 
     // campaigns
-    evhtp_set_cb(evhtp_ssl, "/campaigns", htpcb_campaigns, NULL);
-    evhtp_set_glob_cb(evhtp_ssl, "/campaigns/*", htpcb_campaigns_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         "/campaigns",   htpcb_campaigns, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/campaigns/*", htpcb_campaigns_specific, NULL);
 
 //    // agents
-    evhtp_set_cb(evhtp_ssl, "/agents", htpcb_agents, NULL);
-    evhtp_set_glob_cb(evhtp_ssl, "/agents/*/status", htpcb_agents_specific_status, NULL);
-    evhtp_set_glob_cb(evhtp_ssl, "/agents/*", htpcb_agents_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         "/agents",          htpcb_agents, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/agents/*",        htpcb_agents_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/agents/*/status", htpcb_agents_specific_status, NULL);
 
 //    // dial-lists
 //    evhtp_set_regex_cb(evhtp_ssl, "^/dial-lists", htpcb_dial_lists, NULL);
@@ -274,7 +274,7 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
     char* id;
     char* pass;
 
-    slog(LOG_DEBUG, "htpcb_campaign_list called.");
+    slog(LOG_DEBUG, "Called htpcb_campaigns called.");
 
     ret = get_agent_id_pass(req, &id, &pass);
     ret = is_auth(req, id, pass);
@@ -308,6 +308,7 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
             if(j_recv == NULL)
             {
                 htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
                 break;
             }
 
@@ -318,9 +319,16 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
         break;
 
         // PUT : update several campaign info
+        case htp_method_PUT:
+        {
+            // Not support yet.
+            // TODO: someday..
+            htp_ret = EVHTP_RES_FORBIDDEN;
+            j_res = json_null();
+        }
+        break;
 
-        // DELETE : Not support.
-
+        // DELETE : Not support
         default:
         {
             htp_ret = EVHTP_RES_FORBIDDEN;
@@ -335,7 +343,6 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
     free(id);
     free(pass);
 
-
     return;
 }
 
@@ -346,29 +353,7 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
  */
 void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
-//    int ret;
-//
-//    slog(LOG_DEBUG, "srv_campaign_update_cb called!");
-//
-//    ret = is_auth(req);
-//    if(ret == false)
-//    {
-//        return;
-//    }
 
-    // get json
-
-    // POST : Not support
-
-    // GET : Return specified campaign info.
-
-    // PUT : Update specified campaign info.
-
-    // DELETE : Delete specified campaign.
-}
-
-void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
-{
     int ret;
     json_t* j_res;
     json_t* j_recv;
@@ -376,6 +361,8 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     int htp_ret;
     char* id;
     char* pass;
+
+    slog(LOG_DEBUG, "Called htpcb_campaigns_specific.");
 
     ret = get_agent_id_pass(req, &id, &pass);
     ret = is_auth(req, id, pass);
@@ -388,6 +375,107 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
         return;
     }
 
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified campaign info.
+        case htp_method_GET:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            // get specified campaign list
+            j_res = campaign_get_info(j_recv);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified campaign info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            // update campaign info.
+            j_res = campaign_update_info(j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // DELETE : Delete specified campaign
+        case htp_method_DELETE:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            // delete campaign info.
+            j_res = campaign_delete(j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_FORBIDDEN;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+
+    return;
+}
+
+void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+
+    slog(LOG_DEBUG, "Called htpcb_agents.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get method
     method = evhtp_request_get_method(req);
 
     switch(method)
@@ -400,16 +488,13 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
             if(j_recv == NULL)
             {
                 htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
                 break;
             }
-            j_res = agent_create(j_recv);
+            j_res = agent_create(j_recv, id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
-
-        // PUT : update several agents info
-
-        // DELETE : Not support.
 
         // GET :  agent list
         case htp_method_GET:
@@ -418,12 +503,16 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
             if(j_res == NULL)
             {
                 htp_ret = EVHTP_RES_SERVERR;
+                j_res = json_null();
                 break;
             }
             htp_ret = EVHTP_RES_OK;
         }
         break;
 
+        // PUT : update several agents info
+
+        // DELETE : Not support.
         default:
         {
             htp_ret = EVHTP_RES_FORBIDDEN;
@@ -440,17 +529,105 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     free(id);
     free(pass);
 
-
     return;
 }
 
 /**
- * http://host_url/agents/agent_uuid
+ * http://host_url/agents/agent_id
  * @param req
  * @param arg
  */
 void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+
+    slog(LOG_DEBUG, "Called htpcb_agents.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified campaign info.
+        case htp_method_GET:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+            j_res = agent_get_info(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified campaign info.
+
+        // DELETE : Delete specified campaign.
+
+        // POST : Not support
+        // todo:
+
+
+
+
+
+        // POST : new agent.
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+            j_res = agent_create(j_recv, id);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : update several agents info
+
+        // DELETE : Not support.
+        default:
+        {
+            htp_ret = EVHTP_RES_FORBIDDEN;
+            j_res = json_null();
+        }
+        break;
+
+    }
+
+    // create result
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+    free(id);
+    free(pass);
+
+    return;
+
+
 //    int ret;
     int req_method;
 

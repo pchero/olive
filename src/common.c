@@ -85,3 +85,16 @@ char* gen_uuid_channel(void)
     return res;
 }
 
+/**
+ * Generate campaign uuid. It has "camp-" prefix.
+ * Return value should be free after used.
+ * @return
+ */
+char* gen_uuid_campaign(void)
+{
+    char* res;
+
+    res = gen_uuid("camp");
+    return res;
+}
+

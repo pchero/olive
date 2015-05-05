@@ -288,7 +288,7 @@ void db_free(db_ctx_t* ctx)
  * @param j_data
  * @return
  */
-int db_insert(const char* table, json_t* j_data)
+int db_insert(const char* table, const json_t* j_data)
 {
     char*       sql;
     char*       tmp;
@@ -306,7 +306,7 @@ int db_insert(const char* table, json_t* j_data)
     tmp = NULL;
     sql_keys    = NULL;
     sql_values  = NULL;
-    json_object_foreach(j_data, key, j_val)
+    json_object_foreach((json_t*)j_data, key, j_val)
     {
         if(is_first == true)
         {
@@ -327,7 +327,7 @@ int db_insert(const char* table, json_t* j_data)
     // set values
     is_first = true;
     tmp = NULL;
-    json_object_foreach(j_data, key, j_val)
+    json_object_foreach((json_t*)j_data, key, j_val)
     {
 
         if(is_first == true)
@@ -399,7 +399,6 @@ int db_insert(const char* table, json_t* j_data)
         free(tmp);
 
     }
-
 
     ret = asprintf(&sql, "insert into %s(%s) values (%s);", table, sql_keys, sql_values);
     free(sql_keys);

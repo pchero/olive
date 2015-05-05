@@ -17,6 +17,9 @@ typedef enum _OLIVE_RESULT
 
     // campaign related errors
     OLIVE_NO_CAMPAIGN       = -100,     /// Could not find campaign info
+
+    // agent related errors
+    OLIVE_NO_AGENT          = -200,     /// Could not find agent info.
 } OLIVE_RESULT;
 
 

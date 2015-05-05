@@ -14,10 +14,11 @@ create table campaign(
     name                        varchar(255),       -- campaign name
     status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/force_stopping)
     status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
-    create_agent_uuid           varchar(255),       -- create agent uuid
-    delete_agent_uuid           varchar(255),       -- delete agent uuid
-    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
-    update_status_agent_uuid    varchar(255),       -- last status update agent uuid
+--    create_agent_uuid           varchar(255),       -- create agent uuid
+    create_agent_id             varchar(255),       -- create agent uuid
+    delete_agent_id             varchar(255),       -- delete agent uuid
+    update_property_agent_id    varchar(255),       -- last propery update agent uuid
+    update_status_agent_id      varchar(255),       -- last status update agent uuid
     
     -- resources
     agent_group varchar(255),                       -- agent group uuid
@@ -69,7 +70,7 @@ create table campaign_result(
     
     -- transfer info
     tr_trycnt          int,             -- transfer try count.
-    tr_agent_uuid      varchar(255),    -- transfered agent.
+    tr_agent_id      varchar(255),    -- transfered agent.
     tr_chan_unique_id  varchar(255),    -- trying transfer chan unique id.
     
     -- dial result
@@ -93,7 +94,7 @@ create table agent(
 -- every agents are belongs to here.
 
     -- identity
-    uuid        varchar(255)    not null unique,
+--    uuid        varchar(255)    not null unique,
     
     -- information
     id                  varchar(255)    not null unique,    -- login id
@@ -104,12 +105,13 @@ create table agent(
     desc_user           varchar(1023),                      -- description(for agent itself)
     
     -- ownership
-    create_agent_uuid   varchar(255),   -- create user
-    update_agent_uuid   varchar(255),
+    create_agent_id   varchar(255),   -- create user
+    update_agent_id   varchar(255),
     
     -- timestamp
     tm_info_update      datetime,   -- last agent info modified time
-    tm_create           datetime,   -- created time
+    tm_create           datetime,   -- created time.
+    tm_delete           datetiem,   -- deleted time.
     tm_status_update    datetime,   -- last status changed time.    
     
     -- agent level (permission). -- to-be
@@ -117,7 +119,8 @@ create table agent(
     -- agent performance
     -- busy time, how many calls got.. Um?
     
-    primary key(uuid)
+--    primary key(uuid)
+    primary key(id)
 );
 
 drop table if exists agent_group_ma;
@@ -133,7 +136,7 @@ create table agent_group_ma(
 drop table if exists agent_group;
 create table agent_group(
     group_uuid    varchar(255)  not null,
-    agent_uuid    varchar(255)  not null,
+    agent_id    varchar(255)  not null,
     
     primary key(group_uuid, agent_uuid)
 );

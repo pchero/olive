@@ -18,7 +18,13 @@
 #include "memdb_handler.h"
 #include "slog.h"
 #include "agent_handler.h"
+#include "olive_result.h"
+#include "htp_handler.h"
 
+
+static bool     create_agent(const json_t* j_agent);
+static json_t*  get_agents_all(void);
+static json_t*  get_agent_info(const char* id);
 
 
 bool load_table_agent(void)
@@ -48,10 +54,10 @@ bool load_table_agent(void)
         }
 
         slog(LOG_DEBUG, "Insert agent info. uuid[%s]",
-                json_string_value(json_object_get(j_res, "uuid"))
+                json_string_value(json_object_get(j_res, "id"))
                 );
-        ret = asprintf(&sql, "insert or ignore into agent(uuid, status) values (\"%s\", \"%s\");",
-                json_string_value(json_object_get(j_res, "uuid")),
+        ret = asprintf(&sql, "insert or ignore into agent(id, status) values (\"%s\", \"%s\");",
+                json_string_value(json_object_get(j_res, "id")),
                 "logoff"
                 );
         memdb_exec(sql);
@@ -72,42 +78,20 @@ bool load_table_agent(void)
  */
 json_t* agent_get_all(void)
 {
-    char* sql;
-    json_t* j_agents;
-    json_t* j_res;
     json_t* j_tmp;
-    unused__ int ret;
-    db_ctx_t* db_res;
+    json_t* j_res;
 
-    ret = asprintf(&sql, "select uuid, id, name, status, desc_admin, desc_user from agent;");
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
+    j_tmp = get_agents_all();
+    if(j_tmp == NULL)
     {
-        slog(LOG_ERR, "Could not get agent info.");
-        return NULL;
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
     }
-
-    j_agents = json_array();
-    while(1)
+    else
     {
-        j_tmp = db_get_record(db_res);
-        if(j_tmp == NULL)
-        {
-            break;
-        }
-
-        json_array_append(j_agents, j_tmp);
-        json_decref(j_tmp);
+        j_res = htp_create_olive_result(OLIVE_OK, json_null());
     }
-    db_free(db_res);
-
-    j_res = json_pack("{s:o}",
-            "agents", j_agents
-            );
 
     return j_res;
-
 }
 
 /**
@@ -129,9 +113,9 @@ json_t* agent_update(const json_t* j_agent)
             "desc_user = \"%s\", "
 
             "tm_info_update = %s, "
-            "update_agent_uuid = \"%s\" "
+            "update_agent_id = \"%s\" "
 
-            "where uuid = \"%s\";",
+            "where id = \"%s\";",
 
             json_string_value(json_object_get(j_agent, "password")),
             json_string_value(json_object_get(j_agent, "name")),
@@ -139,22 +123,22 @@ json_t* agent_update(const json_t* j_agent)
             json_string_value(json_object_get(j_agent, "desc_user")),
 
             "utc_timestamp()",
-            json_string_value(json_object_get(j_agent, "update_agent_uuid")),
+            json_string_value(json_object_get(j_agent, "update_agent_id")),
 
-            json_string_value(json_object_get(j_agent, "uuid"))
+            json_string_value(json_object_get(j_agent, "id"))
             );
 
     ret = db_exec(sql);
     free(sql);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not update agent info. uuid[%s]",
-                json_string_value(json_object_get(j_agent, "uuid"))
+        slog(LOG_ERR, "Could not update agent info. id[%s]",
+                json_string_value(json_object_get(j_agent, "id"))
                 );
         return NULL;
     }
 
-    ret = asprintf(&sql, "select * from agent where uuid = \"%s\";", json_string_value(json_object_get(j_agent, "uuid")));
+    ret = asprintf(&sql, "select * from agent where id = \"%s\";", json_string_value(json_object_get(j_agent, "id")));
     db_res = db_query(sql);
     free(sql);
     if(db_res == NULL)
@@ -173,102 +157,27 @@ json_t* agent_update(const json_t* j_agent)
  * @param j_agent
  * @return
  */
-json_t* agent_create(const json_t* j_agent)
+json_t* agent_create(const json_t* j_agent, const char* id)
 {
-    char* sql;
-    db_ctx_t* db_res;
     json_t* j_tmp;
-    int ret;
-    char* tmp;
-    char* agent_uuid;
-    uuid_t uuid;
     json_t* j_res;
+    int ret;
 
-    // check id.
-    ret = asprintf(&sql, "select * from agent where id = \"%s\";",
-            json_string_value(json_object_get(j_agent, "id"))
-            );
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
+    j_tmp = json_deep_copy(j_agent);
+
+    json_object_set_new(j_tmp, "create_agent_id", json_string(id));
+
+    ret = create_agent(j_tmp);
+    json_decref(j_tmp);
+    if(ret == true)
     {
-        slog(LOG_ERR, "Could not get agent id info. id[%s]", json_string_value(json_object_get(j_agent, "id")));
-        return NULL;
+        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+    }
+    else
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
     }
 
-    j_tmp = db_get_record(db_res);
-    db_free(db_res);
-    if(j_tmp != NULL)
-    {
-        json_decref(j_tmp);
-        slog(LOG_ERR, "Already exist user. id[%s]", json_string_value(json_object_get(j_agent, "id")));
-        return NULL;
-    }
-
-    // make uuid
-    tmp = calloc(128, sizeof(char));
-    uuid_generate(uuid);
-    uuid_unparse_lower(uuid, tmp);
-    ret = asprintf(&agent_uuid, "agent-%s", tmp);
-    free(tmp);
-
-    ret = asprintf(&sql, "insert into agent("
-            "uuid, "
-            "id, "
-            "password, "
-            "name, "
-            "desc_admin, "
-
-            "desc_user, "
-            "tm_create, "
-            "create_agent_uuid, "
-            "tm_info_update, "
-            "update_agent_uuid, "
-
-            "tm_status_update"
-            ") values ("
-            "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", "
-            "\"%s\", %s, \"%s\", %s, \"%s\", "
-            "%s"
-            ");",
-
-            agent_uuid,
-            json_string_value(json_object_get(j_agent, "id")),
-            json_string_value(json_object_get(j_agent, "password")),
-            json_string_value(json_object_get(j_agent, "name")),
-            json_string_value(json_object_get(j_agent, "desc_admin")),
-
-            json_string_value(json_object_get(j_agent, "desc_user")),
-            "utc_timestamp()",
-            json_string_value(json_object_get(j_agent, "create_agent_uuid")),
-            "utc_timestamp()",
-            json_string_value(json_object_get(j_agent, "update_agent_uuid")),
-
-            "utc_timestamp()"
-            );
-
-    ret = db_exec(sql);
-    free(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not create agent info.");
-        free(agent_uuid);
-        return NULL;
-    }
-
-    ret = asprintf(&sql, "select * from agent where uuid = \"%s\";", agent_uuid);
-    free(agent_uuid);
-
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get inserted agent info.");
-        return NULL;
-    }
-
-    j_res = db_get_record(db_res);
-    db_free(db_res);
     return j_res;
 }
 
@@ -281,41 +190,39 @@ int agent_delete(json_t* j_agent)
 }
 
 /**
- * Search agent info
- * @param uuid
+ * Get agent info API handler
  * @return
  */
-json_t* agent_get(const char* uuid)
+json_t* agent_get_info(const json_t* j_agent)
 {
-    json_t* j_agent;
-    char* sql;
-    unused__ int ret;
-    db_ctx_t* db_res;
 
-    ret = asprintf(&sql, "select * from agent where uuid = \"%s\";", uuid);
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
+    json_t* j_tmp;
+    json_t* j_res;
+
+    j_tmp = get_agent_info(json_string_value(json_object_get(j_agent, "id")));
+    if(j_tmp == NULL)
     {
-        slog(LOG_ERR, "Could not get agent info.");
-        return NULL;
+        j_res = htp_create_olive_result(OLIVE_NO_AGENT, json_null());
     }
+    else
+    {
+        j_res = htp_create_olive_result(OLIVE_NO_AGENT, j_tmp);
+    }
+    json_decref(j_tmp);
 
-    j_agent = db_get_record(db_res);
-    db_free(db_res);
+    return j_res;
 
-    return j_agent;
 }
 
 
-json_t* agent_status_get(const char* uuid)
+json_t* agent_status_get(const char* id)
 {
     json_t* j_res;
     char* sql;
     unused__ int ret;
     db_ctx_t* db_res;
 
-    ret = asprintf(&sql, "select uuid, id, status from agent where uuid = \"%s\";", uuid);
+    ret = asprintf(&sql, "select id, status from agent where id = \"%s\";", id);
     db_res = db_query(sql);
     free(sql);
     if(db_res == NULL)
@@ -328,7 +235,7 @@ json_t* agent_status_get(const char* uuid)
     db_free(db_res);
     if(j_res == NULL)
     {
-        slog(LOG_ERR, "Could not find agent info. uuid[%s]", uuid);
+        slog(LOG_ERR, "Could not find agent info. id[%s]", id);
         return NULL;
     }
 
@@ -340,17 +247,18 @@ int agent_status_update(const json_t* j_agent)
     char* sql;
     int ret;
 
-    ret = asprintf(&sql, "update agent set status = \"%s\", tm_status_update = %s where uuid = \"%s\";",
+    ret = asprintf(&sql, "update agent set status = \"%s\", tm_status_update = %s where id = \"%s\";",
             json_string_value(json_object_get(j_agent, "status")),
             "utc_timestamp()",
-            json_string_value(json_object_get(j_agent, "uuid"))
+            json_string_value(json_object_get(j_agent, "id"))
             );
+
     ret = db_exec(sql);
     free(sql);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not update agent status info. uuid[%s], status[%s]",
-                json_string_value(json_object_get(j_agent, "uuid")),
+        slog(LOG_ERR, "Could not update agent status info. id[%s], status[%s]",
+                json_string_value(json_object_get(j_agent, "id")),
                 json_string_value(json_object_get(j_agent, "status"))
                 );
         return false;
@@ -379,7 +287,7 @@ json_t* get_agent_longest_update(json_t* j_camp, const char* status)
 
     // get agent
     ret = asprintf(&sql, "select * from agent where "
-            "uuid = (select agent_uuid from agent_group where group_uuid = \"%s\") "
+            "id = (select agent_id from agent_group where group_uuid = \"%s\") "
             "and status = \"%s\" "
             "order by tm_status_update "
             "limit 1",
@@ -387,6 +295,7 @@ json_t* get_agent_longest_update(json_t* j_camp, const char* status)
             json_string_value(json_object_get(j_camp, "agent_group")),
             status
             );
+
     db_res = db_query(sql);
     free(sql);
     if(db_res == NULL)
@@ -407,4 +316,104 @@ json_t* get_agent_longest_update(json_t* j_camp, const char* status)
     }
 
     return j_agent;
+}
+
+/**
+ * Get all of agent informations.
+ * @param status
+ * @return
+ */
+static json_t* get_agents_all(void)
+{
+    json_t* j_res;
+    json_t* j_tmp;
+    unused__ int ret;
+    char* sql;
+    db_ctx_t* db_res;
+
+    // get agent
+    ret = asprintf(&sql, "select * from agent where tm_delete is null;");
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get agent info.");
+        return NULL;
+    }
+
+    j_res = json_array();
+    while(1)
+    {
+        j_tmp = db_get_record(db_res);
+        if(j_tmp == NULL)
+        {
+            break;
+        }
+
+        json_array_append(j_res, j_tmp);
+        json_decref(j_tmp);
+    }
+    db_free(db_res);
+
+    return j_res;
+}
+
+/**
+ * Get agent informations.
+ * @param status
+ * @return
+ */
+static json_t* get_agent_info(const char* id)
+{
+    json_t* j_res;
+    unused__ int ret;
+    char* sql;
+    db_ctx_t* db_res;
+
+    // get agent
+    ret = asprintf(&sql, "select * from agent where id = \"%s\" and tm_delete is not null;",
+            id
+            );
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get agent info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+
+    return j_res;
+}
+
+/**
+ * Create agent.
+ * @param j_agent
+ * @return
+ */
+static bool create_agent(const json_t* j_agent)
+{
+    int ret;
+    char* cur_time;
+    json_t* j_tmp;
+
+    j_tmp = json_deep_copy(j_agent);
+
+    cur_time = get_utc_timestamp();
+    json_object_set_new(j_tmp, "tm_create", json_string(cur_time));
+    json_object_set_new(j_tmp, "tm_info_update", json_string(cur_time));
+    free(cur_time);
+
+    ret = db_insert("agent", j_agent);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not create agent.");
+        return false;
+    }
+
+    return true;
 }

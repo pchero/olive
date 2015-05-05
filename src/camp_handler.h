@@ -47,11 +47,11 @@ bool load_table_trunk_group(void);
 OLIVE_RESULT campaign_update(json_t* j_camp);
 
 // campaign
-json_t* get_campaigns_all(void);
-json_t* get_campaign_info(const char* uuid);
-json_t* campaign_create(const json_t* j_camp, const char* agent_uuid);
+json_t* campaign_create(const json_t* j_camp, const char* agent_id);
 json_t* campaign_get_all(void);
-
+json_t* campaign_get_info(const json_t* j_recv);
+json_t* campaign_update_info(const json_t* j_recv, const char* id);
+json_t* campaign_delete(const json_t* j_recv, const char* id);
 
 json_t* get_plan_info(const char* uuid);
 json_t* get_dl_master_info(const char* uuid);
@@ -61,6 +61,5 @@ int update_db_dialing_info(json_t* j_dialing);
 
 int update_dl_list_timestamp(const char* table, const char* column, const char* chan_unique_id);
 
-int update_campaign_info_status(const char* uuid, const char* status);
 
 #endif /* CAMPAIGN_H_ */

@@ -2272,6 +2272,7 @@ static void evt_bridgeleave(json_t* j_recv)
 
 /**
  * @brief    Action: SIPpeers
+ * Get Sip peer info from asterisk, then insert it into memdb/db.(name only)
  * @return  success:true, fail:false
  */
 int cmd_sippeers(void)
