@@ -20,6 +20,9 @@ typedef enum _OLIVE_RESULT
 
     // agent related errors
     OLIVE_NO_AGENT          = -200,     /// Could not find agent info.
+
+    // plan related errors
+    OLIVE_NO_PLAN           = -300,     /// Could not find plan info.
 } OLIVE_RESULT;
 
 
