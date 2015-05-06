@@ -90,8 +90,11 @@ json_t* agent_get_all(void)
     }
     else
     {
-        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+//        j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+        j_res = htp_create_olive_result(OLIVE_OK, NULL);
     }
+
+    slog(LOG_DEBUG, "agent_get_all end.");
 
     return j_res;
 }

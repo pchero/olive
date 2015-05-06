@@ -987,16 +987,34 @@ json_t* campaign_get_all(void)
     json_t* j_res;
     json_t* j_tmp;
 
+    slog(LOG_DEBUG, "campaign_get_all");
+
+//    j_tmp = get_campaigns_all();
     j_tmp = get_campaigns_all();
+
+    char* tmp;
+    tmp = json_dumps(j_tmp, JSON_ENCODE_ANY);
+    slog(LOG_DEBUG, "Check value. tmp[%s]", tmp);
+    free(tmp);
+
+
+//    j_tmp = NULL;
     if(j_tmp == NULL)
     {
+        slog(LOG_DEBUG, "Maybe?");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
     }
     else
     {
+        slog(LOG_DEBUG, "Good");
         j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
     }
     json_decref(j_tmp);
+
+//    char* tmp;
+    tmp = json_dumps(j_res, JSON_ENCODE_ANY);
+    slog(LOG_DEBUG, "Check value. tmp[%s]", tmp);
+    free(tmp);
 
     return j_res;
 }

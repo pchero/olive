@@ -213,15 +213,32 @@ static bool create_common_result(evhtp_request_t *r, const json_t* j_res)
 json_t* htp_create_olive_result(const OLIVE_RESULT res_olive, const json_t* j_res)
 {
     json_t* j_out;
+    json_t* j_tmp;
     char* timestamp;
 
+    j_tmp = json_deep_copy(j_res);
     timestamp = get_utc_timestamp();
-    j_out = json_pack("{s:s, s:O, s:s}",
+
+    slog(LOG_DEBUG, "Check value. res_olive[%d], j_res[%p]", res_olive, j_res);
+
+    if(j_tmp == NULL)
+    {
+        j_out = json_pack("{s:i, s:s}",
+                "result",       res_olive,
+                "timestamp",    timestamp
+                );
+    }
+    else
+    {
+        j_out = json_pack("{s:i, s:o, s:s}",
             "result",       res_olive,
-            "message",      j_res,
+            "message",      j_tmp,
             "timestamp",    timestamp
             );
+    }
     free(timestamp);
+    json_decref(j_tmp);
+
     return j_out;
 }
 
@@ -337,8 +354,8 @@ void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
     }
 
     ret = create_common_result(req, j_res);
-    json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
+    json_decref(j_res);
 
     free(id);
     free(pass);
@@ -836,7 +853,7 @@ static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agen
     username[i] = '\0';
     strncpy(password, outstr + i + 1, sizeof(password));
     free(outstr);
-    slog(LOG_DEBUG, "User info[%s:%s]", username, password);
+    slog(LOG_DEBUG, "User info. user[%s], pass[%s]", username, password);
 
     ret = asprintf(agent_id, "%s", username);
     ret = asprintf(agent_pass, "%s", password);
