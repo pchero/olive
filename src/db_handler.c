@@ -293,6 +293,7 @@ int db_insert(const char* table, const json_t* j_data)
     char*       sql;
     char*       tmp;
     json_t*     j_val;
+    json_t*     j_data_cp;
     char*       key;
     bool        is_first;
     int         ret;
@@ -301,12 +302,15 @@ int db_insert(const char* table, const json_t* j_data)
     char* sql_values;
     char* tmp_sub;
 
+    // copy original.
+    j_data_cp = json_deep_copy(j_data);
+
     // set keys
     is_first = true;
     tmp = NULL;
     sql_keys    = NULL;
     sql_values  = NULL;
-    json_object_foreach((json_t*)j_data, key, j_val)
+    json_object_foreach(j_data_cp, key, j_val)
     {
         if(is_first == true)
         {
@@ -327,7 +331,7 @@ int db_insert(const char* table, const json_t* j_data)
     // set values
     is_first = true;
     tmp = NULL;
-    json_object_foreach((json_t*)j_data, key, j_val)
+    json_object_foreach((json_t*)j_data_cp, key, j_val)
     {
 
         if(is_first == true)
@@ -399,6 +403,7 @@ int db_insert(const char* table, const json_t* j_data)
         free(tmp);
 
     }
+    json_decref(j_data_cp);
 
     ret = asprintf(&sql, "insert into %s(%s) values (%s);", table, sql_keys, sql_values);
     free(sql_keys);
@@ -425,15 +430,19 @@ char* db_get_update_str(const json_t* j_data)
     char*       res;
     char*       tmp;
     json_t*     j_val;
+    json_t*     j_data_cp;
     char*       key;
     bool        is_first;
     __attribute__((unused)) int ret;
     json_type   type;
 
+    // copy original data.
+    j_data_cp = json_deep_copy(j_data);
+
     is_first = true;
     res = NULL;
     tmp = NULL;
-    json_object_foreach((json_t*)j_data, key, j_val)
+    json_object_foreach((json_t*)j_data_cp, key, j_val)
     {
         // copy/set previous sql.
         if(is_first == true)
@@ -500,6 +509,8 @@ char* db_get_update_str(const json_t* j_data)
         }
         free(tmp);
     }
+
+    json_decref(j_data_cp);
 
     return res;
 }
