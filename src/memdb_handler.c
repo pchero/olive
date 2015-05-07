@@ -252,12 +252,13 @@ int memdb_table_existence(const char* table)
  * @param j_data
  * @return
  */
-int memdb_insert(const char* table, json_t* j_data)
+int memdb_insert(const char* table, const json_t* j_data)
 {
     char*       sql;
     char*       tmp;
     json_t*     j_val;
-    char*       key;
+    json_t*     j_data_cp;
+    const char* key;
     bool        is_first;
     int         ret;
     json_type   type;
@@ -265,12 +266,15 @@ int memdb_insert(const char* table, json_t* j_data)
     char* sql_values;
     char* tmp_sub;
 
+    // copy original data.
+    j_data_cp = json_deep_copy(j_data);
+
     // set keys
     is_first = true;
     tmp = NULL;
     sql_keys    = NULL;
     sql_values  = NULL;
-    json_object_foreach(j_data, key, j_val)
+    json_object_foreach(j_data_cp, key, j_val)
     {
         if(is_first == true)
         {
@@ -291,7 +295,7 @@ int memdb_insert(const char* table, json_t* j_data)
     // set values
     is_first = true;
     tmp = NULL;
-    json_object_foreach(j_data, key, j_val)
+    json_object_foreach(j_data_cp, key, j_val)
     {
 
         if(is_first == true)
@@ -364,6 +368,7 @@ int memdb_insert(const char* table, json_t* j_data)
 
     }
 
+    json_decref(j_data_cp);
 
     ret = asprintf(&sql, "insert into %s(%s) values (%s);", table, sql_keys, sql_values);
     free(sql_keys);
@@ -391,7 +396,7 @@ char* memdb_get_update_str(const json_t* j_data)
     char*       res;
     char*       tmp;
     json_t*     j_val;
-    char*       key;
+    const char* key;
     bool        is_first;
     __attribute__((unused)) int ret;
     json_type   type;

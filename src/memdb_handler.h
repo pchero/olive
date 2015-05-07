@@ -28,7 +28,7 @@ void        memdb_term(void);
 bool        memdb_release(void);
 bool        memdb_lock(void);
 int         memdb_table_existence(const char* table);
-int         memdb_insert(const char* table, json_t* j_data);
+int         memdb_insert(const char* table, const json_t* j_data);
 char*       memdb_get_update_str(const json_t* j_data);
 
 
