@@ -16,13 +16,14 @@ typedef enum _OLIVE_RESULT
     OLIVE_INTERNAL_ERROR    = -1,       /// Internal error(Unknown)
 
     // campaign related errors
-    OLIVE_NO_CAMPAIGN       = -100,     /// Could not find campaign info
+    OLIVE_CAMPAIGN_NOT_FOUND    = -100,     /// Could not find campaign info
 
     // agent related errors
-    OLIVE_NO_AGENT          = -200,     /// Could not find agent info.
+    OLIVE_AGENT_NOT_FOUND   = -200,     /// Could not find agent info.
+    OLIVE_AGENT_EXISTS      = -201,     /// Agent already exists.
 
     // plan related errors
-    OLIVE_NO_PLAN           = -300,     /// Could not find plan info.
+    OLIVE_PLAN_NOT_FOUND    = -300,     /// Could not find plan info.
 } OLIVE_RESULT;
 
 

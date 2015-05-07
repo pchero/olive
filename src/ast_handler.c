@@ -25,6 +25,7 @@
 #include "slog.h"
 #include "db_handler.h"
 #include "memdb_handler.h"
+#include "peer_handler.h"
 
 
 #define MAX_ZMQ_RCV_BUF 8192
@@ -327,8 +328,11 @@ int ast_load_peers(void)
     int ret;
     memdb_res* mem_res;
     json_t* j_res;
+    json_t* j_peers;
+    json_t* j_peer;
+    int idx;
 
-    // get sip peers
+    // get sip peers again.
     ret = cmd_sippeers();
     if(ret == false)
     {
@@ -337,32 +341,19 @@ int ast_load_peers(void)
     }
     slog(LOG_DEBUG, "Finished cmd_sippeers.");
 
-    mem_res = memdb_query("select name from peer;");
-    if(mem_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get peer names.");
-        return false;
-    }
+    // get detail info.
+    j_peers = get_peer_all();
 
-    while(1)
+    json_array_foreach(j_peers, idx, j_peer)
     {
-        j_res = memdb_get_result(mem_res);
-        if(j_res == NULL)
-        {
-            break;
-        }
-
-        slog(LOG_DEBUG, "Check value. name[%s]", json_string_value(json_object_get(j_res, "name")));
-        ret = cmd_sipshowpeer(json_string_value(json_object_get(j_res, "name")));
-        json_decref(j_res);
+        ret = cmd_sipshowpeer(json_string_value(json_object_get(j_peer, "name")));
         if(ret == false)
         {
             slog(LOG_ERR, "Could not get peer info.");
-            memdb_free(mem_res);
-            return false;
+            continue;
         }
     }
-    memdb_free(mem_res);
+    json_decref(j_peers);
 
     return true;
 }

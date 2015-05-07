@@ -54,7 +54,7 @@ static int      update_dl_list(const char* table, const json_t* j_dlinfo);
 static int      update_dl_result_clear(const json_t* j_dialing);
 
 // campaign
-static bool     create_campaign(json_t* j_camp);
+static bool     create_campaign(const json_t* j_camp);
 static json_t*  get_campaigns_by_status(const char* status);
 static json_t*  get_campaign_for_dial(void);
 static json_t*  get_campaign_info(const char* uuid);
@@ -912,7 +912,7 @@ OLIVE_RESULT campaign_update(json_t* j_camp)
         slog(LOG_ERR, "Could not find campaign info. uuid[%s]",
                 json_string_value(json_object_get(j_camp, "uuid"))
                 );
-        return OLIVE_NO_CAMPAIGN;
+        return OLIVE_CAMPAIGN_NOT_FOUND;
     }
     json_decref(j_res);
 
@@ -945,7 +945,7 @@ OLIVE_RESULT campaign_update(json_t* j_camp)
 json_t* campaign_create(const json_t* j_camp, const char* agent_id)
 {
     int ret;
-    char* tmp;
+    char* camp_uuid;
     json_t* j_tmp;
     json_t* j_res;
 
@@ -954,26 +954,32 @@ json_t* campaign_create(const json_t* j_camp, const char* agent_id)
     // set create_agent_id
     json_object_set_new(j_tmp, "create_agent_id", json_string(agent_id));
 
-    // utc create timestamp
-    tmp = get_utc_timestamp();
-    json_object_set_new(j_tmp, "tm_create", json_string(tmp));
-    free(tmp);
-
     // gen camp uuid
-    tmp = gen_uuid_campaign();
-    json_object_set_new(j_tmp, "uuid", json_string(tmp));
-    free(tmp);
+    camp_uuid = gen_uuid_campaign();
+    json_object_set_new(j_tmp, "uuid", json_string(camp_uuid));
 
+    // create campaign
     ret = create_campaign(j_tmp);
     json_decref(j_tmp);
-    if(ret == true)
-    {
-        j_res = htp_create_olive_result(OLIVE_OK, json_null());
-    }
-    else
+    if(ret == false)
     {
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        free(camp_uuid);
+        return j_res;
     }
+
+    // get created campaign.
+    j_tmp = get_campaign_info(camp_uuid);
+    free(camp_uuid);
+    if(j_tmp == NULL)
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
+    }
+
+    // make result
+    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+    json_decref(j_tmp);
 
     return j_res;
 }
@@ -989,32 +995,16 @@ json_t* campaign_get_all(void)
 
     slog(LOG_DEBUG, "campaign_get_all");
 
-//    j_tmp = get_campaigns_all();
     j_tmp = get_campaigns_all();
-
-    char* tmp;
-    tmp = json_dumps(j_tmp, JSON_ENCODE_ANY);
-    slog(LOG_DEBUG, "Check value. tmp[%s]", tmp);
-    free(tmp);
-
-
-//    j_tmp = NULL;
     if(j_tmp == NULL)
     {
-        slog(LOG_DEBUG, "Maybe?");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
     }
     else
     {
-        slog(LOG_DEBUG, "Good");
         j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
     }
     json_decref(j_tmp);
-
-//    char* tmp;
-    tmp = json_dumps(j_res, JSON_ENCODE_ANY);
-    slog(LOG_DEBUG, "Check value. tmp[%s]", tmp);
-    free(tmp);
 
     return j_res;
 }
@@ -1024,16 +1014,16 @@ json_t* campaign_get_all(void)
  * @param j_recv
  * @return
  */
-json_t* campaign_get_info(const json_t* j_recv)
+json_t* campaign_get_info(const char* uuid)
 {
     unused__ int ret;
     json_t* j_res;
     json_t* j_tmp;
 
-    j_tmp = get_campaign_info(json_string_value(json_object_get(j_recv, "uuid")));
+    j_tmp = get_campaign_info(uuid);
     if(j_tmp == NULL)
     {
-        j_res = htp_create_olive_result(OLIVE_NO_CAMPAIGN, json_null());
+        j_res = htp_create_olive_result(OLIVE_CAMPAIGN_NOT_FOUND, json_null());
     }
     else
     {
@@ -1049,7 +1039,7 @@ json_t* campaign_get_info(const json_t* j_recv)
  * @param j_recv
  * @return
  */
-json_t* campaign_update_info(const json_t* j_recv, const char* id)
+json_t* campaign_update_info(const char* camp_uuid, const json_t* j_recv, const char* id)
 {
     unused__ int ret;
     json_t* j_res;
@@ -1058,21 +1048,30 @@ json_t* campaign_update_info(const json_t* j_recv, const char* id)
 
     j_tmp = json_deep_copy(j_recv);
 
-    cur_time = get_utc_timestamp();
+    // set info
     json_object_set_new(j_tmp, "update_property_agent_id", json_string(id));
-    json_object_set_new(j_tmp, "tm_update_property", json_string(cur_time));
-    free(cur_time);
+    json_object_set_new(j_tmp, "uuid", json_string(camp_uuid));
 
+    // update
     ret = update_campaign_info(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
-    else
+
+    // get updated info.
+    j_tmp = get_campaign_info(camp_uuid);
+    if(j_tmp == NULL)
     {
-        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
+
+    // create result.
+    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+    json_decref(j_tmp);
 
     return j_res;
 }
@@ -1082,15 +1081,16 @@ json_t* campaign_update_info(const json_t* j_recv, const char* id)
  * @param j_recv
  * @return
  */
-json_t* campaign_delete(const json_t* j_recv, const char* id)
+json_t* campaign_delete(const char* camp_uuid, const char* id)
 {
     int ret;
     json_t* j_res;
     json_t* j_tmp;
 
-    j_tmp = json_deep_copy(j_recv);
+    j_tmp = json_object();
 
     json_object_set_new(j_tmp, "delete_agent_id", json_string(id));
+    json_object_set_new(j_tmp, "uuid", json_string(camp_uuid));
 
     ret = delete_campaign(j_tmp);
     json_decref(j_tmp);
@@ -1182,12 +1182,21 @@ static int update_campaign_info(const json_t* j_camp)
 {
     char* sql;
     char* tmp;
+    char* cur_time;
     int ret;
+    json_t* j_tmp;
 
-    tmp = db_get_update_str(j_camp);
+    j_tmp = json_deep_copy(j_camp);
 
-    ret = asprintf(&sql, "update campaign set %s where"
-            "uuid = \"%s\";",
+    // set update time.
+    cur_time = get_utc_timestamp();
+    json_object_set_new(j_tmp, "tm_update_property", json_string(cur_time));
+    free(cur_time);
+
+    tmp = db_get_update_str(j_tmp);
+    json_decref(j_tmp);
+
+    ret = asprintf(&sql, "update campaign set %s where uuid = \"%s\";",
             tmp,
             json_string_value(json_object_get(j_camp, "uuid"))
             );
@@ -1987,16 +1996,27 @@ static json_t* create_dial_info(json_t* j_dialing)
  * @param j_camp
  * @return
  */
-static bool create_campaign(json_t* j_camp)
+static bool create_campaign(const json_t* j_camp)
 {
     int ret;
+    char* cur_time;
+    json_t* j_tmp;
 
-    ret = db_insert("campaign", j_camp);
+    j_tmp = json_deep_copy(j_camp);
+
+    // utc create timestamp
+    cur_time = get_utc_timestamp();
+    json_object_set_new(j_tmp, "tm_create", json_string(cur_time));
+    free(cur_time);
+
+    ret = db_insert("campaign", j_tmp);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not create campaign.");
         return false;
     }
+
+    json_decref(j_tmp);
 
     return true;
 }
@@ -2113,7 +2133,7 @@ static json_t* get_campaign_info(const char* uuid)
     db_ctx_t* db_res;
     unused__ int ret;
 
-    ret = asprintf(&sql, "select * from campaign where uuid = \"%s\";", uuid);
+    ret = asprintf(&sql, "select * from campaign where uuid = \"%s\" and tm_delete is null;", uuid);
 
     db_res = db_query(sql);
     free(sql);

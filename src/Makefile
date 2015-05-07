@@ -15,7 +15,8 @@ SRCS=main.c \
 	chan_handler.c \
 	agent_handler.c \
 	cmd_handler.c \
-	sip_handler.c
+	sip_handler.c \
+	peer_handler.c
 
 .if DEV
 CFLAGS+=-Wall

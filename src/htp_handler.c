@@ -41,15 +41,11 @@ static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer);
  */
 int init_evhtp(void)
 {
-    // Initiate http/https interface
     evhtp_t* evhtp;
     evhtp_t* evhtp_ssl;
-//    json_t*	j_tmp;
-//    char* ip;
-//    int	http_port;
-//    int https_port;
     int ret;
 
+    // Initiate http/https interface
     evhtp_ssl_cfg_t ssl_cfg = {
         .pemfile            = (char*)json_string_value(json_object_get(g_app->j_conf, "pem_filename")),
         .privfile           = (char*)json_string_value(json_object_get(g_app->j_conf, "pem_filename")),
@@ -216,26 +212,21 @@ json_t* htp_create_olive_result(const OLIVE_RESULT res_olive, const json_t* j_re
     json_t* j_tmp;
     char* timestamp;
 
-    j_tmp = json_deep_copy(j_res);
-    timestamp = get_utc_timestamp();
-
-    slog(LOG_DEBUG, "Check value. res_olive[%d], j_res[%p]", res_olive, j_res);
-
-    if(j_tmp == NULL)
+    if(j_res == NULL)
     {
-        j_out = json_pack("{s:i, s:s}",
-                "result",       res_olive,
-                "timestamp",    timestamp
-                );
+        j_tmp = json_object();
     }
     else
     {
-        j_out = json_pack("{s:i, s:o, s:s}",
-            "result",       res_olive,
-            "message",      j_tmp,
-            "timestamp",    timestamp
-            );
+        j_tmp = json_deep_copy(j_res);
     }
+
+    timestamp = get_utc_timestamp();
+    j_out = json_pack("{s:i, s:O, s:s}",
+        "result",       res_olive,
+        "message",      j_tmp,
+        "timestamp",    timestamp
+        );
     free(timestamp);
     json_decref(j_tmp);
 
@@ -255,6 +246,12 @@ static json_t* get_receivedata(evhtp_request_t *r)
     json_error_t j_err;
 
     len = evbuffer_get_length(r->buffer_in);
+    if(len == 0)
+    {
+        // Not correct input.
+        return NULL;
+    }
+
     buf = (char*)evbuffer_pullup(r->buffer_in, len);
 
     j_res = json_loads(buf, strlen(buf), &j_err);
@@ -378,6 +375,7 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
     int htp_ret;
     char* id;
     char* pass;
+    char* uuid;
 
     slog(LOG_DEBUG, "Called htpcb_campaigns_specific.");
 
@@ -387,8 +385,17 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
     {
         slog(LOG_ERR, "authorization failed.");
 
+        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
         free(id);
         free(pass);
+        return;
+    }
+
+    uuid = get_uuid(req->uri->path->full);
+    if(uuid == NULL)
+    {
+        slog(LOG_ERR, "Could not extract uuid info.");
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
         return;
     }
 
@@ -400,16 +407,8 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
         // GET : Return specified campaign info.
         case htp_method_GET:
         {
-            j_recv = get_receivedata(req);
-            if(j_recv == NULL)
-            {
-                htp_ret = EVHTP_RES_BADREQ;
-                j_res = json_null();
-                break;
-            }
-
             // get specified campaign list
-            j_res = campaign_get_info(j_recv);
+            j_res = campaign_get_info(uuid);
             json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
@@ -427,7 +426,7 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
             }
 
             // update campaign info.
-            j_res = campaign_update_info(j_recv, id);
+            j_res = campaign_update_info(uuid, j_recv, id);
             json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
@@ -436,16 +435,8 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
         // DELETE : Delete specified campaign
         case htp_method_DELETE:
         {
-            j_recv = get_receivedata(req);
-            if(j_recv == NULL)
-            {
-                htp_ret = EVHTP_RES_BADREQ;
-                j_res = json_null();
-                break;
-            }
-
             // delete campaign info.
-            j_res = campaign_delete(j_recv, id);
+            j_res = campaign_delete(uuid, id);
             json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
@@ -465,6 +456,7 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
 
     free(id);
     free(pass);
+    free(uuid);
 
     return;
 }
@@ -530,7 +522,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
         case htp_method_PUT:
         {
             //todo: someday..
-            htp_ret = EVHTP_RES_SERVERR;
+            htp_ret = EVHTP_RES_METHNALLOWED;
             j_res = json_null();
         }
         break;

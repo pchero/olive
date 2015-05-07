@@ -35,8 +35,8 @@ char* get_utc_timestamp(void)
     tt = (time_t)timeptr.tv_sec;
     t = gmtime(&tt);
 
-    strftime(timestr, sizeof(timestr), "%Y-%m-%dT%H:%M:%SZ", t);
-    ret = asprintf(&res, "%s", timestr);
+    strftime(timestr, sizeof(timestr), "%Y-%m-%dT%H:%M:%S", t);
+    ret = asprintf(&res, "%s.%ldZ", timestr, timeptr.tv_nsec);
 
     return res;
 }

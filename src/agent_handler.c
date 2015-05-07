@@ -28,6 +28,9 @@ static json_t*  get_agent_info(const char* id);
 static bool     update_agent_info(json_t* j_agent);
 static bool     delete_agent_info(json_t* j_agent);
 
+// check
+static bool     check_agent_exists(const char* id);
+
 
 bool load_table_agent(void)
 {
@@ -90,11 +93,8 @@ json_t* agent_get_all(void)
     }
     else
     {
-//        j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
-        j_res = htp_create_olive_result(OLIVE_OK, NULL);
+        j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
     }
-
-    slog(LOG_DEBUG, "agent_get_all end.");
 
     return j_res;
 }
@@ -158,7 +158,7 @@ json_t* agent_update(const json_t* j_agent)
 }
 
 /**
- * Create agent info
+ * Create agent info API handler.
  * @param j_agent
  * @return
  */
@@ -170,18 +170,37 @@ json_t* agent_create(const json_t* j_agent, const char* id)
 
     j_tmp = json_deep_copy(j_agent);
 
-    json_object_set_new(j_tmp, "create_agent_id", json_string(id));
-
-    ret = create_agent(j_tmp);
-    json_decref(j_tmp);
+    // check agent already exists.
+    ret = check_agent_exists(json_string_value(json_object_get(j_agent, "id")));
     if(ret == true)
     {
-        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+        j_res = htp_create_olive_result(OLIVE_AGENT_EXISTS, json_null());
+        return j_res;
     }
-    else
+
+    // set info.
+    json_object_set_new(j_tmp, "create_agent_id", json_string(id));
+
+    // create agent.
+    ret = create_agent(j_tmp);
+    json_decref(j_tmp);
+    if(ret == false)
     {
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
+
+    // get created agent info.
+    j_tmp = get_agent_info(json_string_value(json_object_get(j_agent, "id")));
+    if(j_tmp == NULL)
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
+    }
+
+    // create result.
+    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+    json_decref(j_tmp);
 
     return j_res;
 }
@@ -207,11 +226,11 @@ json_t* agent_get_info(const json_t* j_agent)
     j_tmp = get_agent_info(json_string_value(json_object_get(j_agent, "id")));
     if(j_tmp == NULL)
     {
-        j_res = htp_create_olive_result(OLIVE_NO_AGENT, json_null());
+        j_res = htp_create_olive_result(OLIVE_AGENT_NOT_FOUND, json_null());
     }
     else
     {
-        j_res = htp_create_olive_result(OLIVE_NO_AGENT, j_tmp);
+        j_res = htp_create_olive_result(OLIVE_AGENT_NOT_FOUND, j_tmp);
     }
     json_decref(j_tmp);
 
@@ -544,7 +563,7 @@ static json_t* get_agent_info(const char* id)
     db_ctx_t* db_res;
 
     // get agent
-    ret = asprintf(&sql, "select * from agent where id = \"%s\" and tm_delete is not null;",
+    ret = asprintf(&sql, "select * from agent where id = \"%s\" and tm_delete is null;",
             id
             );
 
@@ -588,4 +607,23 @@ static bool create_agent(const json_t* j_agent)
     }
 
     return true;
+}
+
+/**
+ * Check there's same id in the db or not.
+ * @param id
+ * @return
+ */
+static bool check_agent_exists(const char* id)
+{
+    json_t* j_tmp;
+
+    j_tmp = get_agent_info(id);
+    if(j_tmp != NULL)
+    {
+        json_decref(j_tmp);
+        return true;
+    }
+
+    return false;
 }
