@@ -17,7 +17,11 @@ SRCS=main.c \
 	cmd_handler.c \
 	sip_handler.c
 
-CFLAGS+=-Wall -I. -I/usr/include/event2 `mysql_config --cflags`
+.if DEV
+CFLAGS+=-Wall
+.endif
+
+CFLAGS+=-I. -I/usr/include/event2 `mysql_config --cflags`
 LDADD+=`mysql_config --libs` -levhtp -lpthread -levent -lssl -lcrypto -levent_openssl -lzmq -lm -ljansson -lsqlite3 -luuid
 
 
