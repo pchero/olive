@@ -20,6 +20,24 @@
 #include "db_handler.h"
 #include "agent_handler.h"
 #include "camp_handler.h"
+#include "plan_handler.h"
+
+static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
+static void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
+static void htpcb_plans(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
+static void htpcb_diallists(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_diallists_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
+static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_diallist_dl_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
 
 
 static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
@@ -139,14 +157,22 @@ int init_evhtp(void)
     evhtp_set_cb(evhtp_ssl,         "/campaigns",   htpcb_campaigns, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    "/campaigns/*", htpcb_campaigns_specific, NULL);
 
-//    // agents
+    // agents
     evhtp_set_cb(evhtp_ssl,         "/agents",          htpcb_agents, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    "/agents/*",        htpcb_agents_specific, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    "/agents/*/status", htpcb_agents_specific_status, NULL);
 
-//    // dial-lists
-//    evhtp_set_regex_cb(evhtp_ssl, "^/dial-lists", htpcb_dial_lists, NULL);
-//    evhtp_set_regex_cb(evhtp_ssl, "^/dial-lists/*", htpcb_dial_lists_specific, NULL);
+    // plans
+    evhtp_set_cb(evhtp_ssl,         "/plans",   htpcb_plans, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/plans/*", htpcb_plans_specific, NULL);
+
+    // dial-lists
+    evhtp_set_cb(evhtp_ssl,         "/dial-lists",      htpcb_diallists, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/dial-lists/*",    htpcb_diallists_specific, NULL);
+
+    // dial-lists/dial info
+    evhtp_set_cb(evhtp_ssl,         "/dial-lists/*/*",  htpcb_plans, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/dial-lists/*",    htpcb_plans_specific, NULL);
 
     // peers
 
@@ -278,7 +304,7 @@ static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer) {
  * @param r
  * @param arg
  */
-void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
+static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
     json_t* j_res;
@@ -551,7 +577,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
  * @param req
  * @param arg
  */
-void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
     json_t* j_res;
@@ -560,6 +586,7 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
     int htp_ret;
     char* id;
     char* pass;
+    char* agent_id;
 
     slog(LOG_DEBUG, "Called htpcb_agents_specific.");
 
@@ -574,6 +601,14 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
         return;
     }
 
+    agent_id = get_uuid(req->uri->path->full);
+    if(agent_id == NULL)
+    {
+        slog(LOG_ERR, "Could not extract agent_id info.");
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
     // get method
     method = evhtp_request_get_method(req);
 
@@ -582,14 +617,7 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
         // GET : Return specified agent info.
         case htp_method_GET:
         {
-            j_recv = get_receivedata(req);
-            if(j_recv == NULL)
-            {
-                htp_ret = EVHTP_RES_BADREQ;
-                j_res = json_null();
-                break;
-            }
-            j_res = agent_get_info(j_recv);
+            j_res = agent_get_info(agent_id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -604,7 +632,7 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
                 j_res = json_null();
                 break;
             }
-            j_res = agent_update_info(j_recv, id);
+            j_res = agent_update_info(agent_id, j_recv, id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -612,14 +640,7 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
         // DELETE : Delete specified agent.
         case htp_method_DELETE:
         {
-            j_recv = get_receivedata(req);
-            if(j_recv == NULL)
-            {
-                htp_ret = EVHTP_RES_BADREQ;
-                j_res = json_null();
-                break;
-            }
-            j_res = agent_delete_info(j_recv, id);
+            j_res = agent_delete_info(agent_id, id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -640,6 +661,7 @@ void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *a
     evhtp_send_reply(req, htp_ret);
     free(id);
     free(pass);
+    free(agent_id);
 
     return;
 }
@@ -726,6 +748,185 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
     ret = create_common_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
+
+    return;
+}
+
+/**
+ * Interface for plans API
+ * https://127.0.0.1:443/plans
+ * @param req
+ * @param arg
+ */
+void htpcb_plans(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+
+    slog(LOG_DEBUG, "Called htpcb_plans.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // POST : new plan.
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+            j_res = plan_create(j_recv, id);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // GET : plan list
+        case htp_method_GET:
+        {
+            j_res = plan_get_all();
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : update several agents info
+        case htp_method_PUT:
+        {
+            //todo: someday..
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+        break;
+
+        // DELETE : Not support.
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+        break;
+    }
+
+    // create result
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+    free(id);
+    free(pass);
+
+    return;
+}
+
+/**
+ * http://host_url/plans/plan_uuid
+ * @param req
+ * @param arg
+ */
+void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+    char* plan_uuid;
+
+    slog(LOG_DEBUG, "Called htpcb_plans_specific.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
+        return;
+    }
+
+    plan_uuid = get_uuid(req->uri->path->full);
+    if(plan_uuid == NULL)
+    {
+        slog(LOG_ERR, "Could not extract plan_uuid info.");
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified plan info.
+        case htp_method_GET:
+        {
+            j_res = plan_get_info(plan_uuid);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified plan info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+            j_res = plan_update_info(plan_uuid, j_recv, id);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // DELETE : Delete specified agent.
+        case htp_method_DELETE:
+        {
+            j_res = plan_delete(plan_uuid, id);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+        break;
+
+    }
+
+    // create result
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+    free(id);
+    free(pass);
+    free(plan_uuid);
 
     return;
 }

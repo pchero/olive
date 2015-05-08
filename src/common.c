@@ -98,3 +98,31 @@ char* gen_uuid_campaign(void)
     return res;
 }
 
+/**
+ * Generate plan uuid. It has "plan-" prefix.
+ * Return value should be free after used.
+ * @return
+ */
+char* gen_uuid_plan(void)
+{
+    char* res;
+
+    res = gen_uuid("plan");
+    return res;
+}
+
+/**
+ * Generate dlma uuid. It has "dlma-" prefix.
+ * Return value should be free after used.
+ * @return
+ */
+char* gen_uuid_dlma(void)
+{
+    char* res;
+
+    res = gen_uuid("dlma");
+    return res;
+}
+
+
+

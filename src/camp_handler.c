@@ -963,6 +963,7 @@ json_t* campaign_create(const json_t* j_camp, const char* agent_id)
     json_decref(j_tmp);
     if(ret == false)
     {
+        slog(LOG_ERR, "Could not create new campaign.");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         free(camp_uuid);
         return j_res;
@@ -973,6 +974,7 @@ json_t* campaign_create(const json_t* j_camp, const char* agent_id)
     free(camp_uuid);
     if(j_tmp == NULL)
     {
+        slog(LOG_ERR, "Could not get created campaign info.");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
@@ -1094,14 +1096,14 @@ json_t* campaign_delete(const char* camp_uuid, const char* id)
 
     ret = delete_campaign(j_tmp);
     json_decref(j_tmp);
-    if(ret == true)
+    if(ret == false)
     {
-        j_res = htp_create_olive_result(OLIVE_OK, json_null());
-    }
-    else
-    {
+        slog(LOG_ERR, "Could not delete campaign info.");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
+
+    j_res = htp_create_olive_result(OLIVE_OK, json_null());
 
     return j_res;
 }
@@ -1213,35 +1215,10 @@ static int update_campaign_info(const json_t* j_camp)
 }
 
 /**
- * Get plan record info.
+ *
  * @param uuid
  * @return
  */
-json_t* get_plan_info(const char* uuid)
-{
-    char* sql;
-    unused__ int ret;
-    json_t* j_res;
-    db_ctx_t* db_res;
-
-    ret = asprintf(&sql, "select * from plan where uuid = \"%s\";",
-            uuid
-            );
-
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get plan info.");
-        return NULL;
-    }
-
-    j_res = db_get_record(db_res);
-    db_free(db_res);
-
-    return j_res;
-}
-
 json_t* get_dl_master_info(const char* uuid)
 {
     char* sql;

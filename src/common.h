@@ -60,6 +60,8 @@ extern app_* g_app;
 char* get_utc_timestamp(void);
 char* gen_uuid_channel(void);
 char* gen_uuid_campaign(void);
+char* gen_uuid_plan(void);
+char* gen_uuid_dlma(void);
 
 
 #endif /* COMMON_H_ */

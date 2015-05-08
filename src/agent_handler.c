@@ -217,20 +217,20 @@ int agent_delete(json_t* j_agent)
  * Get agent info API handler
  * @return
  */
-json_t* agent_get_info(const json_t* j_agent)
+json_t* agent_get_info(const char* id)
 {
 
     json_t* j_tmp;
     json_t* j_res;
 
-    j_tmp = get_agent_info(json_string_value(json_object_get(j_agent, "id")));
+    j_tmp = get_agent_info(id);
     if(j_tmp == NULL)
     {
         j_res = htp_create_olive_result(OLIVE_AGENT_NOT_FOUND, json_null());
     }
     else
     {
-        j_res = htp_create_olive_result(OLIVE_AGENT_NOT_FOUND, j_tmp);
+        j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
     }
     json_decref(j_tmp);
 
@@ -241,7 +241,7 @@ json_t* agent_get_info(const json_t* j_agent)
  * Update agent info API handler
  * @return
  */
-json_t* agent_update_info(const json_t* j_agent, const char* id)
+json_t* agent_update_info(const char* agent_id, const json_t* j_agent, const char* update_id)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -249,18 +249,27 @@ json_t* agent_update_info(const json_t* j_agent, const char* id)
 
     j_tmp = json_deep_copy(j_agent);
 
-    json_object_set_new(j_tmp, "update_agent_id", json_string(id));
+    json_object_set_new(j_tmp, "update_agent_id", json_string(update_id));
+    json_object_set_new(j_tmp, "id", json_string(agent_id));
 
     ret = update_agent_info(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
-    else
+
+    // get updated info.
+    j_tmp = get_agent_info(agent_id);
+    if(j_tmp == NULL)
     {
-        j_res = htp_create_olive_result(OLIVE_OK, json_null());
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
+
+    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+    json_decref(j_tmp);
 
     return j_res;
 }
@@ -270,15 +279,16 @@ json_t* agent_update_info(const json_t* j_agent, const char* id)
  * Not really delete, just set delete flag.
  * @return
  */
-json_t* agent_delete_info(const json_t* j_agent, const char* id)
+json_t* agent_delete_info(const char* agent_id, const char* update_id)
 {
     json_t* j_tmp;
     json_t* j_res;
     int ret;
 
-    j_tmp = json_deep_copy(j_agent);
+    j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_id", json_string(id));
+    json_object_set_new(j_tmp, "delete_agent_id", json_string(update_id));
+    json_object_set_new(j_tmp, "id", json_string(agent_id));
 
     ret = delete_agent_info(j_tmp);
     json_decref(j_tmp);
@@ -408,7 +418,7 @@ static bool delete_agent_info(json_t* j_agent)
     json_object_set_new(j_tmp, "tm_delete", json_string(cur_time));
     free(cur_time);
 
-    tmp = db_get_update_str(j_agent);
+    tmp = db_get_update_str(j_tmp);
     ret = asprintf(&sql, "update agent set %s where id = \"%s\";",
             tmp,
             json_string_value(json_object_get(j_tmp, "id"))

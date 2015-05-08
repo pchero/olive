@@ -14,7 +14,6 @@ create table campaign(
     name                        varchar(255),       -- campaign name
     status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/force_stopping)
     status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
---    create_agent_uuid           varchar(255),       -- create agent uuid
     create_agent_id             varchar(255),       -- create agent uuid
     delete_agent_id             varchar(255),       -- delete agent uuid
     update_property_agent_id    varchar(255),       -- last propery update agent uuid
@@ -70,18 +69,18 @@ create table campaign_result(
     
     -- transfer info
     tr_trycnt          int,             -- transfer try count.
-    tr_agent_id      varchar(255),    -- transfered agent.
+    tr_agent_id        varchar(255),    -- transfered agent.
     tr_chan_unique_id  varchar(255),    -- trying transfer chan unique id.
     
     -- dial result
-    res_dial                varchar(255),   -- dial result(answer, no_answer, ...)\n"
-    res_answer              varchar(255),   -- AMD result.(AMDSTATUS)\n"
-    res_answer_detail       varchar(255),   -- AMD result detail.(AMDCAUSE)\n"
-    res_hangup              varchar(255),   -- hangup code.\n"
-    res_hangup_detail       varchar(255),   -- hangup detail.\n"
-    res_tr_dial             varchar(255),   -- transferred dial result(answer, no_answer, ...)\n"
-    res_tr_hangup           varchar(255),   -- hangup code.\n"
-    res_tr_hangup_detail    varchar(255),   -- hangup detail.\n"
+    res_dial                varchar(255),   -- dial result(answer, no_answer, ...)
+    res_answer              varchar(255),   -- AMD result.(AMDSTATUS)
+    res_answer_detail       varchar(255),   -- AMD result detail.(AMDCAUSE)
+    res_hangup              varchar(255),   -- hangup code.
+    res_hangup_detail       varchar(255),   -- hangup detail.
+    res_tr_dial             varchar(255),   -- transferred dial result(answer, no_answer, ...)
+    res_tr_hangup           varchar(255),   -- hangup code.
+    res_tr_hangup_detail    varchar(255),   -- hangup detail.
         
     primary key(seq, chan_unique_id)
     
@@ -105,8 +104,9 @@ create table agent(
     desc_user           varchar(1023),                      -- description(for agent itself)
     
     -- ownership
-    create_agent_id   varchar(255),   -- create user
-    update_agent_id   varchar(255),
+    create_agent_id     varchar(255),   -- create agent idz
+    update_agent_id     varchar(255),   -- last info update agent id
+    delete_agent_id     varchar(255),   -- delete agent id
     
     -- timestamp
     tm_info_update      datetime(6),    -- last agent info modified time
@@ -119,7 +119,6 @@ create table agent(
     -- agent performance
     -- busy time, how many calls got.. Um?
     
---    primary key(uuid)
     primary key(id)
 );
 
@@ -196,6 +195,16 @@ create table dial_list_ma(
     name        varchar(255),                               -- dial list name
     dl_table    varchar(255),                               -- dial list table name.(dl_e276d8be)
     detail      text,                                       -- description of dialist
+    
+    -- timestamp. UTC.
+    tm_create           datetime(6),    -- create time.
+    tm_delete           datetime(6),    -- delete time.
+    tm_update_property  datetime(6),    -- last property update time.(Except status)
+    
+    -- ownership
+    create_agent_id           varchar(255),       -- create agent uuid
+    delete_agent_id           varchar(255),       -- delete agent uuid
+    update_property_agent_id  varchar(255),       -- last propery update agent uuid
     
     primary key(seq, uuid)
 );
