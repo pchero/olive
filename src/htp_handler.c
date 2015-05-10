@@ -21,6 +21,7 @@
 #include "agent_handler.h"
 #include "camp_handler.h"
 #include "plan_handler.h"
+#include "dl_handler.h"
 
 static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
@@ -35,10 +36,11 @@ static void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) v
 static void htpcb_diallists(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_diallists_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
-static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void *arg);
-static void htpcb_diallist_dl_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_dls(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_dls_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
-
+static void htpcb_peers(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_peers_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
 static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
 static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg);
@@ -48,7 +50,8 @@ static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agen
 static bool is_auth(evhtp_request_t* req, const char* id, const char* pass);
 static json_t* get_receivedata(evhtp_request_t *r);
 
-static char* get_uuid(char* buf);
+static char* get_uuid(const char* buf);
+static char* get_uuid_second(const char* buf);
 static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
 static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer);
 
@@ -170,13 +173,15 @@ int init_evhtp(void)
     evhtp_set_cb(evhtp_ssl,         "/dial-lists",      htpcb_diallists, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    "/dial-lists/*",    htpcb_diallists_specific, NULL);
 
-    // dial-lists/dial info
-    evhtp_set_cb(evhtp_ssl,         "/dial-lists/*/*",  htpcb_plans, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/dial-lists/*",    htpcb_plans_specific, NULL);
+    // dl info
+    evhtp_set_cb(evhtp_ssl,         "/dls/*",    htpcb_dls, NULL);
+    evhtp_set_cb(evhtp_ssl,         "/dls/*/*",  htpcb_dls_specific, NULL);
 
     // peers
 
-    // groups
+    // Agent groups
+
+    // dialings
 
 
 
@@ -363,7 +368,7 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
         {
             // Not support yet.
             // TODO: someday..
-            htp_ret = EVHTP_RES_FORBIDDEN;
+            htp_ret = EVHTP_RES_METHNALLOWED;
             j_res = json_null();
         }
         break;
@@ -736,8 +741,7 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
         {
             slog(LOG_ERR, "Not support method. method[%d]", req_method);
             // need some reply method
-            // return EVHTP_RES_FORBIDDEN
-            htp_ret = EVHTP_RES_FORBIDDEN;
+            htp_ret = EVHTP_RES_METHNALLOWED;
         }
         break;
     }
@@ -931,6 +935,479 @@ void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *ar
     return;
 }
 
+static void htpcb_diallists(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+
+    slog(LOG_DEBUG, "Called htpcb_diallists called.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+    switch(method)
+    {
+        // GET : return all campaign list
+        case htp_method_GET:
+        {
+            // get all campaign list
+            j_res = dlma_get_all();
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : new campaign.
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            j_res = dlma_create(j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : update several campaign info
+        case htp_method_PUT:
+        {
+            // Not support yet.
+            // TODO: someday..
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+        break;
+
+        // DELETE : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    evhtp_send_reply(req, htp_ret);
+    json_decref(j_res);
+
+    free(id);
+    free(pass);
+
+    return;
+}
+
+static void htpcb_diallists_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+    char* uuid;
+
+    slog(LOG_DEBUG, "Called htpcb_diallists_specific.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
+        free(id);
+        free(pass);
+        return;
+    }
+
+    uuid = get_uuid(req->uri->path->full);
+    if(uuid == NULL)
+    {
+        slog(LOG_ERR, "Could not extract uuid info.");
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified dlma info.
+        case htp_method_GET:
+        {
+            // get specified campaign list
+            j_res = dlma_get_info(uuid);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified dlma info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            // update dlma info.
+            j_res = dlma_update_info(uuid, j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // DELETE : Delete specified dlma
+        case htp_method_DELETE:
+        {
+            // delete dlma info.
+            j_res = dlma_delete(uuid, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+    free(uuid);
+
+    return;
+}
+
+static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+    char* uuid;
+
+    slog(LOG_DEBUG, "Called htpcb_diallist_dl.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
+        free(id);
+        free(pass);
+        return;
+    }
+
+    uuid = get_uuid(req->uri->path->full);
+    if(uuid == NULL)
+    {
+        slog(LOG_ERR, "Could not extract uuid info.");
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified dlma info.
+        case htp_method_GET:
+        {
+            // get specified campaign list
+            j_res = dlma_get_info(uuid);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified dlma info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            // update dlma info.
+            j_res = dlma_update_info(uuid, j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // DELETE : Delete specified dlma
+        case htp_method_DELETE:
+        {
+            // delete dlma info.
+            j_res = dlma_delete(uuid, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+    free(uuid);
+
+    return;
+}
+
+
+static void htpcb_dls(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+    char* uuid;
+
+    slog(LOG_DEBUG, "Called htpcb_dl.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get dlma uuid
+    uuid = get_uuid(req->uri->path->full);
+    if(uuid == NULL)
+    {
+
+        slog(LOG_ERR, "Could not extract uuid info. org[%s], uuid[%s]", req->uri->path->full, uuid);
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return al dl info.
+        case htp_method_GET:
+        {
+            // get specified campaign list
+            j_res = dl_get_all(uuid);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            j_res = dl_create(uuid, j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update several dl info.
+        case htp_method_PUT:
+        {
+            // Not support yet.
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+        break;
+
+        // others. Not support.
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+    free(uuid);
+
+    return;
+}
+
+static void htpcb_dls_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+    char* uuid;
+    char* uuid_second;
+
+    slog(LOG_DEBUG, "Called htpcb_dl.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get dlma uuid
+    uuid = get_uuid(req->uri->path->full);
+    uuid_second = get_uuid_second(req->uri->path->full);
+    if((uuid == NULL) || (uuid_second == NULL))
+    {
+        slog(LOG_ERR, "Could not extract uuid info. org[%s], uuid[%s], uuid_second[%s]", req->uri->path->full, uuid, uuid_second);
+
+        free(uuid);
+        free(uuid_second);
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified dl info.
+        case htp_method_GET:
+        {
+            // get specified dl info.
+            j_res = dl_get_info(uuid, uuid_second);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified dl info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            j_res = dl_update_info(uuid, uuid_second, j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // DELETE : Update specified dl info.
+        case htp_method_DELETE:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            j_res = dl_delete(uuid, uuid_second, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // others. Not support.
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+    free(uuid);
+    free(uuid_second);
+
+    return;
+}
 
 /**
  * Check authenticate user or not
@@ -1062,7 +1539,7 @@ static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agen
  * @param buf
  * @return
  */
-static char* get_uuid(char* buf)
+static char* get_uuid(const char* buf)
 {
     char* tmp;
     char* org;
@@ -1091,3 +1568,40 @@ static char* get_uuid(char* buf)
     free(org);
     return uuid;
 }
+
+/**
+ * Extract uuid
+ * "/service_name/uuid"
+ * @param buf
+ * @return
+ */
+static char* get_uuid_second(const char* buf)
+{
+    char* tmp;
+    char* org;
+    char* sep;
+    char* uuid;
+    char* remain;
+    int i;
+    unused__ int ret;
+
+    tmp = strdup(buf);
+    org = tmp;
+    sep = "/";
+
+    for(i = 0; i < 4; i++)
+    {
+        remain = strsep(&tmp, sep);
+    }
+
+    if(remain == NULL)
+    {
+        return NULL;
+    }
+
+    ret = asprintf(&uuid, "%s", remain);
+
+    free(org);
+    return uuid;
+}
+
