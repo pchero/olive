@@ -58,7 +58,7 @@ static bool     create_campaign(const json_t* j_camp);
 static json_t*  get_campaigns_by_status(const char* status);
 static json_t*  get_campaign_for_dial(void);
 static json_t*  get_campaign_info(const char* uuid);
-static json_t*  get_campaigns_all(void);
+static json_t*  get_campaign_all(void);
 static int      update_campaign_info(const json_t* j_camp);
 static int      update_campaign_info_status(const char* uuid, const char* status);
 static bool     delete_campaign(const json_t* j_camp);
@@ -884,60 +884,6 @@ bool load_table_trunk_group(void)
 }
 
 /**
- * Update campaign info
- */
-OLIVE_RESULT campaign_update(json_t* j_camp)
-{
-    char* sql;
-    int ret;
-    db_ctx_t*   db_res;
-    json_t*     j_res;
-
-    // check campaign existence.
-    ret = asprintf(&sql, "select * from campaign where uuid = \"%s\"",
-            json_string_value(json_object_get(j_camp, "uuid"))
-            );
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get campaign info.");
-        return OLIVE_INTERNAL_ERROR;
-    }
-
-    j_res = db_get_record(db_res);
-    db_free(db_res);
-    if(j_res == NULL)
-    {
-        slog(LOG_ERR, "Could not find campaign info. uuid[%s]",
-                json_string_value(json_object_get(j_camp, "uuid"))
-                );
-        return OLIVE_CAMPAIGN_NOT_FOUND;
-    }
-    json_decref(j_res);
-
-
-    ret = asprintf(&sql, "update campaign set "
-            "status=\"%s\" "
-            "where uuid = \"%s\"",
-            json_string_value(json_object_get(j_camp, "status")),
-            json_string_value(json_object_get(j_camp, "uuid"))
-            );
-
-    ret = db_exec(sql);
-    free(sql);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not update campaign info. uuid[%s]",
-                json_string_value(json_object_get(j_camp, "uuid"))
-                );
-        return OLIVE_INTERNAL_ERROR;
-    }
-
-    return OLIVE_OK;
-}
-
-/**
  * Create campaign API handler.
  * @param j_camp
  * @return
@@ -997,15 +943,15 @@ json_t* campaign_get_all(void)
 
     slog(LOG_DEBUG, "campaign_get_all");
 
-    j_tmp = get_campaigns_all();
+    j_tmp = get_campaign_all();
     if(j_tmp == NULL)
     {
+        slog(LOG_ERR, "Could not get campaign info all.");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
-    else
-    {
-        j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
-    }
+
+    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
     json_decref(j_tmp);
 
     return j_res;
@@ -1025,12 +971,12 @@ json_t* campaign_get_info(const char* uuid)
     j_tmp = get_campaign_info(uuid);
     if(j_tmp == NULL)
     {
+        slog(LOG_ERR, "Could not find campaign info.");
         j_res = htp_create_olive_result(OLIVE_CAMPAIGN_NOT_FOUND, json_null());
+        return j_res;
     }
-    else
-    {
-        j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
-    }
+
+    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
     json_decref(j_tmp);
 
     return j_res;
@@ -1110,9 +1056,9 @@ json_t* campaign_delete(const char* camp_uuid, const char* id)
 
 /**
  * Get all campaigns.
- * @return
+ * @return success:json_array, fail:NULL
  */
-static json_t* get_campaigns_all(void)
+static json_t* get_campaign_all(void)
 {
     char* sql;
     unused__ int ret;
@@ -1120,7 +1066,7 @@ static json_t* get_campaigns_all(void)
     json_t* j_res;
     json_t* j_tmp;
 
-    ret = asprintf(&sql, "select * from campaign;");
+    ret = asprintf(&sql, "select * from campaign where tm_delete is null;");
 
     db_res = db_query(sql);
     free(sql);
@@ -1207,7 +1153,7 @@ static int update_campaign_info(const json_t* j_camp)
     free(sql);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not update campaign status info.");
+        slog(LOG_ERR, "Could not update campaign info.");
         return false;
     }
 
@@ -1999,7 +1945,7 @@ static bool create_campaign(const json_t* j_camp)
 }
 
 /**
- * Delete campaign for API handler.
+ * Delete campaign.
  * @param j_camp
  * @return
  */

@@ -124,5 +124,17 @@ char* gen_uuid_dlma(void)
     return res;
 }
 
+/**
+ * Generate dl uuid. It has "dl-" prefix.
+ * Return value should be free after used.
+ * @return
+ */
+char* gen_uuid_dl(void)
+{
+    char* res;
+
+    res = gen_uuid("dl");
+    return res;
+}
 
 
