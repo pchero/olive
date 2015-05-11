@@ -2,91 +2,6 @@
 -- Created on: Aug 15, 2014
 --    Author: pchero
 
-drop table if exists campaign;
-create table campaign(
--- campaign.
-    
-    -- identity
-    uuid        varchar(255)    unique,
-    
-    -- information
-    detail                      varchar(1023),      -- description
-    name                        varchar(255),       -- campaign name
-    status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/force_stopping)
-    status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
-    create_agent_id             varchar(255),       -- create agent uuid
-    delete_agent_id             varchar(255),       -- delete agent uuid
-    update_property_agent_id    varchar(255),       -- last propery update agent uuid
-    update_status_agent_id      varchar(255),       -- last status update agent uuid
-    
-    -- resources
-    agent_group varchar(255),                       -- agent group uuid
-    plan_uuid   varchar(255),                       -- plan uuid
-    dlma_uuid   varchar(255),                       -- dial_list_ma uuid
-    trunk_group varchar(255),                       -- trunk group uuid
-
-    -- timestamp. UTC.
-    tm_create           datetime(6),   -- create time.
-    tm_delete           datetime(6),   -- delete time.
-    tm_update_property  datetime(6),   -- last property update time.(Except status)
-    tm_update_status    datetime(6),   -- last status updated time.
-        
-    primary key(uuid)
-);
-
-drop table if exists campaign_result;
-create table campaign_result(
--- campaign dial result table.
-    -- identity
-    seq                 int(10)         unsigned auto_increment,
-    chan_unique_id      varchar(255)    not null,   -- channel unique id.
-    dl_uuid             varchar(255)    not null,   -- dl uuid
-    dlma_uuid           varchar(255)    not null,   -- dial_list_ma uuid.
-    camp_uuid           varchar(255)    not null,   -- campaign uuid.
-
-    -- dial_info
-    info_camp   text    not null,   -- campaign info. json format.
-    info_plan   text    not null,   -- plan info. json format.
-    info_dl     text    not null,   -- dl info. json format.    
-    
-    -- timestamp(UTC)
-    tm_dial             datetime(6),   -- timestamp for dialing requested.
-    tm_dial_end         datetime(6),   -- timestamp for dialing ended.
-    
-    tm_redirect         datetime(6),   -- timestamp for call redirected.
-    tm_bridge           datetime(6),   -- timestamp for call bridged.
-    tm_hangup           datetime(6),   -- timestamp for call hanguped.
-    
-    tm_tr_dial          datetime(6),   -- timestamp for dialing to agent.
-    tm_tr_dial_end      datetime(6),   -- timestamp for transfer to agent.
-    tm_tr_hangup        datetime(6),   -- timestamp for agent hangup.
-
-    -- dial info
-    dial_index          int,            -- dialing number index.
-    dial_addr           varchar(255),   -- dialing address.
-    dial_trycnt         int,            -- dialing try count.
-    dial_timeout        int,            -- dialing timeout.
-    
-    -- transfer info
-    tr_trycnt          int,             -- transfer try count.
-    tr_agent_id        varchar(255),    -- transfered agent.
-    tr_chan_unique_id  varchar(255),    -- trying transfer chan unique id.
-    
-    -- dial result
-    res_dial                varchar(255),   -- dial result(answer, no_answer, ...)
-    res_answer              varchar(255),   -- AMD result.(AMDSTATUS)
-    res_answer_detail       varchar(255),   -- AMD result detail.(AMDCAUSE)
-    res_hangup              varchar(255),   -- hangup code.
-    res_hangup_detail       varchar(255),   -- hangup detail.
-    res_tr_dial             varchar(255),   -- transferred dial result(answer, no_answer, ...)
-    res_tr_hangup           varchar(255),   -- hangup code.
-    res_tr_hangup_detail    varchar(255),   -- hangup detail.
-        
-    primary key(seq, chan_unique_id)
-    
-);
-
-
 drop table if exists agent;
 create table agent(
 -- agent table
@@ -96,17 +11,17 @@ create table agent(
 --    uuid        varchar(255)    not null unique,
     
     -- information
-    id                  varchar(255)    not null unique,    -- login id
-    password            varchar(1023)   not null,           -- login passwd
-    name                varchar(255),                       -- agent name
-    status              varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work)    
-    desc_admin          varchar(1023),                      -- description(for administrator)
-    desc_user           varchar(1023),                      -- description(for agent itself)
+    id                  varchar(255)    not null unique,    -- login id.
+    password            varchar(1023)   not null,           -- login passwd.
+    name                varchar(255),                       -- agent name.
+    status              varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work).    
+    desc_admin          varchar(1023),                      -- description(for administrator).
+    desc_user           varchar(1023),                      -- description(for agent itself).
     
     -- ownership
-    create_agent_id     varchar(255),   -- create agent idz
-    update_agent_id     varchar(255),   -- last info update agent id
-    delete_agent_id     varchar(255),   -- delete agent id
+    create_agent_id             varchar(255),   -- create agent id.
+    delete_agent_id             varchar(255),   -- delete agent id.
+    update_property_agent_id    varchar(255),   -- last info update agent id.
     
     -- timestamp
     tm_info_update      datetime(6),    -- last agent info modified time
@@ -119,27 +34,42 @@ create table agent(
     -- agent performance
     -- busy time, how many calls got.. Um?
     
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+    
     primary key(id)
 );
 
-drop table if exists agent_group_ma;
-create table agent_group_ma(
--- master table of agent groups.
-    uuid    varchar(255)    not null unique,
-    name    varchar(255),
-    detail  varchar(1023),      -- description
-    
-    primary key(uuid)
-);
+drop table if exists peer;
+create table peer(
 
-drop table if exists agent_group;
-create table agent_group(
-    group_uuid    varchar(255)  not null,
-    agent_id    varchar(255)  not null,
-    
-    primary key(group_uuid, agent_id)
-);
+    -- identity
+    name        varchar(255)    not null unique,    -- peer name
+    protocol    varchar(255)    not null,           -- "sip", "iax", ...
 
+    -- information
+    mode        varchar(255)    not null,           -- "peer", "trunk"
+    agent_id    varchar(255),                       -- owned agent uuid.
+    favorite    int default 0,                      -- favorite number. if close to 0, it has more favor value.
+    
+    -- timestamp. UTC
+    tm_create       datetime(6),   -- create time
+    tm_delete       datetime(6),   -- delete time
+    tm_update       datetime(6),   -- last update time
+    
+    -- ownership
+    create_agent_id           varchar(255),       -- create agent uuid
+    delete_agent_id           varchar(255),       -- delete agent uuid
+    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+
+    
+    primary key(name, protocol)
+);
 
 drop table if exists plan;
 create table plan(
@@ -154,8 +84,7 @@ create table plan(
     dial_timeout    int default 30000,  -- no answer hangup timeout(30000 ms = 30 second)
     caller_id       varchar(255),       -- caller
     answer_handle   varchar(255),       -- answer handling.(all, human_only, human_possible)
-    dl_end_handle   varchar(255),       -- stratery when it running out dial list(keep_running, stop, next_campaign)
-    next_camp_uuid  varchar(255),       -- next campaign uuid. work only if dl_end_handle set to "next_campaign", (it will run after fisnish dl_list)
+    dl_end_handle   varchar(255),       -- stratery when it running out dial list(keep_running, stop)
     retry_delay     varchar(255),       -- retry delaytime(ms)
     
     -- retry number
@@ -179,34 +108,11 @@ create table plan(
     tm_update_property  datetime(6),    -- last property update time.(Except status)
     tm_update_status    datetime(6),    -- last status updated time.
     
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+
     primary key(uuid)
-);
-
-drop table if exists dial_list_ma;
-create table dial_list_ma(
--- dial list
--- manage all of dial list tables
-
-    -- row identity
-    seq         int(10)         unsigned auto_increment,    -- sequence
-    uuid        varchar(255)    unique,                     -- dial_list_#### reference uuid.
-    
-    -- information
-    name        varchar(255),                               -- dial list name
-    dl_table    varchar(255),                               -- dial list table name.(dl_e276d8be)
-    detail      text,                                       -- description of dialist
-    
-    -- timestamp. UTC.
-    tm_create           datetime(6),    -- create time.
-    tm_delete           datetime(6),    -- delete time.
-    tm_update_property  datetime(6),    -- last property update time.(Except status)
-    
-    -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_property_agent_id  varchar(255),       -- last propery update agent uuid
-    
-    primary key(seq, uuid)
 );
 
 -- dial list original.
@@ -267,27 +173,11 @@ create table dl_org(
     delete_agent_id           varchar(255),       -- delete agent uuid
     update_property_agent_id  varchar(255),       -- last propery update agent uuid
 
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+
     primary key(uuid)
-);
-
-drop table if exists peer;
-create table peer(
-
-    -- identity
-    name        varchar(255)    not null unique,    -- peer name
-    protocol    varchar(255)    not null,           -- "sip", "iax", ...
-
-    -- information
-    mode        varchar(255)    not null,           -- "peer", "trunk"
-    agent_id    varchar(255),                       -- owned agent uuid.
-    favorite    int default 0,                      -- favorite number. if close to 0, it has more favor value.
-    
-    -- timestamp. UTC
-    tm_create       datetime(6),   -- create time
-    tm_delete       datetime(6),   -- delete time
-    tm_update       datetime(6),   -- last update time
-    
-    primary key(name, protocol)
 );
 
 drop table if exists trunk_group_ma;
@@ -303,6 +193,15 @@ create table trunk_group_ma(
     tm_update       datetime(6),   -- last update time
     tm_last_dial    datetime(6),   -- last tried dial time
 
+    -- ownership
+    create_agent_id           varchar(255),       -- create agent uuid
+    delete_agent_id           varchar(255),       -- delete agent uuid
+    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+
     primary key(uuid)
 );
 
@@ -313,9 +212,158 @@ create table trunk_group(
     trunk_name      varchar(255)    not null,   -- asterisk peer name
     trunk_proto     varchar(255)    not null,   -- trunk protocol
     
+    foreign key(group_uuid) references trunk_group_ma(uuid) on delete cascade on update cascade,
+    foreign key(trunk_name) references peer(name)           on delete cascade on update cascade,
+    
     primary key(group_uuid, trunk_name, trunk_proto)
 );
 
+
+drop table if exists agent_group_ma;
+create table agent_group_ma(
+-- master table of agent groups.
+    uuid    varchar(255)    not null unique,
+    name    varchar(255),
+    detail  varchar(1023),      -- description
+    
+    primary key(uuid)
+);
+
+drop table if exists agent_group;
+create table agent_group(
+    group_uuid    varchar(255)  not null,
+    agent_id    varchar(255)  not null,
+    
+    foreign key(group_uuid) references agent_group_ma(uuid) on delete cascade on update cascade,
+    foreign key(agent_id)   references agent(id)            on delete cascade on update cascade,
+    
+    primary key(group_uuid, agent_id)
+);
+
+drop table if exists dial_list_ma;
+create table dial_list_ma(
+-- dial list
+-- manage all of dial list tables
+
+    -- row identity
+    seq         int(10)         unsigned auto_increment,    -- sequence
+    uuid        varchar(255)    unique,                     -- dial_list_#### reference uuid.
+    
+    -- information
+    name        varchar(255),                               -- dial list name
+    dl_table    varchar(255),                               -- dial list table name.(dl_e276d8be)
+    detail      text,                                       -- description of dialist
+    
+    -- timestamp. UTC.
+    tm_create           datetime(6),    -- create time.
+    tm_delete           datetime(6),    -- delete time.
+    tm_update_property  datetime(6),    -- last property update time.(Except status)
+    
+    -- ownership
+    create_agent_id           varchar(255),       -- create agent uuid
+    delete_agent_id           varchar(255),       -- delete agent uuid
+    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+    
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+
+    primary key(seq, uuid)
+);
+
+drop table if exists campaign;
+create table campaign(
+-- campaign.
+    
+    -- identity
+    uuid        varchar(255)    unique,
+    
+    -- information
+    detail                      varchar(1023),      -- description
+    name                        varchar(255),       -- campaign name
+    status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/force_stopping)
+    status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
+    create_agent_id             varchar(255),       -- create agent uuid
+    delete_agent_id             varchar(255),       -- delete agent uuid
+    update_property_agent_id    varchar(255),       -- last propery update agent uuid
+    update_status_agent_id      varchar(255),       -- last status update agent uuid
+    
+    -- resources
+    agent_group varchar(255),                       -- agent group uuid
+    plan_uuid   varchar(255),                       -- plan uuid
+    dlma_uuid   varchar(255),                       -- dial_list_ma uuid
+    trunk_group varchar(255),                       -- trunk group uuid
+
+    -- timestamp. UTC.
+    tm_create           datetime(6),   -- create time.
+    tm_delete           datetime(6),   -- delete time.
+    tm_update_property  datetime(6),   -- last property update time.(Except status)
+    tm_update_status    datetime(6),   -- last status updated time.
+    
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+    foreign key(update_status_agent_id)     references agent(id) on delete set null on update cascade,
+    
+    foreign key(agent_group)    references agent_group_ma(uuid) on delete set null on update cascade,
+    foreign key(plan_uuid)      references plan(uuid)           on delete set null on update cascade,
+    foreign key(dlma_uuid)      references dial_list_ma(uuid)   on delete set null on update cascade,
+    foreign key(trunk_group)    references trunk_group_ma(uuid) on delete set null on update cascade,
+    
+    primary key(uuid)
+);
+
+drop table if exists campaign_result;
+create table campaign_result(
+-- campaign dial result table.
+    -- identity
+    seq                 int(10)         unsigned auto_increment,
+    chan_unique_id      varchar(255)    not null,   -- channel unique id.
+    dl_uuid             varchar(255)    not null,   -- dl uuid
+    dlma_uuid           varchar(255)    not null,   -- dial_list_ma uuid.
+    camp_uuid           varchar(255)    not null,   -- campaign uuid.
+
+    -- dial_info
+    info_camp   text    not null,   -- campaign info. json format.
+    info_plan   text    not null,   -- plan info. json format.
+    info_dl     text    not null,   -- dl info. json format.    
+    
+    -- timestamp(UTC)
+    tm_dial             datetime(6),   -- timestamp for dialing requested.
+    tm_dial_end         datetime(6),   -- timestamp for dialing ended.
+    
+    tm_redirect         datetime(6),   -- timestamp for call redirected.
+    tm_bridge           datetime(6),   -- timestamp for call bridged.
+    tm_hangup           datetime(6),   -- timestamp for call hanguped.
+    
+    tm_tr_dial          datetime(6),   -- timestamp for dialing to agent.
+    tm_tr_dial_end      datetime(6),   -- timestamp for transfer to agent.
+    tm_tr_hangup        datetime(6),   -- timestamp for agent hangup.
+
+    -- dial info
+    dial_index          int,            -- dialing number index.
+    dial_addr           varchar(255),   -- dialing address.
+    dial_trycnt         int,            -- dialing try count.
+    dial_timeout        int,            -- dialing timeout.
+    
+    -- transfer info
+    tr_trycnt          int,             -- transfer try count.
+    tr_agent_id        varchar(255),    -- transfered agent.
+    tr_chan_unique_id  varchar(255),    -- trying transfer chan unique id.
+    
+    -- dial result
+    res_dial                varchar(255),   -- dial result(answer, no_answer, ...)
+    res_answer              varchar(255),   -- AMD result.(AMDSTATUS)
+    res_answer_detail       varchar(255),   -- AMD result detail.(AMDCAUSE)
+    res_hangup              varchar(255),   -- hangup code.
+    res_hangup_detail       varchar(255),   -- hangup detail.
+    res_tr_dial             varchar(255),   -- transferred dial result(answer, no_answer, ...)
+    res_tr_hangup           varchar(255),   -- hangup code.
+    res_tr_hangup_detail    varchar(255),   -- hangup detail.
+        
+    primary key(seq, chan_unique_id)
+    
+);
 
 -- Add admin user
 insert into agent(id, password) values ("admin", "1234");
