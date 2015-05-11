@@ -1206,7 +1206,6 @@ static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void
     return;
 }
 
-
 static void htpcb_dls(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
