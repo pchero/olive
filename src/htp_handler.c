@@ -97,32 +97,6 @@ int init_evhtp(void)
         return false;
     }
 
-//    j_tmp = json_object_get(g_app->j_conf, "addr_server");
-//    if(j_tmp == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get value. addr_server");
-//        return false;
-//    }
-//    ret = asprintf(&ip, "%s", json_string_value(j_tmp));
-//
-//    j_tmp = json_object_get(g_app->j_conf, "http_port");
-//    if(j_tmp == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get value. http_port");
-//        return false;
-//    }
-//    http_port = atoi(json_string_value(j_tmp));
-//
-//    j_tmp = json_object_get(g_app->j_conf, "https_port");
-//    if(j_tmp == NULL)
-//    {
-//        slog(LOG_ERR, "Could not get value. https_port");
-//        return false;
-//    }
-//    https_port = atoi(json_string_value(j_tmp));
-//
-//    slog(LOG_INFO, "Bind http/https. ip[%s], http_port[%d], https_port[%d]", ip, http_port, https_port);
-//    ret = evhtp_bind_socket(evhtp, ip, http_port, 1024);
     ret = evhtp_bind_socket(
             evhtp,
             json_string_value(json_object_get(g_app->j_conf, "addr_server")),
@@ -141,7 +115,6 @@ int init_evhtp(void)
             atoi(json_string_value(json_object_get(g_app->j_conf, "https_port"))),
             1024
             );
-//    ret = evhtp_bind_socket(evhtp_ssl, ip, https_port, 1024);
     if(ret < 0)
     {
         slog(LOG_ERR, "Could not bind https socket. err[%s]", strerror(errno));
@@ -182,7 +155,6 @@ int init_evhtp(void)
     // Agent groups
 
     // dialings
-
 
 
     slog(LOG_INFO, "Registered interfaces");
@@ -962,7 +934,7 @@ static void htpcb_diallists(evhtp_request_t *req, __attribute__((unused)) void *
     method = evhtp_request_get_method(req);
     switch(method)
     {
-        // GET : return all campaign list
+        // GET : return all dial list
         case htp_method_GET:
         {
             // get all campaign list
@@ -971,7 +943,7 @@ static void htpcb_diallists(evhtp_request_t *req, __attribute__((unused)) void *
         }
         break;
 
-        // POST : new campaign.
+        // POST : new dial list.
         case htp_method_POST:
         {
             j_recv = get_receivedata(req);

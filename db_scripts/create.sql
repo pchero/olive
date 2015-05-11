@@ -373,7 +373,7 @@ insert into agent_group(agent_id, group_uuid) values ("admin", "agentgroup-51aaa
 -- create dial list
 drop table if exists dl_e276d8be;
 create table dl_e276d8be like dl_org;
-insert into dial_list_ma(uuid, name, dl_table) values ("dl-e276d8be-a558-4546-948a-f99913a7fea2", "sample_dial_list", "dl_e276d8be");
+insert into dial_list_ma(uuid, name, dl_table) values ("dlma-e276d8be-a558-4546-948a-f99913a7fea2", "sample_dial_list", "dl_e276d8be");
 
 -- insert dial list
 insert into dl_e276d8be(uuid, name, number_1) values ("dl-04f9e9b6-5374-4c77-9a5a-4a9d79ea3937", "test1", "111-111-0001");
