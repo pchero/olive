@@ -43,14 +43,11 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
 // etc
 bool load_table_trunk_group(void);
 
-// interfaces
-OLIVE_RESULT campaign_update(json_t* j_camp);
-
-// campaign
+// campaign API handler
 json_t* campaign_create(const json_t* j_camp, const char* agent_id);
 json_t* campaign_get_all(void);
-json_t* campaign_get_info(const char* uuid);
-json_t* campaign_update_info(const char* camp_uuid, const json_t* j_recv, const char* id);
+json_t* campaign_get(const char* uuid);
+json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char* id);
 json_t* campaign_delete(const char* camp_uuid, const char* id);
 
 json_t* get_plan_info(const char* uuid);

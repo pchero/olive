@@ -22,6 +22,8 @@
 #include "camp_handler.h"
 #include "plan_handler.h"
 #include "dl_handler.h"
+#include "peer_handler.h"
+
 
 static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
@@ -39,8 +41,15 @@ static void htpcb_diallists_specific(evhtp_request_t *req, __attribute__((unused
 static void htpcb_dls(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_dls_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
-static void htpcb_peers(evhtp_request_t *req, __attribute__((unused)) void *arg);
-static void htpcb_peers_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_peerdbs(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_peerdbs_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
+static void htpcb_agentgroups(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_agentgroups_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
+static void htpcb_dialings(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_dialings_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
 
 static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
 static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg);
@@ -147,14 +156,18 @@ int init_evhtp(void)
     evhtp_set_glob_cb(evhtp_ssl,    "/dial-lists/*",    htpcb_diallists_specific, NULL);
 
     // dl info
-    evhtp_set_cb(evhtp_ssl,         "/dls/*",    htpcb_dls, NULL);
-    evhtp_set_cb(evhtp_ssl,         "/dls/*/*",  htpcb_dls_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/dls/*",    htpcb_dls, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/dls/*/*",  htpcb_dls_specific, NULL);
 
     // peers
+    evhtp_set_cb(evhtp_ssl,         "/peerdbs",     htpcb_peerdbs, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/peerdbs/*",   htpcb_peerdbs_specific, NULL);
 
-    // Agent groups
+    // agent groups
+    evhtp_set_cb(evhtp_ssl,         "/agentgroups",     htpcb_agentgroups, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/agentgroups/*",   htpcb_agentgroups_specific, NULL);
 
-    // dialings
+    // status
 
 
     slog(LOG_INFO, "Registered interfaces");
@@ -318,7 +331,7 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
         }
         break;
 
-        // POST : new campaign.
+        // POST : create new campaign.
         case htp_method_POST:
         {
             j_recv = get_receivedata(req);
@@ -411,7 +424,7 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
         case htp_method_GET:
         {
             // get specified campaign list
-            j_res = campaign_get_info(uuid);
+            j_res = campaign_get(uuid);
             json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
@@ -429,7 +442,7 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
             }
 
             // update campaign info.
-            j_res = campaign_update_info(uuid, j_recv, id);
+            j_res = campaign_update(uuid, j_recv, id);
             json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
@@ -594,7 +607,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
         // GET : Return specified agent info.
         case htp_method_GET:
         {
-            j_res = agent_get_info(agent_id);
+            j_res = agent_get(agent_id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -609,7 +622,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
                 j_res = json_null();
                 break;
             }
-            j_res = agent_update_info(agent_id, j_recv, id);
+            j_res = agent_update(agent_id, j_recv, id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -617,7 +630,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
         // DELETE : Delete specified agent.
         case htp_method_DELETE:
         {
-            j_res = agent_delete_info(agent_id, id);
+            j_res = agent_delete(agent_id, id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -1379,6 +1392,373 @@ static void htpcb_dls_specific(evhtp_request_t *req, __attribute__((unused)) voi
 
     return;
 }
+
+/**
+ * Interface for peerdb list
+ * @param r
+ * @param arg
+ */
+static void htpcb_peerdbs(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+
+    slog(LOG_DEBUG, "Called htpcb_peerdbs called.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : return all peerdb list
+        case htp_method_GET:
+        {
+            // get all campaign list
+            j_res = peerdb_get_all();
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : create new peerdb.
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            j_res = peerdb_create(j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : update several peer info
+        case htp_method_PUT:
+        {
+            // Not support yet.
+            // TODO: someday..
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+        break;
+
+        // DELETE : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    evhtp_send_reply(req, htp_ret);
+    json_decref(j_res);
+
+    free(id);
+    free(pass);
+
+    return;
+}
+
+/**
+ * Interface for specified peerdb
+ * https://127.0.0.1:443/peerdbs/...
+ * @param req
+ * @param arg
+ */
+void htpcb_peerdbs_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+    char* name;
+
+    slog(LOG_DEBUG, "Called htpcb_peerdbs_specific.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
+        free(id);
+        free(pass);
+        return;
+    }
+
+    name = get_uuid(req->uri->path->full);
+    if(name == NULL)
+    {
+        slog(LOG_ERR, "Could not extract uuid info.");
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified peerdb info.
+        case htp_method_GET:
+        {
+            // get specified campaign list
+            j_res = peerdb_get(name);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified peerdb info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            // update peerdb info.
+            j_res = peerdb_update(name, j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // DELETE : Delete specified peerdb
+        case htp_method_DELETE:
+        {
+            // delete campaign info.
+            j_res = peerdb_delete(name, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+    free(name);
+
+    return;
+}
+
+static void htpcb_agentgroups(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+
+    slog(LOG_DEBUG, "Called htpcb_agentgroups called.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        free(id);
+        free(pass);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : return all agentgroup list
+        case htp_method_GET:
+        {
+            // get all agentgroup list
+            j_res = agentgroup_get_all();
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : create new agentgroup
+        case htp_method_POST:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            j_res = agentgroup_create(j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : update several agentgroup info
+        case htp_method_PUT:
+        {
+            // Not support yet.
+            // TODO: someday..
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+        break;
+
+        // DELETE : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    evhtp_send_reply(req, htp_ret);
+    json_decref(j_res);
+
+    free(id);
+    free(pass);
+
+    return;
+}
+
+static void htpcb_agentgroups_specific(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_recv;
+    htp_method method;
+    int htp_ret;
+    char* id;
+    char* pass;
+    char* uuid;
+
+    slog(LOG_DEBUG, "Called htpcb_agentgroups_specific.");
+
+    ret = get_agent_id_pass(req, &id, &pass);
+    ret = is_auth(req, id, pass);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "authorization failed.");
+
+        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
+        free(id);
+        free(pass);
+        return;
+    }
+
+    uuid = get_uuid(req->uri->path->full);
+    if(uuid == NULL)
+    {
+        slog(LOG_ERR, "Could not extract uuid info.");
+        evhtp_send_reply(req, EVHTP_RES_BADREQ);
+        return;
+    }
+
+    // get method
+    method = evhtp_request_get_method(req);
+
+    switch(method)
+    {
+        // GET : Return specified agentgroup info.
+        case htp_method_GET:
+        {
+            // get specified agentgroup list
+            j_res = agentgroup_get(uuid);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // PUT : Update specified agentgroup info.
+        case htp_method_PUT:
+        {
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
+            // update agentgroup info.
+            j_res = agentgroup_update(uuid, j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // DELETE : Delete specified agentgroup
+        case htp_method_DELETE:
+        {
+            // delete agentgroup info.
+            j_res = agentgroup_delete(uuid, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // POST : Not support
+        default:
+        {
+            htp_ret = EVHTP_RES_METHNALLOWED;
+            j_res = json_null();
+        }
+    }
+
+    ret = create_common_result(req, j_res);
+    json_decref(j_res);
+    evhtp_send_reply(req, htp_ret);
+
+    free(id);
+    free(pass);
+    free(uuid);
+
+    return;
+}
+
+
 
 /**
  * Check authenticate user or not

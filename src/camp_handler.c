@@ -57,8 +57,8 @@ static int      update_dl_result_clear(const json_t* j_dialing);
 static bool     create_campaign(const json_t* j_camp);
 static json_t*  get_campaigns_by_status(const char* status);
 static json_t*  get_campaign_for_dial(void);
-static json_t*  get_campaign_info(const char* uuid);
-static json_t*  get_campaign_all(void);
+static json_t*  get_campaign(const char* uuid);
+static json_t*  get_campaigns_all(void);
 static int      update_campaign_info(const json_t* j_camp);
 static int      update_campaign_info_status(const char* uuid, const char* status);
 static bool     delete_campaign(const json_t* j_camp);
@@ -916,7 +916,7 @@ json_t* campaign_create(const json_t* j_camp, const char* agent_id)
     }
 
     // get created campaign.
-    j_tmp = get_campaign_info(camp_uuid);
+    j_tmp = get_campaign(camp_uuid);
     free(camp_uuid);
     if(j_tmp == NULL)
     {
@@ -943,7 +943,7 @@ json_t* campaign_get_all(void)
 
     slog(LOG_DEBUG, "campaign_get_all");
 
-    j_tmp = get_campaign_all();
+    j_tmp = get_campaigns_all();
     if(j_tmp == NULL)
     {
         slog(LOG_ERR, "Could not get campaign info all.");
@@ -962,13 +962,13 @@ json_t* campaign_get_all(void)
  * @param j_recv
  * @return
  */
-json_t* campaign_get_info(const char* uuid)
+json_t* campaign_get(const char* uuid)
 {
     unused__ int ret;
     json_t* j_res;
     json_t* j_tmp;
 
-    j_tmp = get_campaign_info(uuid);
+    j_tmp = get_campaign(uuid);
     if(j_tmp == NULL)
     {
         slog(LOG_ERR, "Could not find campaign info.");
@@ -987,7 +987,7 @@ json_t* campaign_get_info(const char* uuid)
  * @param j_recv
  * @return
  */
-json_t* campaign_update_info(const char* camp_uuid, const json_t* j_recv, const char* id)
+json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char* id)
 {
     unused__ int ret;
     json_t* j_res;
@@ -1010,7 +1010,7 @@ json_t* campaign_update_info(const char* camp_uuid, const json_t* j_recv, const 
     }
 
     // get updated info.
-    j_tmp = get_campaign_info(camp_uuid);
+    j_tmp = get_campaign(camp_uuid);
     if(j_tmp == NULL)
     {
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
@@ -1029,7 +1029,7 @@ json_t* campaign_update_info(const char* camp_uuid, const json_t* j_recv, const 
  * @param j_recv
  * @return
  */
-json_t* campaign_delete(const char* camp_uuid, const char* id)
+json_t* campaign_delete(const char* camp_uuid, const char* agent_id)
 {
     int ret;
     json_t* j_res;
@@ -1037,14 +1037,14 @@ json_t* campaign_delete(const char* camp_uuid, const char* id)
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_id", json_string(id));
+    json_object_set_new(j_tmp, "delete_agent_id", json_string(agent_id));
     json_object_set_new(j_tmp, "uuid", json_string(camp_uuid));
 
     ret = delete_campaign(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not delete campaign info.");
+        slog(LOG_ERR, "Could not delete campaign info. camp_uuid[%s], agent_id[%s]", camp_uuid, agent_id);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
@@ -1058,7 +1058,7 @@ json_t* campaign_delete(const char* camp_uuid, const char* id)
  * Get all campaigns.
  * @return success:json_array, fail:NULL
  */
-static json_t* get_campaign_all(void)
+static json_t* get_campaigns_all(void)
 {
     char* sql;
     unused__ int ret;
@@ -2050,7 +2050,7 @@ static json_t* get_campaign_for_dial(void)
     return j_res;
 }
 
-static json_t* get_campaign_info(const char* uuid)
+static json_t* get_campaign(const char* uuid)
 {
     json_t* j_res;
     char* sql;

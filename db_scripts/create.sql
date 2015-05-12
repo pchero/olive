@@ -24,9 +24,9 @@ create table agent(
     update_property_agent_id    varchar(255),   -- last info update agent id.
     
     -- timestamp
-    tm_info_update      datetime(6),    -- last agent info modified time
     tm_create           datetime(6),    -- created time.
     tm_delete           datetime(6),    -- deleted time.
+    tm_info_update      datetime(6),    -- last agent info modified time
     tm_status_update    datetime(6),    -- last status changed time.    
     
     -- agent level (permission). -- to-be
@@ -46,7 +46,7 @@ create table peer(
 
     -- identity
     name        varchar(255)    not null unique,    -- peer name
-    protocol    varchar(255)    not null,           -- "sip", "iax", ...
+    protocol    varchar(255),                       -- protocol. ("sip", "iax", ...)
 
     -- information
     mode        varchar(255)    not null,           -- "peer", "trunk"
@@ -63,12 +63,13 @@ create table peer(
     delete_agent_id           varchar(255),       -- delete agent uuid
     update_property_agent_id  varchar(255),       -- last propery update agent uuid
 
+    foreign key(agent_id)                   references agent(id) on delete set null on update cascade,
     foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
     foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
     foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
 
     
-    primary key(name, protocol)
+    primary key(name)
 );
 
 drop table if exists plan;
@@ -226,6 +227,20 @@ create table agent_group_ma(
     name    varchar(255),
     detail  varchar(1023),      -- description
     
+    -- timestamp. UTC
+    tm_create       datetime(6),   -- create time
+    tm_delete       datetime(6),   -- delete time
+    tm_update       datetime(6),   -- last update time
+
+    -- ownership
+    create_agent_id           varchar(255),       -- create agent uuid
+    delete_agent_id           varchar(255),       -- delete agent uuid
+    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+
+    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
+    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
+
     primary key(uuid)
 );
 

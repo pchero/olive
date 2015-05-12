@@ -137,4 +137,10 @@ char* gen_uuid_dl(void)
     return res;
 }
 
+char* gen_uuid_agentgroup(void)
+{
+    char* res;
 
+    res = gen_uuid("agentgroup");
+    return res;
+}

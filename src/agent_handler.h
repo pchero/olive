@@ -13,18 +13,27 @@
 
 bool load_table_agent(void);
 
-json_t* agent_create(const json_t* j_agent, const char* id);
-json_t* agent_get_all(void);
-json_t* agent_get_info(const char* id);
 
 json_t* agent_status_get(const char* uuid);
 int     agent_status_update(const json_t* j_agent);
-json_t* agent_update_info(const char* agent_id, const json_t* j_agent, const char* update_id);
-json_t* agent_delete_info(const char* agent_id, const char* update_id);
 
 
 json_t* get_agent_longest_update(json_t* j_camp, const char* status);
 bool    update_agent_status(const json_t* j_agent);
+
+// agent API handler
+json_t* agent_get_all(void);
+json_t* agent_get(const char* id);
+json_t* agent_create(const json_t* j_agent, const char* id);
+json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* update_id);
+json_t* agent_delete(const char* agent_id, const char* update_id);
+
+// agent group API handler
+json_t* agentgroup_get_all(void);
+json_t* agentgroup_get(const char* uuid);
+json_t* agentgroup_update(const char* uuid, const json_t* j_group, const char* agent_id);
+json_t* agentgroup_delete(const char* uuid, const char* agent_id);
+json_t* agentgroup_create(const json_t* j_agent, const char* agent_id);
 
 
 #endif /* SRC_AGENT_HANDLER_H_ */
