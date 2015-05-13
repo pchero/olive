@@ -7,36 +7,23 @@ Author: Sungtae Kim <pchero21@gmail.com>
 INFO:
 - This program aims outbound solution for Asterisk.
 
+FEATURES:
+- Intelligent strategy automatic dialing.
+- Agent management
+- Dial list management.
+- Dial result support.
 
-DEPENDENCIES:
-- asterisk-13
-- asterisk-zmq(https://github.com/pchero/asterisk-zmq)
-- zmq-3.2.5(at least)
-- jansson-2.7
-- libevent2
-- bmake
-- logstash
-- libevhtp
-- mysql-5.6.4(at least)
+MORE INFO:
+- See https://github.com/pchero/olive/wiki
 
-BUILDING:
-- bmake
-
-INSTALLING:
-- bmake install
-
-USAGE:
--
-
-TODO:
-- Valgrind tests
-- Stabilization.
 
 LICENSING:
 - BSD License
 
-
 Changed log:
+- 13.May 2015
+: Moved all informations to wiki.
+
 - 28.Apr 2015
 : Added asterisk version requires. olive needs asterisk-13.
 : Fixed mysql version require to at least mysql-5.6.4. Because of Fractional Seconds in Time Values.
