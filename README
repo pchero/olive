@@ -1,8 +1,7 @@
-# olive
+# olive - Asterisk based outbound solution
 
-Asterisk outbound solution
-
-Author: Sungtae Kim <pchero21@gmail.com>
+AUTHOR:
+- Sungtae Kim <pchero21@gmail.com>
 
 INFO:
 - This program aims outbound solution for Asterisk.
@@ -16,11 +15,10 @@ FEATURES:
 MORE INFO:
 - See https://github.com/pchero/olive/wiki
 
-
 LICENSING:
 - BSD License
 
-Changed log:
+CHANGED LOG:
 - 13.May 2015
 : Moved all informations to wiki.
 
