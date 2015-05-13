@@ -82,7 +82,7 @@ create table plan(
     
     -- resource
     trunk_group     varchar(255),       -- trunk group uuid.
-    
+    uui_field       varchar(255),       -- x-header name for UUI
     
     -- strategy
     dial_mode       varchar(255),       -- dial mode(desktop, power, predictive, email, fax, sms)
