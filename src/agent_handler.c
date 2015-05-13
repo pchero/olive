@@ -103,6 +103,7 @@ json_t* agent_get_all(void)
     }
 
     j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+    json_decref(j_tmp);
 
     return j_res;
 }
@@ -364,6 +365,7 @@ static bool delete_agent(const json_t* j_agent)
             tmp,
             json_string_value(json_object_get(j_tmp, "id"))
             );
+    json_decref(j_tmp);
     free(tmp);
 
     ret = db_exec(sql);
@@ -374,7 +376,6 @@ static bool delete_agent(const json_t* j_agent)
         return false;
     }
 
-    json_decref(j_tmp);
 
     return true;
 }
@@ -780,6 +781,7 @@ json_t* agentgroup_get_all(void)
         return j_res;
     }
     j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+    json_decref(j_tmp);
 
     return j_res;
 }

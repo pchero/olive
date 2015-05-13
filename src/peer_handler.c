@@ -157,12 +157,11 @@ static bool update_peerdb(const json_t* j_peer)
     free(cur_time);
 
     tmp = db_get_update_str(j_tmp);
-    json_decref(j_tmp);
-
     ret = asprintf(&sql, "update peer set %s where name = \"%s\";",
             tmp,
-            json_string_value(json_object_get(j_peer, "name"))
+            json_string_value(json_object_get(j_tmp, "name"))
             );
+    json_decref(j_tmp);
     free(tmp);
 
     ret = db_exec(sql);

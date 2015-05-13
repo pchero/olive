@@ -148,6 +148,7 @@ static json_t* get_plan_all(void)
         json_array_append(j_res, j_tmp);
         json_decref(j_tmp);
     }
+    db_free(db_res);
 
     return j_res;
 }
@@ -173,12 +174,12 @@ static bool update_plan_info(const json_t* j_plan)
     free(cur_time);
 
     tmp = db_get_update_str(j_tmp);
-    json_decref(j_tmp);
-
     ret = asprintf(&sql, "update plan set %s where uuid = \"%s\";",
             tmp,
             json_string_value(json_object_get(j_tmp, "uuid"))
             );
+    json_decref(j_tmp);
+    free(tmp);
 
     ret = db_exec(sql);
     free(sql);
@@ -231,7 +232,6 @@ json_t* plan_create(json_t* j_plan, const char* id)
     {
         slog(LOG_ERR, "Could not get created plan info.");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
-        free(plan_uuid);
         return j_res;
     }
 

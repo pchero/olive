@@ -522,6 +522,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
                 break;
             }
             j_res = agent_create(j_recv, id);
+            json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -623,6 +624,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
                 break;
             }
             j_res = agent_update(agent_id, j_recv, id);
+            json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -713,6 +715,13 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
         case htp_method_PUT:
         {
             j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+
             ret = agent_status_update(j_recv);
             json_decref(j_recv);
             j_res = json_null();
@@ -785,7 +794,9 @@ void htpcb_plans(evhtp_request_t *req, __attribute__((unused)) void *arg)
                 j_res = json_null();
                 break;
             }
+
             j_res = plan_create(j_recv, id);
+            json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -862,6 +873,7 @@ void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *ar
         evhtp_send_reply(req, EVHTP_RES_BADREQ);
         return;
     }
+    slog(LOG_DEBUG, "Check uri. uuid[%s]", plan_uuid);
 
     // get method
     method = evhtp_request_get_method(req);
@@ -886,7 +898,9 @@ void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *ar
                 j_res = json_null();
                 break;
             }
+
             j_res = plan_update_info(plan_uuid, j_recv, id);
+            json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
         break;

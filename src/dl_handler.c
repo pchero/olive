@@ -182,12 +182,11 @@ static bool update_dlma_info(const json_t* j_dlma)
     free(cur_time);
 
     tmp = db_get_update_str(j_tmp);
-    json_decref(j_tmp);
-
     ret = asprintf(&sql, "update dial_list_ma set %s where uuid = \"%s\";",
             tmp,
-            json_string_value(json_object_get(j_dlma, "uuid"))
+            json_string_value(json_object_get(j_tmp, "uuid"))
             );
+    json_decref(j_tmp);
 
     ret = db_exec(sql);
     free(sql);
