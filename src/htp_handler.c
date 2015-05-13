@@ -25,12 +25,34 @@
 #include "peer_handler.h"
 
 
+// etc
+static evhtp_res    add_common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
+static evhtp_res    post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg);
+static bool         add_olive_result(evhtp_request_t *r, const json_t* j_res);
+
+// htp info get
+static char*        get_uuid(const char* buf);
+static char*        get_uuid_second(const char* buf);
+static json_t*      get_receivedata(evhtp_request_t *r);
+static bool         get_htp_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass);
+
+// checks
+static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
+static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer);
+static bool         check_authorization(evhtp_request_t* req, const char* id, const char* pass);
+
+
+// htp callbacks
 static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
 static void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg);
+
+static void htpcb_agentgroups(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_agentgroups_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
+static void htpcb_agentgroups_uuid_member(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
 static void htpcb_plans(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
@@ -44,25 +66,9 @@ static void htpcb_dls_specific(evhtp_request_t *req, __attribute__((unused)) voi
 static void htpcb_peerdbs(evhtp_request_t *req, __attribute__((unused)) void *arg);
 static void htpcb_peerdbs_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
-static void htpcb_agentgroups(evhtp_request_t *req, __attribute__((unused)) void *arg);
-static void htpcb_agentgroups_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
-static void htpcb_dialings(evhtp_request_t *req, __attribute__((unused)) void *arg);
-static void htpcb_dialings_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
-
-
-static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
-static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg);
-static bool create_common_result(evhtp_request_t *r, const json_t* j_res);
-
-static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass);
-static bool is_auth(evhtp_request_t* req, const char* id, const char* pass);
-static json_t* get_receivedata(evhtp_request_t *r);
-
-static char* get_uuid(const char* buf);
-static char* get_uuid_second(const char* buf);
-static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
-static int ssl_check_issued_cb(X509_STORE_CTX * ctx, X509 * x, X509 * issuer);
+//static void htpcb_dialings(evhtp_request_t *req, __attribute__((unused)) void *arg);
+//static void htpcb_dialings_specific(evhtp_request_t *req, __attribute__((unused)) void *arg);
 
 
 /**
@@ -99,6 +105,7 @@ int init_evhtp(void)
     evhtp = evhtp_new(g_app->ev_base, NULL);
     evhtp_ssl = evhtp_new(g_app->ev_base, NULL);
 
+    // initiate ssl
     evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
     if(evhtp_ssl == NULL)
     {
@@ -106,6 +113,7 @@ int init_evhtp(void)
         return false;
     }
 
+    // bind
     ret = evhtp_bind_socket(
             evhtp,
             json_string_value(json_object_get(g_app->j_conf, "addr_server")),
@@ -134,10 +142,7 @@ int init_evhtp(void)
     // general handlers
     evhtp_set_post_accept_cb(evhtp_ssl, post_handler, NULL);
 
-
     // register interfaces
-//    evhtp_set_regex_cb(evhtp, "^/simple", testcb, NULL);
-
     // campaigns
     evhtp_set_cb(evhtp_ssl,         "/campaigns",   htpcb_campaigns, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    "/campaigns/*", htpcb_campaigns_specific, NULL);
@@ -166,6 +171,8 @@ int init_evhtp(void)
     // agent groups
     evhtp_set_cb(evhtp_ssl,         "/agentgroups",     htpcb_agentgroups, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    "/agentgroups/*",   htpcb_agentgroups_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    "/agentgroups/*/*", htpcb_agentgroups_uuid_member, NULL);
+
 
     // status
 
@@ -178,7 +185,7 @@ int init_evhtp(void)
 }
 
 
-static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg)
+static evhtp_res add_common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg)
 {
     evhtp_headers_t* hdrs = r->headers_out;
     // We are adding a server header to every reply with an identifier and version
@@ -188,7 +195,7 @@ static evhtp_res common_headers(evhtp_request_t *r, __attribute__((unused)) evht
 
 static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg)
 {
-    evhtp_set_hook(&conn->hooks, evhtp_hook_on_headers, (evhtp_hook)common_headers, (void*)NULL);
+    evhtp_set_hook(&conn->hooks, evhtp_hook_on_headers, (evhtp_hook)add_common_headers, (void*)NULL);
 
     return EVHTP_RES_OK;
 }
@@ -200,7 +207,7 @@ static evhtp_res post_handler(evhtp_connection_t * conn, __attribute__((unused))
  * @param j_res
  * @return
  */
-static bool create_common_result(evhtp_request_t *r, const json_t* j_res)
+static bool add_olive_result(evhtp_request_t *r, const json_t* j_res)
 {
     char* tmp;
 
@@ -228,13 +235,10 @@ json_t* htp_create_olive_result(const OLIVE_RESULT res_olive, const json_t* j_re
     json_t* j_tmp;
     char* timestamp;
 
+    j_tmp = json_deep_copy(j_res);
     if(j_res == NULL)
     {
         j_tmp = json_object();
-    }
-    else
-    {
-        j_tmp = json_deep_copy(j_res);
     }
 
     timestamp = get_utc_timestamp();
@@ -306,8 +310,8 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
 
     slog(LOG_DEBUG, "Called htpcb_campaigns called.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -366,7 +370,7 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     evhtp_send_reply(req, htp_ret);
     json_decref(j_res);
 
@@ -395,8 +399,8 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
 
     slog(LOG_DEBUG, "Called htpcb_campaigns_specific.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -466,7 +470,7 @@ void htpcb_campaigns_specific(evhtp_request_t *req, __attribute__((unused)) void
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -495,8 +499,8 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
 
     slog(LOG_DEBUG, "Called htpcb_agents.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -554,7 +558,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
     }
 
     // create result
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
     free(id);
@@ -581,8 +585,8 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
 
     slog(LOG_DEBUG, "Called htpcb_agents_specific.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -648,7 +652,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
     }
 
     // create result
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
     free(id);
@@ -678,8 +682,8 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
 
     slog(LOG_DEBUG, "Called htpcb_agents_specific.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -743,7 +747,7 @@ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) 
     free(uuid);
 
     // create result
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -768,8 +772,8 @@ void htpcb_plans(evhtp_request_t *req, __attribute__((unused)) void *arg)
 
     slog(LOG_DEBUG, "Called htpcb_plans.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -828,7 +832,7 @@ void htpcb_plans(evhtp_request_t *req, __attribute__((unused)) void *arg)
     }
 
     // create result
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
     free(id);
@@ -855,8 +859,8 @@ void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *ar
 
     slog(LOG_DEBUG, "Called htpcb_plans_specific.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -924,7 +928,7 @@ void htpcb_plans_specific(evhtp_request_t *req, __attribute__((unused)) void *ar
     }
 
     // create result
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
     free(id);
@@ -946,8 +950,8 @@ static void htpcb_diallists(evhtp_request_t *req, __attribute__((unused)) void *
 
     slog(LOG_DEBUG, "Called htpcb_diallists called.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1005,7 +1009,7 @@ static void htpcb_diallists(evhtp_request_t *req, __attribute__((unused)) void *
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     evhtp_send_reply(req, htp_ret);
     json_decref(j_res);
 
@@ -1028,8 +1032,8 @@ static void htpcb_diallists_specific(evhtp_request_t *req, __attribute__((unused
 
     slog(LOG_DEBUG, "Called htpcb_diallists_specific.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1099,7 +1103,7 @@ static void htpcb_diallists_specific(evhtp_request_t *req, __attribute__((unused
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -1110,7 +1114,7 @@ static void htpcb_diallists_specific(evhtp_request_t *req, __attribute__((unused
     return;
 }
 
-static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void *arg)
+unused__ static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     int ret;
     json_t* j_res;
@@ -1123,8 +1127,8 @@ static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void
 
     slog(LOG_DEBUG, "Called htpcb_diallist_dl.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1194,7 +1198,7 @@ static void htpcb_diallist_dl(evhtp_request_t *req, __attribute__((unused)) void
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -1218,8 +1222,8 @@ static void htpcb_dls(evhtp_request_t *req, __attribute__((unused)) void *arg)
 
     slog(LOG_DEBUG, "Called htpcb_dl.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1288,7 +1292,7 @@ static void htpcb_dls(evhtp_request_t *req, __attribute__((unused)) void *arg)
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -1313,8 +1317,8 @@ static void htpcb_dls_specific(evhtp_request_t *req, __attribute__((unused)) voi
 
     slog(LOG_DEBUG, "Called htpcb_dl.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1395,7 +1399,7 @@ static void htpcb_dls_specific(evhtp_request_t *req, __attribute__((unused)) voi
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -1424,8 +1428,8 @@ static void htpcb_peerdbs(evhtp_request_t *req, __attribute__((unused)) void *ar
 
     slog(LOG_DEBUG, "Called htpcb_peerdbs called.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1484,7 +1488,7 @@ static void htpcb_peerdbs(evhtp_request_t *req, __attribute__((unused)) void *ar
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     evhtp_send_reply(req, htp_ret);
     json_decref(j_res);
 
@@ -1513,8 +1517,8 @@ void htpcb_peerdbs_specific(evhtp_request_t *req, __attribute__((unused)) void *
 
     slog(LOG_DEBUG, "Called htpcb_peerdbs_specific.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1584,7 +1588,7 @@ void htpcb_peerdbs_specific(evhtp_request_t *req, __attribute__((unused)) void *
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -1607,8 +1611,8 @@ static void htpcb_agentgroups(evhtp_request_t *req, __attribute__((unused)) void
 
     slog(LOG_DEBUG, "Called htpcb_agentgroups called.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1667,7 +1671,7 @@ static void htpcb_agentgroups(evhtp_request_t *req, __attribute__((unused)) void
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     evhtp_send_reply(req, htp_ret);
     json_decref(j_res);
 
@@ -1690,8 +1694,8 @@ static void htpcb_agentgroups_specific(evhtp_request_t *req, __attribute__((unus
 
     slog(LOG_DEBUG, "Called htpcb_agentgroups_specific.");
 
-    ret = get_agent_id_pass(req, &id, &pass);
-    ret = is_auth(req, id, pass);
+    ret = get_htp_id_pass(req, &id, &pass);
+    ret = check_authorization(req, id, pass);
     if(ret == false)
     {
         slog(LOG_ERR, "authorization failed.");
@@ -1761,7 +1765,7 @@ static void htpcb_agentgroups_specific(evhtp_request_t *req, __attribute__((unus
         }
     }
 
-    ret = create_common_result(req, j_res);
+    ret = add_olive_result(req, j_res);
     json_decref(j_res);
     evhtp_send_reply(req, htp_ret);
 
@@ -1772,62 +1776,38 @@ static void htpcb_agentgroups_specific(evhtp_request_t *req, __attribute__((unus
     return;
 }
 
+static void htpcb_agentgroups_uuid_member(evhtp_request_t *req, __attribute__((unused)) void *arg)
+{
+    // todo:
+}
 
 
 /**
- * Check authenticate user or not
+ * Check authorization.
  * @param req
+ * @param id
+ * @param pass
  * @return Success:true, Fail:false
  */
-static bool is_auth(evhtp_request_t* req, const char* id, const char* pass)
+static bool check_authorization(evhtp_request_t* req, const char* id, const char* pass)
 {
-    evhtp_connection_t* conn;
-    char* sql;
-    db_ctx_t* db_res;
-    int  ret;
     json_t* j_res;
 
-    slog(LOG_DEBUG, "is_auth.");
-    conn = evhtp_request_get_connection(req);
+    slog(LOG_DEBUG, "checking authorization.");
 
-    // get Authorization
-    if((conn->request->headers_in == NULL)
-            || (evhtp_kv_find(conn->request->headers_in, "Authorization") == NULL)
-            )
+    // get user info
+    j_res = get_agent_by_id_pass(id, pass);
+    if(j_res == NULL)
     {
+
+        slog(LOG_ERR, "Could not authorize user info. id[%s], password[%s]", id, pass);
+
         evhtp_headers_add_header(
                 req->headers_out,
                 evhtp_header_new("WWW-Authenticate", "Basic realm=\"olive auth\"", 0, 0)
                 );
         evhtp_send_reply(req, EVHTP_RES_UNAUTH);
-        slog(LOG_WARN, "Unauthorized user.");
-        return false;
-    }
 
-    // get user info
-    ret = asprintf(&sql, "select * from agent where id = \"%s\" and password = \"%s\"", id, pass);
-    if(ret == -1)
-    {
-        slog(LOG_ERR, "Could not get query. user[%s:%s]", id, pass);
-        evhtp_send_reply(req, EVHTP_RES_SERVERR);
-        return false;
-    }
-
-    db_res = db_query(sql);
-    free(sql);
-    if(db_res == NULL)
-    {
-        slog(LOG_ERR, "Could not get user info.");
-        evhtp_send_reply(req, EVHTP_RES_SERVERR);
-        return false;
-    }
-
-    j_res = db_get_record(db_res);
-    db_free(db_res);
-    if(j_res == NULL)
-    {
-        // Could not match
-        evhtp_send_reply(req, EVHTP_RES_UNAUTH);
         return false;
     }
     json_decref(j_res);
@@ -1842,7 +1822,7 @@ static bool is_auth(evhtp_request_t* req, const char* id, const char* pass)
  * @param agent_pass    (out) agent pass
  * @return
  */
-static bool get_agent_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass)
+static bool get_htp_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass)
 {
     evhtp_connection_t* conn;
     char *auth_hdr, *auth_b64;
@@ -1935,8 +1915,8 @@ static char* get_uuid(const char* buf)
 }
 
 /**
- * Extract uuid
- * "/service_name/uuid"
+ * Extract secnod uuid
+ * "/service_name/uuid/uuid_second"
  * @param buf
  * @return
  */

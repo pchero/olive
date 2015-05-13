@@ -39,7 +39,11 @@ static bool     delete_agentgroup(const json_t* j_group);
 static bool check_agent_exists(const char* id);
 static bool check_agentgroup_exists(const char* uuid);
 
-
+/**
+ * Get all agent info from db.
+ * Currently, useless....
+ * @return
+ */
 bool load_table_agent(void)
 {
     char* sql;
@@ -475,7 +479,7 @@ static json_t* get_agents_all(void)
     db_ctx_t* db_res;
 
     // get agent
-    ret = asprintf(&sql, "select * from agent where tm_delete is null;");
+    ret = asprintf(&sql, "select * from agent;");
 
     db_res = db_query(sql);
     free(sql);
@@ -517,6 +521,38 @@ static json_t* get_agent(const char* id)
     // get agent
     ret = asprintf(&sql, "select * from agent where id = \"%s\" and tm_delete is null;",
             id
+            );
+
+    db_res = db_query(sql);
+    free(sql);
+    if(db_res == NULL)
+    {
+        slog(LOG_ERR, "Could not get agent info.");
+        return NULL;
+    }
+
+    j_res = db_get_record(db_res);
+    db_free(db_res);
+
+    return j_res;
+}
+
+/**
+ * Get agent using id and password.
+ * @param id
+ * @param pass
+ * @return
+ */
+json_t* get_agent_by_id_pass(const char* id, const char* pass)
+{
+    json_t* j_res;
+    unused__ int ret;
+    char* sql;
+    db_ctx_t* db_res;
+
+    // get agent
+    ret = asprintf(&sql, "select * from agent where id = \"%s\" and password = \"%s\" and tm_delete is null;",
+            id, pass
             );
 
     db_res = db_query(sql);
@@ -585,18 +621,18 @@ static bool check_agent_exists(const char* id)
  * @param id
  * @return
  */
-static bool check_agentgroup_exists(const char* uuid)
+unused__ static bool check_agentgroup_exists(const char* uuid)
 {
     json_t* j_tmp;
 
     j_tmp = get_agentgroup(uuid);
-    if(j_tmp != NULL)
+    if(j_tmp == NULL)
     {
-        json_decref(j_tmp);
-        return true;
+        return false;
     }
+    json_decref(j_tmp);
 
-    return false;
+    return true;
 }
 
 

@@ -80,10 +80,14 @@ create table plan(
     name        varchar(255),           -- plan name
     detail      varchar(1023),          -- description
     
+    -- resource
+    trunk_group     varchar(255),       -- trunk group uuid.
+    
+    
     -- strategy
-    dial_mode       varchar(255),       -- dial mode(desktop, power, predictive, robo, sms)
+    dial_mode       varchar(255),       -- dial mode(desktop, power, predictive, email, fax, sms)
     dial_timeout    int default 30000,  -- no answer hangup timeout(30000 ms = 30 second)
-    caller_id       varchar(255),       -- caller
+    caller_id       varchar(255),       -- caller name(from)
     answer_handle   varchar(255),       -- answer handling.(all, human_only, human_possible)
     dl_end_handle   varchar(255),       -- stratery when it running out dial list(keep_running, stop)
     retry_delay     varchar(255),       -- retry delaytime(ms)
@@ -109,6 +113,7 @@ create table plan(
     tm_update_property  datetime(6),    -- last property update time.(Except status)
     tm_update_status    datetime(6),    -- last status updated time.
     
+    foreign key(trunk_group)                references trunk_group_ma(uuid) on delete set null on update cascade, 
     foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
     foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
     foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
@@ -211,12 +216,11 @@ create table trunk_group(
 -- trunk_group - trunk matching table
     group_uuid      varchar(255)    not null,
     trunk_name      varchar(255)    not null,   -- asterisk peer name
-    trunk_proto     varchar(255)    not null,   -- trunk protocol
     
     foreign key(group_uuid) references trunk_group_ma(uuid) on delete cascade on update cascade,
     foreign key(trunk_name) references peer(name)           on delete cascade on update cascade,
     
-    primary key(group_uuid, trunk_name, trunk_proto)
+    primary key(group_uuid, trunk_name)
 );
 
 
@@ -246,7 +250,7 @@ create table agent_group_ma(
 
 drop table if exists agent_group;
 create table agent_group(
-    group_uuid    varchar(255)  not null,
+    group_uuid  varchar(255)  not null,
     agent_id    varchar(255)  not null,
     
     foreign key(group_uuid) references agent_group_ma(uuid) on delete cascade on update cascade,
@@ -298,6 +302,10 @@ create table campaign(
     name                        varchar(255),       -- campaign name
     status      varchar(10)     default "stop",     -- status(stop/start/starting/stopping/force_stopping)
     status_code int             default 0,          -- status code(stop(0), start(1), pause(2), stopping(10), starting(11), pausing(12)
+    
+    next_campaign               varchar(255),       -- next campaign uuid
+    
+    -- ownership
     create_agent_id             varchar(255),       -- create agent uuid
     delete_agent_id             varchar(255),       -- delete agent uuid
     update_property_agent_id    varchar(255),       -- last propery update agent uuid
@@ -307,13 +315,15 @@ create table campaign(
     agent_group varchar(255),                       -- agent group uuid
     plan_uuid   varchar(255),                       -- plan uuid
     dlma_uuid   varchar(255),                       -- dial_list_ma uuid
-    trunk_group varchar(255),                       -- trunk group uuid
+    trunk_group varchar(255),                       -- trunk group uuid -- will be removed.
 
     -- timestamp. UTC.
     tm_create           datetime(6),   -- create time.
     tm_delete           datetime(6),   -- delete time.
     tm_update_property  datetime(6),   -- last property update time.(Except status)
     tm_update_status    datetime(6),   -- last status updated time.
+    
+    foreign key(next_campaign)      references campaign(uuid) on delete set null on update cascade,
     
     foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
     foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,

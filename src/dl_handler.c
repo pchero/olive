@@ -5,6 +5,8 @@
  *      Author: pchero
  */
 
+#define _GNU_SOURCE
+
 #include <stdbool.h>
 #include <jansson.h>
 
@@ -211,7 +213,6 @@ json_t* dlma_update_info(const char* dlma_uuid, const json_t* j_recv, const char
     unused__ int ret;
     json_t* j_res;
     json_t* j_tmp;
-    char* cur_time;
 
     j_tmp = json_deep_copy(j_recv);
 
@@ -379,7 +380,7 @@ static json_t* get_dl_all(const char* dlma_uuid)
 {
     char* sql;
     char* table;
-    int ret;
+    unused__ int ret;
     json_t* j_tmp;
     json_t* j_res;
     db_ctx_t* db_res;
@@ -435,7 +436,7 @@ static json_t* get_dl_info(const char* dlma_uuid, const char* dl_uuid)
 {
     char* table;
     char* sql;
-    int ret;
+    unused__ int ret;
     db_ctx_t* db_res;
     json_t* j_res;
 
@@ -475,12 +476,10 @@ static json_t* get_dl_info(const char* dlma_uuid, const char* dl_uuid)
  */
 static bool create_dl(const char* dlma_uuid, const json_t* j_dl)
 {
-    char* sql;
     int ret;
     json_t* j_tmp;
     char* table;
     char* cur_time;
-    char* uuid;
 
     // get table info.
     table = get_dl_table_name(dlma_uuid);
@@ -497,9 +496,6 @@ static bool create_dl(const char* dlma_uuid, const json_t* j_dl)
     json_object_set_new(j_tmp, "tm_create", json_string(cur_time));
     free(cur_time);
 
-    uuid = gen_uuid_dl();
-    json_object_set_new(j_tmp, "uuid", json_string(uuid));
-
     // insert
     ret = db_insert(table, j_tmp);
     free(table);
@@ -507,7 +503,6 @@ static bool create_dl(const char* dlma_uuid, const json_t* j_dl)
     if(ret == false)
     {
         slog(LOG_ERR, "Could not add dl info to table.");
-        free(uuid);
         return false;
     }
 
@@ -651,7 +646,6 @@ json_t* dl_update_info(const char* dlma_uuid, const char* dl_uuid, const json_t*
     unused__ int ret;
     json_t* j_res;
     json_t* j_tmp;
-    char* cur_time;
 
     j_tmp = json_deep_copy(j_recv);
 
@@ -711,6 +705,8 @@ static bool update_dl_info(const char* dlma_uuid, const json_t* j_dl)
     cur_time = get_utc_timestamp();
     json_object_set_new(j_tmp, "tm_update_property", json_string(cur_time));
     free(cur_time);
+
+    tmp = db_get_update_str(j_tmp);
 
     // create sql
     ret = asprintf(&sql, "update %s set %s where uuid = \"%s\";",

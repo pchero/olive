@@ -30,13 +30,13 @@ static bool     update_peerdb(const json_t* j_peer);
 
 
 /**
- * Get all peer info from    memdb.
+ * Get all peer info from memdb.
  * @return
  */
 json_t* get_peer_all(void)
 {
     char* sql;
-    int ret;
+    unused__ int ret;
     memdb_res* mem_res;
     json_t* j_res;
     json_t* j_tmp;
@@ -78,7 +78,7 @@ json_t* get_peer_all(void)
 static json_t* get_peerdb_all(void)
 {
     char* sql;
-    int ret;
+    unused__ int ret;
     db_ctx_t* db_res;
     json_t* j_res;
     json_t* j_tmp;
@@ -153,7 +153,7 @@ static bool update_peerdb(const json_t* j_peer)
 
     // set update time.
     cur_time = get_utc_timestamp();
-    json_object_set_new(j_tmp, "tm_update_property", json_string(cur_time));
+    json_object_set_new(j_tmp, "tm_update", json_string(cur_time));
     free(cur_time);
 
     tmp = db_get_update_str(j_tmp);
@@ -277,7 +277,6 @@ json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* a
     unused__ int ret;
     json_t* j_res;
     json_t* j_tmp;
-    char* cur_time;
 
     j_tmp = json_deep_copy(j_recv);
 
@@ -352,7 +351,6 @@ json_t* peerdb_delete(const char* peer_name, const char* agent_id)
 json_t* peerdb_create(const json_t* j_peer, const char* agent_id)
 {
     int ret;
-    char* camp_uuid;
     json_t* j_tmp;
     json_t* j_res;
 
@@ -368,7 +366,6 @@ json_t* peerdb_create(const json_t* j_peer, const char* agent_id)
     {
         slog(LOG_ERR, "Could not create new peerdb.");
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
-        free(camp_uuid);
         return j_res;
     }
 

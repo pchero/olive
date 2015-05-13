@@ -102,7 +102,9 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
     j_plan = get_plan_info(json_string_value(json_object_get(j_camp, "plan_uuid")));
     if(j_plan == NULL)
     {
-        slog(LOG_ERR, "Could not find plan info. Stopping campaign.");
+        slog(LOG_ERR, "Could not find plan info. Stopping campaign. camp_uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
         ret = update_campaign_info_status(json_string_value(json_object_get(j_camp, "uuid")), "stopping");
         json_decref(j_camp);
         return;
@@ -112,7 +114,9 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
     j_dlma = get_dl_master_info(json_string_value(json_object_get(j_camp, "dlma_uuid")));
     if(j_dlma == NULL)
     {
-        slog(LOG_ERR, "Could not find dial list info. Stopping campaign.");
+        slog(LOG_ERR, "Could not find dial list master info. Stopping campaign. camp_uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
         ret = update_campaign_info_status(json_string_value(json_object_get(j_camp, "uuid")), "stopping");
         json_decref(j_camp);
         json_decref(j_plan);
@@ -123,7 +127,9 @@ void cb_campaign_start(unused__ int fd, unused__ short event, unused__ void *arg
     dial_mode = json_string_value(json_object_get(j_plan, "dial_mode"));
     if(dial_mode == NULL)
     {
-        slog(LOG_ERR, "Plan has no dial_mode. Stopping campaign.");
+        slog(LOG_ERR, "Plan has no dial_mode. Stopping campaign. camp_uuid[%s]",
+                json_string_value(json_object_get(j_camp, "uuid"))
+                );
         ret = update_campaign_info_status(json_string_value(json_object_get(j_camp, "uuid")), "stopping");
 
         json_decref(j_camp);
@@ -992,7 +998,6 @@ json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char*
     unused__ int ret;
     json_t* j_res;
     json_t* j_tmp;
-    char* cur_time;
 
     j_tmp = json_deep_copy(j_recv);
 

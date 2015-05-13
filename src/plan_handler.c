@@ -6,6 +6,8 @@
  */
 
 
+#define _GNU_SOURCE
+
 #include <stdbool.h>
 #include <jansson.h>
 
@@ -122,14 +124,14 @@ static json_t* get_plan_all(void)
 {
     json_t* j_res;
     json_t* j_tmp;
-    char* cur_time;
-    int ret;
+    unused__ int ret;
     char* sql;
     db_ctx_t* db_res;
 
     ret = asprintf(&sql, "select * from plan where tm_delete is null;");
 
     db_res = db_query(sql);
+    free(sql);
     if(db_res == NULL)
     {
         slog(LOG_ERR, "Could not get plan info.");
@@ -302,7 +304,6 @@ json_t* plan_update_info(const char* plan_uuid, const json_t* j_recv, const char
     unused__ int ret;
     json_t* j_res;
     json_t* j_tmp;
-    char* cur_time;
 
     j_tmp = json_deep_copy(j_recv);
 

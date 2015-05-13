@@ -326,8 +326,6 @@ static void ast_recv_handler(json_t* j_evt)
 int ast_load_peers(void)
 {
     int ret;
-    memdb_res* mem_res;
-    json_t* j_res;
     json_t* j_peers;
     json_t* j_peer;
     int idx;
@@ -336,20 +334,18 @@ int ast_load_peers(void)
     ret = cmd_sippeers();
     if(ret == false)
     {
-        slog(LOG_ERR, "Failed cmd_sippeers.");
+        slog(LOG_ERR, "Could not load peers from asterisk. Failed cmd_sippeers.");
         return false;
     }
-    slog(LOG_DEBUG, "Finished cmd_sippeers.");
 
     // get detail info.
     j_peers = get_peer_all();
-
     json_array_foreach(j_peers, idx, j_peer)
     {
         ret = cmd_sipshowpeer(json_string_value(json_object_get(j_peer, "name")));
         if(ret == false)
         {
-            slog(LOG_ERR, "Could not get peer info.");
+            slog(LOG_ERR, "Could not get peer info. name[%s]", json_string_value(json_object_get(j_peer, "name")));
             continue;
         }
     }
