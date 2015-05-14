@@ -2,41 +2,6 @@
 -- Created on: Aug 15, 2014
 --    Author: pchero
 
-drop table if exists agent;
-create table agent(
--- agent table
--- every agents are belongs to here.
-
-    -- identity
---    uuid        varchar(255)    not null unique,
-    
-    -- information
-    id                  varchar(255)    not null unique,    -- login id.
-    password            varchar(1023)   not null,           -- login passwd.
-    name                varchar(255),                       -- agent name.
-    status              varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work).    
-    desc_admin          varchar(1023),                      -- description(for administrator).
-    desc_user           varchar(1023),                      -- description(for agent itself).
-    
-    -- ownership
-    create_agent_id             varchar(255),   -- create agent id.
-    delete_agent_id             varchar(255),   -- delete agent id.
-    update_property_agent_id    varchar(255),   -- last info update agent id.
-    
-    -- timestamp
-    tm_create           datetime(6),    -- created time.
-    tm_delete           datetime(6),    -- deleted time.
-    tm_info_update      datetime(6),    -- last agent info modified time
-    tm_status_update    datetime(6),    -- last status changed time.    
-    
-    -- agent level (permission). -- to-be
-    
-    -- agent performance
-    -- busy time, how many calls got.. Um?
-        
-    primary key(id)
-);
-
 drop table if exists peer;
 create table peer(
 
@@ -64,6 +29,112 @@ create table peer(
     primary key(name)
 );
 
+drop table if exists peer_group_ma;
+create table peer_group_ma(
+-- peer group master table
+    uuid    varchar(255)    not null unique,
+    name    varchar(255),
+    detail  text,
+
+    -- timestamp. UTC
+    tm_create       datetime(6),   -- create time
+    tm_delete       datetime(6),   -- delete time
+    tm_update       datetime(6),   -- last update time
+
+    -- ownership
+    create_agent_id varchar(255),   -- create agent uuid
+    delete_agent_id varchar(255),   -- delete agent uuid
+    update_agent_id varchar(255),   -- last propery update agent uuid
+
+    -- timestamp. UTC
+    tm_create       datetime(6),   -- create time
+
+    primary key(uuid)
+);
+
+drop table if exists peer_group;
+create table peer_group(
+    group_uuid  varchar(255)    not null,
+    peer_name   varchar(255)    not null,
+    
+    -- timestamp. UTC
+    tm_create       datetime(6),   -- create time
+    
+    foreign key group_uuid  references peer_group_ma(uuid) on delete cascade, on update cascade,
+    foreign key peer_name   references peer(name) on delete cascade, on update cascade,
+    
+    primary key(group_uuid, peer_name)
+);
+
+drop table if exists trunk_group_ma;
+create table trunk_group_ma(
+-- trunk group master table
+    uuid    varchar(255)    not null unique,
+    name    varchar(255),
+    detail  text,
+
+    -- timestamp. UTC
+    tm_create       datetime(6),   -- create time
+    tm_delete       datetime(6),   -- delete time
+    tm_update       datetime(6),   -- last update time
+    tm_last_dial    datetime(6),   -- last tried dial time
+
+    -- ownership
+    create_agent_id           varchar(255),       -- create agent uuid
+    delete_agent_id           varchar(255),       -- delete agent uuid
+    update_agent_id  varchar(255),       -- last propery update agent uuid
+
+    primary key(uuid)
+);
+
+drop table if exists trunk_group;
+create table trunk_group(
+-- trunk_group - trunk matching table
+    group_uuid      varchar(255)    not null,
+    trunk_name      varchar(255)    not null,   -- asterisk peer name
+    
+    foreign key(group_uuid) references trunk_group_ma(uuid) on delete cascade on update cascade,
+    foreign key(trunk_name) references peer(name)           on delete cascade on update cascade,
+    
+    primary key(group_uuid, trunk_name)
+);
+
+drop table if exists agent;
+create table agent(
+-- agent table
+-- every agents are belongs to here.
+
+    -- identity
+--    uuid        varchar(255)    not null unique,
+    
+    -- information
+    id                  varchar(255)    not null unique,    -- login id.
+    password            varchar(1023)   not null,           -- login passwd.
+    name                varchar(255),                       -- agent name.
+    status              varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work).    
+    desc_admin          varchar(1023),                      -- description(for administrator).
+    desc_user           varchar(1023),                      -- description(for agent itself).
+    peer_group          varchar(255),                       -- peer_group_ma uuid.
+    
+    -- ownership
+    create_agent_id             varchar(255),   -- create agent id.
+    delete_agent_id             varchar(255),   -- delete agent id.
+    update_property_agent_id    varchar(255),   -- last info update agent id.
+    
+    -- timestamp
+    tm_create           datetime(6),    -- created time.
+    tm_delete           datetime(6),    -- deleted time.
+    tm_info_update      datetime(6),    -- last agent info modified time
+    tm_status_update    datetime(6),    -- last status changed time.    
+    
+    -- agent level (permission). -- to-be
+    
+    -- agent performance
+    -- busy time, how many calls got.. Um?
+        
+    primary key(id)
+);
+
 drop table if exists plan;
 create table plan(
 
@@ -73,7 +144,7 @@ create table plan(
     detail      varchar(1023),          -- description
     
     -- resource
-    trunk_group     varchar(255),       -- trunk group uuid.
+    trunk_group     varchar(255),       -- trunk_group_ma uuid.
     uui_field       varchar(255),       -- x-header name for UUI
     
     -- strategy
@@ -170,40 +241,6 @@ create table dl_org(
 
     primary key(uuid)
 );
-
-drop table if exists trunk_group_ma;
-create table trunk_group_ma(
--- trunk group master table
-    uuid    varchar(255)    not null unique,
-    name    varchar(255),
-    detail  text,
-
-    -- timestamp. UTC
-    tm_create       datetime(6),   -- create time
-    tm_delete       datetime(6),   -- delete time
-    tm_update       datetime(6),   -- last update time
-    tm_last_dial    datetime(6),   -- last tried dial time
-
-    -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_property_agent_id  varchar(255),       -- last propery update agent uuid
-
-    primary key(uuid)
-);
-
-drop table if exists trunk_group;
-create table trunk_group(
--- trunk_group - trunk matching table
-    group_uuid      varchar(255)    not null,
-    trunk_name      varchar(255)    not null,   -- asterisk peer name
-    
-    foreign key(group_uuid) references trunk_group_ma(uuid) on delete cascade on update cascade,
-    foreign key(trunk_name) references peer(name)           on delete cascade on update cascade,
-    
-    primary key(group_uuid, trunk_name)
-);
-
 
 drop table if exists agent_group_ma;
 create table agent_group_ma(
