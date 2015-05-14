@@ -33,11 +33,7 @@ create table agent(
     
     -- agent performance
     -- busy time, how many calls got.. Um?
-    
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
-    
+        
     primary key(id)
 );
 
@@ -64,10 +60,6 @@ create table peer(
     update_property_agent_id  varchar(255),       -- last propery update agent uuid
 
     foreign key(agent_id)                   references agent(id) on delete set null on update cascade,
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
-
     
     primary key(name)
 );
@@ -114,9 +106,6 @@ create table plan(
     tm_update_status    datetime(6),    -- last status updated time.
     
     foreign key(trunk_group)                references trunk_group_ma(uuid) on delete set null on update cascade, 
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
 
     primary key(uuid)
 );
@@ -179,10 +168,6 @@ create table dl_org(
     delete_agent_id           varchar(255),       -- delete agent uuid
     update_property_agent_id  varchar(255),       -- last propery update agent uuid
 
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
-
     primary key(uuid)
 );
 
@@ -203,10 +188,6 @@ create table trunk_group_ma(
     create_agent_id           varchar(255),       -- create agent uuid
     delete_agent_id           varchar(255),       -- delete agent uuid
     update_property_agent_id  varchar(255),       -- last propery update agent uuid
-
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
 
     primary key(uuid)
 );
@@ -240,10 +221,6 @@ create table agent_group_ma(
     create_agent_id           varchar(255),       -- create agent uuid
     delete_agent_id           varchar(255),       -- delete agent uuid
     update_property_agent_id  varchar(255),       -- last propery update agent uuid
-
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
 
     primary key(uuid)
 );
@@ -283,10 +260,6 @@ create table dial_list_ma(
     delete_agent_id           varchar(255),       -- delete agent uuid
     update_property_agent_id  varchar(255),       -- last propery update agent uuid
     
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
-
     primary key(seq, uuid)
 );
 
@@ -324,12 +297,7 @@ create table campaign(
     tm_update_status    datetime(6),   -- last status updated time.
     
     foreign key(next_campaign)      references campaign(uuid) on delete set null on update cascade,
-    
-    foreign key(create_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(delete_agent_id)            references agent(id) on delete set null on update cascade,
-    foreign key(update_property_agent_id)   references agent(id) on delete set null on update cascade,
-    foreign key(update_status_agent_id)     references agent(id) on delete set null on update cascade,
-    
+        
     foreign key(agent_group)    references agent_group_ma(uuid) on delete set null on update cascade,
     foreign key(plan_uuid)      references plan(uuid)           on delete set null on update cascade,
     foreign key(dlma_uuid)      references dial_list_ma(uuid)   on delete set null on update cascade,
