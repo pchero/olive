@@ -279,17 +279,17 @@ int memdb_insert(const char* table, const json_t* j_data)
         if(is_first == true)
         {
             is_first = false;
-            ret = asprintf(&tmp, "%s", key);
+            tmp = sqlite3_mprintf("%s", key);
         }
         else
         {
-            ret = asprintf(&tmp, "%s, %s", sql_keys, key);
+            tmp = sqlite3_mprintf("%s, %s", sql_keys, key);
         }
 
-        free(sql_keys);
-        ret = asprintf(&sql_keys, "%s", tmp);
+        sqlite3_free(sql_keys);
+        sql_keys = sqlite3_mprintf("%s", tmp);
 
-        free(tmp);
+        sqlite3_free(tmp);
     }
 
     // set values
@@ -301,11 +301,11 @@ int memdb_insert(const char* table, const json_t* j_data)
         if(is_first == true)
         {
             is_first = false;
-            ret = asprintf(&tmp_sub, " ");
+            tmp_sub = sqlite3_mprintf(" ");
         }
         else
         {
-            ret = asprintf(&tmp_sub, "%s, ", sql_values);
+            tmp_sub = sqlite3_mprintf("%s, ", sql_values);
         }
 
         // get type.
@@ -315,7 +315,7 @@ int memdb_insert(const char* table, const json_t* j_data)
             // string
             case JSON_STRING:
             {
-                ret = asprintf(&tmp, "%s\'%s\'", tmp_sub, json_string_value(j_val));
+                tmp = sqlite3_mprintf("%s'%q'", tmp_sub, json_string_value(j_val));
             }
             break;
 
@@ -323,27 +323,27 @@ int memdb_insert(const char* table, const json_t* j_data)
             case JSON_INTEGER:
             case JSON_REAL:
             {
-                ret = asprintf(&tmp, "%s%f", tmp_sub, json_number_value(j_val));
+                tmp = sqlite3_mprintf("%s%f", tmp_sub, json_number_value(j_val));
             }
             break;
 
             // true
             case JSON_TRUE:
             {
-                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "true");
+                tmp = sqlite3_mprintf("%s'%q'", tmp_sub, "true");
             }
             break;
 
             // false
             case JSON_FALSE:
             {
-                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "false");
+                tmp = sqlite3_mprintf("%s'%q'", tmp_sub, "false");
             }
             break;
 
             case JSON_NULL:
             {
-                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "null");
+                tmp = sqlite3_mprintf("%s'%Q'", tmp_sub, NULL);
             }
             break;
 
@@ -355,24 +355,23 @@ int memdb_insert(const char* table, const json_t* j_data)
 
                 // we don't support another types.
                 slog(LOG_WARN, "Wrong type input. We don't handle this.");
-                ret = asprintf(&tmp, "%s\"%s\"", tmp_sub, "null");
+                tmp = sqlite3_mprintf("%s'%Q'", tmp_sub, NULL);
             }
             break;
         }
 
-        free(tmp_sub);
-        free(sql_values);
-        ret = asprintf(&sql_values, "%s", tmp);
+        sqlite3_free(tmp_sub);
+        sqlite3_free(sql_values);
+        sql_values = sqlite3_mprintf("%s", tmp);
 
-        free(tmp);
-
+        sqlite3_free(tmp);
     }
 
     json_decref(j_data_cp);
 
     ret = asprintf(&sql, "insert into %s(%s) values (%s);", table, sql_keys, sql_values);
-    free(sql_keys);
-    free(sql_values);
+    sqlite3_free(sql_keys);
+    sqlite3_free(sql_values);
 
     ret = memdb_exec(sql);
     free(sql);
@@ -409,12 +408,12 @@ char* memdb_get_update_str(const json_t* j_data)
         // copy/set previous sql.
         if(is_first == true)
         {
-            ret = asprintf(&tmp, " ");
+            tmp = sqlite3_mprintf(" ");
             is_first = false;
         }
         else
         {
-            ret = asprintf(&tmp, "%s, ", res);
+            tmp = sqlite3_mprintf("%s, ", res);
         }
 
         free(res);
@@ -424,7 +423,7 @@ char* memdb_get_update_str(const json_t* j_data)
             // string
             case JSON_STRING:
             {
-                ret = asprintf(&res, "%s%s = \'%s\'", tmp, key, json_string_value(j_val));
+                res = sqlite3_mprintf("%s%s = '%q'", tmp, key, json_string_value(j_val));
             }
             break;
 
@@ -432,27 +431,27 @@ char* memdb_get_update_str(const json_t* j_data)
             case JSON_INTEGER:
             case JSON_REAL:
             {
-                ret = asprintf(&res, "%s%s = %f", tmp, key, json_number_value(j_val));
+                res = sqlite3_mprintf("%s%s = %f", tmp, key, json_number_value(j_val));
             }
             break;
 
             // true
             case JSON_TRUE:
             {
-                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "true");
+                res = sqlite3_mprintf("%s%s = '%q'", tmp, key, "true");
             }
             break;
 
             // false
             case JSON_FALSE:
             {
-                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "false");
+                res = sqlite3_mprintf("%s%s = '%q'", tmp, key, "false");
             }
             break;
 
             case JSON_NULL:
             {
-                ret = asprintf(&res, "%s%s = \"%s\"", tmp, key, "null");
+                res = sqlite3_mprintf("%s%s = '%Q'", tmp, key, NULL);
             }
             break;
 
@@ -464,7 +463,7 @@ char* memdb_get_update_str(const json_t* j_data)
 
                 // we don't support another types.
                 slog(LOG_WARN, "Wrong type input. We don't handle this.");
-                ret = asprintf(&res, "%s%s = %s", tmp, key, key);
+                res = sqlite3_mprintf("%s%s = '%Q'", tmp, key, NULL);
             }
             break;
 
