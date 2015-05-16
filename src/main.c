@@ -362,32 +362,6 @@ static int init_libevent(void)
 static int init_database(void)
 {
     int ret;
-//    json_t* j_tmp;
-//    char*   user;
-//    char*   pass;
-//    char*   host;
-//    char*   db;
-//    int     port;
-
-//    j_tmp = json_object_get(g_app->j_conf, "db_host");
-//    ret = asprintf(&host, "%s", json_string_value(j_tmp));
-//    json_decref(j_tmp);
-//
-//    j_tmp = json_object_get(g_app->j_conf, "db_user");
-//    ret = asprintf(&user, "%s", json_string_value(j_tmp));
-//    json_decref(j_tmp);
-//
-//    j_tmp = json_object_get(g_app->j_conf, "db_pass");
-//    ret = asprintf(&pass, "%s", json_string_value(j_tmp));
-//    json_decref(j_tmp);
-//
-//    j_tmp = json_object_get(g_app->j_conf, "db_dbname");
-//    ret = asprintf(&db, "%s", json_string_value(j_tmp));
-//    json_decref(j_tmp);
-//
-//    j_tmp = json_object_get(g_app->j_conf, "db_port");
-//    port = json_integer_value(j_tmp);
-//    json_decref(j_tmp);
 
     ret = db_init(
             json_string_value(json_object_get(g_app->j_conf, "db_host")),
@@ -396,17 +370,10 @@ static int init_database(void)
             json_string_value(json_object_get(g_app->j_conf, "db_dbname")),
             json_integer_value(json_object_get(g_app->j_conf, "db_port"))
             );
-//    ret = db_init(host, user, pass, db, port);
     if(ret == false)
     {
         return false;
     }
-
-//    free(host);
-//    free(user);
-//    free(pass);
-//    free(db);
-//    free(port);
 
     return ret;
 }
@@ -492,7 +459,7 @@ static bool init_services(void)
 {
     int ret;
 
-    // registar signals
+    // register signals
     ret = init_signals();
     if(ret == false)
     {
@@ -501,14 +468,14 @@ static bool init_services(void)
     }
     slog(LOG_INFO, "Initiated signal handlers.");
 
-    // campaign initiate
+    // get db info
     ret = init_db_data();
     if(ret != true)
     {
         slog(LOG_ERR, "Could not initiate database load data.");
         return false;
     }
-    slog(LOG_INFO, "Initiated service");
+    slog(LOG_INFO, "Initiated database info.");
 
     // register callbacks
     ret = init_callback();
@@ -538,6 +505,7 @@ static int init_db_data(void)
         slog(LOG_ERR, "Could not load peer information.");
         return false;
     }
+    slog(LOG_DEBUG, "Complete ast_load_peers().");
 
     // load registry
     ret = ast_load_registry();
@@ -546,6 +514,7 @@ static int init_db_data(void)
         slog(LOG_ERR, "Could not load registry information.");
         return false;
     }
+    slog(LOG_DEBUG, "Complete ast_load_registry().");
 
     // load trunk_group
     ret = load_table_trunk_group();

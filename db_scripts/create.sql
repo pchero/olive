@@ -121,8 +121,8 @@ create table agent(
     -- timestamp
     tm_create           datetime(6),    -- created time.
     tm_delete           datetime(6),    -- deleted time.
-    tm_info_update      datetime(6),    -- last agent info modified time
-    tm_status_update    datetime(6),    -- last status changed time.    
+    tm_update           datetime(6),    -- last agent info modified time
+    tm_update_status    datetime(6),    -- last status changed time.    
     
     -- agent level (permission). -- to-be
     

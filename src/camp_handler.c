@@ -853,6 +853,7 @@ bool load_table_trunk_group(void)
         slog(LOG_ERR, "Could not load trunk group.");
         return false;
     }
+    slog(LOG_DEBUG, "Succeed execute query.");
 
     flg_err = false;
     while(1)

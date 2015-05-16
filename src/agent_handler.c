@@ -322,7 +322,7 @@ static bool update_agent(const json_t* j_agent)
     j_tmp = json_deep_copy(j_agent);
 
     cur_time = get_utc_timestamp();
-    json_object_set_new(j_tmp, "tm_info_update", json_string(cur_time));
+    json_object_set_new(j_tmp, "tm_update", json_string(cur_time));
     free(cur_time);
 
     tmp = db_get_update_str(j_tmp);
@@ -584,7 +584,7 @@ static bool create_agent(const json_t* j_agent)
 
     cur_time = get_utc_timestamp();
     json_object_set_new(j_tmp, "tm_create", json_string(cur_time));
-    json_object_set_new(j_tmp, "tm_info_update", json_string(cur_time));
+    json_object_set_new(j_tmp, "tm_update", json_string(cur_time));
     free(cur_time);
 
     ret = db_insert("agent", j_agent);
@@ -747,7 +747,7 @@ static bool update_agentgroup(const json_t* j_group)
     j_tmp = json_deep_copy(j_group);
 
     cur_time = get_utc_timestamp();
-    json_object_set_new(j_tmp, "tm_info_update", json_string(cur_time));
+    json_object_set_new(j_tmp, "tm_update", json_string(cur_time));
     free(cur_time);
 
     tmp = db_get_update_str(j_tmp);
