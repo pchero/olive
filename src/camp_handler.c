@@ -715,7 +715,7 @@ static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
     ret = asprintf(&sql, "select * from peer where status like \"OK%%\" "
             "and name = (select trunk_name from trunk_group where group_uuid = \"%s\" order by random()) "
             "limit 1;",
-            json_string_value(json_object_get(j_camp, "trunk_group"))
+            json_string_value(json_object_get(j_plan, "trunk_group"))
             );
     mem_res = memdb_query(sql);
     free(sql);
@@ -1791,7 +1791,7 @@ static char* create_dial_addr_from_dl(const json_t* j_camp, const json_t* j_plan
     }
 
     // get available trunk
-    j_trunk = sip_get_trunk_avaialbe(json_string_value(json_object_get(j_camp, "trunk_group")));
+    j_trunk = sip_get_trunk_avaialbe(json_string_value(json_object_get(j_plan, "trunk_group")));
     if(j_trunk == NULL)
     {
         // No available trunk.
@@ -1806,7 +1806,6 @@ static char* create_dial_addr_from_dl(const json_t* j_camp, const json_t* j_plan
     json_decref(j_trunk);
 
     return dial_addr;
-
 
 }
 

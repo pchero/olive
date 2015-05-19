@@ -587,7 +587,7 @@ static bool create_agent(const json_t* j_agent)
     json_object_set_new(j_tmp, "tm_update", json_string(cur_time));
     free(cur_time);
 
-    ret = db_insert("agent", j_agent);
+    ret = db_insert("agent", j_tmp);
     if(ret == false)
     {
         slog(LOG_ERR, "Could not create agent.");

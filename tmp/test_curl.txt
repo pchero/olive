@@ -3,13 +3,22 @@
 create user
 curl -k -u admin:1234 -X POST -d '{"id" : "test_01", "password" : "1234", "name" : "test_user_01", "desc_admin" : "test_user desc for admin", "desc_user" : "test_usesr desc for user", "create_user" : "admin", "info_update_user" : "admin"}' https://127.0.0.1:8081/agents
 
-
-update user status
-curl -k -u admin:1234 -X PUT -d '{"status" : "ready", "uuid":"agent-56b02510-66d2-478d-aa5e-e703247c029c"}' https://127.0.0.1:8081/agents/agent-56b02510-66d2-478d-aa5e-e703247c029c/status
-
-
 update campaign
 curl -k -u admin:1234 -X PUT -d '{"status" : "start", "uuid":"campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7"}' https://127.0.0.1:8081/campaigns/campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7
 
 update agent info
 curl -k -u admin:1234 -X PUT -d '{"status" : "ready"}' https://127.0.0.1:8081/agents/admin
+
+
+// agent test
+// create test
+curl -k -u admin:1234 -X POST -d '{"id" : "test_01", "password" : "1234", "name" : "test_user_01", "desc_admin" : "test_user desc for admin", "desc_user" : "test_usesr desc for user"}' https://127.0.0.1:8081/agents
+
+// get list test
+curl -k -u admin:1234 -X GET https://localhost:8081/agents
+
+// update agent info
+curl -k -u admin:1234 -X PUT -d '{"status":"ready"}' https://localhost:8081/agents/test_01
+
+// get detail agent info
+curl -k -u admin:1234 -X GET https://localhost:8081/agents/test_01

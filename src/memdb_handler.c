@@ -393,6 +393,7 @@ char* memdb_get_update_str(const json_t* j_data)
 {
 
     char*       res;
+    char*       res_tmp;
     char*       tmp;
     json_t*     j_val;
     const char* key;
@@ -416,7 +417,7 @@ char* memdb_get_update_str(const json_t* j_data)
             tmp = sqlite3_mprintf("%s, ", res);
         }
 
-        free(res);
+        sqlite3_free(res);
         type = json_typeof(j_val);
         switch(type)
         {
@@ -468,9 +469,12 @@ char* memdb_get_update_str(const json_t* j_data)
             break;
 
         }
-        free(tmp);
+        sqlite3_free(tmp);
     }
 
-    return res;
+    ret = asprintf(&res_tmp, "%s", res);
+    sqlite3_free(res);
+
+    return res_tmp;
 
 }
