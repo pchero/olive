@@ -82,6 +82,7 @@ int main(int argc, char** argv)
     slog(LOG_INFO, "");
     slog(LOG_INFO, "");
     slog(LOG_INFO, "Process start. Process[%s], PREFIX[%s]", argv[0], PREFIX);
+    sleep(1);   // delay for initiate zmq internally.
 
     ret = init_libraries();
     if(ret == false)
