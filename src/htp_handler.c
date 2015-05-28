@@ -24,6 +24,9 @@
 #include "dl_handler.h"
 #include "peer_handler.h"
 
+#define DEF_VER_LATEST  "v1"
+#define DEF_API_URI     "/api/"DEF_VER_LATEST
+
 
 // etc
 static evhtp_res    add_common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
@@ -144,34 +147,34 @@ int init_evhtp(void)
 
     // register interfaces
     // campaigns
-    evhtp_set_cb(evhtp_ssl,         "/campaigns",   htpcb_campaigns, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/campaigns/*", htpcb_campaigns_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/campaigns",   htpcb_campaigns, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/campaigns/*", htpcb_campaigns_specific, NULL);
 
     // agents
-    evhtp_set_cb(evhtp_ssl,         "/agents",          htpcb_agents, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agents/*",        htpcb_agents_specific, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agents/*/status", htpcb_agents_specific_status, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/agents",          htpcb_agents, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*",        htpcb_agents_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*/status", htpcb_agents_specific_status, NULL);
 
     // plans
-    evhtp_set_cb(evhtp_ssl,         "/plans",   htpcb_plans, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/plans/*", htpcb_plans_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/plans",   htpcb_plans, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/plans/*", htpcb_plans_specific, NULL);
 
     // dial-lists
-    evhtp_set_cb(evhtp_ssl,         "/dial-lists",      htpcb_diallists, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/dial-lists/*",    htpcb_diallists_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/dial-lists",      htpcb_diallists, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/dial-lists/*",    htpcb_diallists_specific, NULL);
 
     // dl info
-    evhtp_set_glob_cb(evhtp_ssl,    "/dls/*",    htpcb_dls, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/dls/*/*",  htpcb_dls_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/dls/*",    htpcb_dls, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/dls/*/*",  htpcb_dls_specific, NULL);
 
     // peers
-    evhtp_set_cb(evhtp_ssl,         "/peerdbs",     htpcb_peerdbs, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/peerdbs/*",   htpcb_peerdbs_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/peerdbs",     htpcb_peerdbs, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/peerdbs/*",   htpcb_peerdbs_specific, NULL);
 
     // agent groups
-    evhtp_set_cb(evhtp_ssl,         "/agentgroups",     htpcb_agentgroups, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agentgroups/*",   htpcb_agentgroups_specific, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agentgroups/*/*", htpcb_agentgroups_uuid_member, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/agentgroups",     htpcb_agentgroups, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agentgroups/*",   htpcb_agentgroups_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agentgroups/*/*", htpcb_agentgroups_uuid_member, NULL);
 
 
     // status
