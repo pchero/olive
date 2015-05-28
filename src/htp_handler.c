@@ -27,7 +27,6 @@
 #define DEF_VER_LATEST  "v1"
 #define DEF_API_URI     "/api/"DEF_VER_LATEST
 
-
 // etc
 static evhtp_res    add_common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
 static evhtp_res    post_handler(evhtp_connection_t * conn, __attribute__((unused)) void * arg);
