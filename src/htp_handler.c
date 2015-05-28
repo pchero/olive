@@ -82,6 +82,18 @@ int init_evhtp(void)
     evhtp_t* evhtp;
     evhtp_t* evhtp_ssl;
     int ret;
+    FILE* fp;
+
+    // check file existance.
+    fp = fopen(json_string_value(json_object_get(g_app->j_conf, "pem_filename")), "r");
+    if(fp == NULL)
+    {
+        slog(LOG_ERR, "Could not open ssl pem file. filename[%s]",
+                json_string_value(json_object_get(g_app->j_conf, "pem_filename"))
+                );
+        return false;
+    }
+    fclose(fp);
 
     // Initiate http/https interface
     evhtp_ssl_cfg_t ssl_cfg = {
@@ -108,7 +120,9 @@ int init_evhtp(void)
     evhtp_ssl = evhtp_new(g_app->ev_base, NULL);
 
     // initiate ssl
-    evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
+    ret = evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
+    slog(LOG_DEBUG, "Check value. ret[%d]", ret);
+
     if(evhtp_ssl == NULL)
     {
         slog(LOG_ERR, "Could not initiate ssl configuration.");
