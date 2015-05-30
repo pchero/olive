@@ -128,13 +128,13 @@ static void terminate(void)
     // release libevent.
     while(1)
     {
+        g_app->ev_cnt--;
         if(g_app->ev_cnt < 0)
         {
             break;
         }
 
         event_free(g_app->ev[g_app->ev_cnt]);
-        g_app->ev_cnt--;
     }
     event_base_free(g_app->ev_base);
 
