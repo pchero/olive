@@ -79,7 +79,6 @@ static void htpcb_peerdbs_specific(evhtp_request_t *req, __attribute__((unused))
  */
 int init_evhtp(void)
 {
-    evhtp_t* evhtp;
     evhtp_t* evhtp_ssl;
     int ret;
     FILE* fp;
@@ -116,13 +115,10 @@ int init_evhtp(void)
         .scache_get         = NULL,
         .scache_del         = NULL,
     };
-    evhtp = evhtp_new(g_app->ev_base, NULL);
     evhtp_ssl = evhtp_new(g_app->ev_base, NULL);
 
     // initiate ssl
     ret = evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
-    slog(LOG_DEBUG, "Check value. ret[%d]", ret);
-
     if(evhtp_ssl == NULL)
     {
         slog(LOG_ERR, "Could not initiate ssl configuration.");
@@ -130,18 +126,6 @@ int init_evhtp(void)
     }
 
     // bind
-    ret = evhtp_bind_socket(
-            evhtp,
-            json_string_value(json_object_get(g_app->j_conf, "addr_server")),
-            atoi(json_string_value(json_object_get(g_app->j_conf, "http_port"))),
-            1024
-            );
-    if(ret < 0)
-    {
-        slog(LOG_ERR, "Could not bind http socket. err[%s]", strerror(errno));
-        return false;
-    }
-
     ret = evhtp_bind_socket(
             evhtp_ssl,
             json_string_value(json_object_get(g_app->j_conf, "addr_server")),
@@ -196,6 +180,9 @@ int init_evhtp(void)
     slog(LOG_INFO, "Registered interfaces");
 
     slog(LOG_INFO, "Finished all initiation.");
+
+    // set global
+    g_app->evhtp_ssl = evhtp_ssl;
 
     return true;
 }
