@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include <event2/event.h>
 #include <evhtp.h>
@@ -76,7 +77,7 @@ int main(int argc, char** argv)
         exit(false);
     }
 
-    // Start log!!!!!!!!!!!!!!!!!!!!!!
+    // Start log!!!!!!!!!!!!!!!!!!!!!
     // Now we can logging.
     slog(LOG_INFO, "");
     slog(LOG_INFO, "");
@@ -389,7 +390,6 @@ static int init_database(void)
  */
 static int init_ast_int(void)
 {
-    json_t* j_tmp;
     int     ret;
     int     evt_fd;
     size_t  fd_len;

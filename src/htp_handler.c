@@ -333,7 +333,7 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
         case htp_method_GET:
         {
             // get all campaign list
-            j_res = campaign_get_all();
+            j_res = campaigns_get_all();
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -358,10 +358,16 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
         // PUT : update several campaign info
         case htp_method_PUT:
         {
-            // Not support yet.
-            // TODO: someday..
-            htp_ret = EVHTP_RES_METHNALLOWED;
-            j_res = json_null();
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+            j_res = campaigns_update(j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
         }
         break;
 
@@ -1894,18 +1900,19 @@ static char* get_uuid(const char* buf)
     char* sep;
     char* uuid;
     char* remain;
-    int i;
     unused__ int ret;
 
     tmp = strdup(buf);
     org = tmp;
     sep = "/";
 
-    for(i = 0; i < 3; i++)
-    {
-        remain = strsep(&tmp, sep);
-    }
-
+    // split services
+    remain = strsep(&tmp, sep); // start
+    remain = strsep(&tmp, sep); // "api"
+    remain = strsep(&tmp, sep); // "v1"
+    slog(LOG_DEBUG, "Version api. api[%s]", remain);
+    remain = strsep(&tmp, sep); // service "campaigns"
+    remain = strsep(&tmp, sep); // uuid "campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7"
     if(remain == NULL)
     {
         return NULL;
@@ -1937,7 +1944,7 @@ static char* get_uuid_second(const char* buf)
     org = tmp;
     sep = "/";
 
-    for(i = 0; i < 4; i++)
+    for(i = 0; i < 6; i++)
     {
         remain = strsep(&tmp, sep);
     }
