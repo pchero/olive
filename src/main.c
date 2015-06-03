@@ -77,7 +77,7 @@ int main(int argc, char** argv)
         exit(false);
     }
 
-    // Start log!!!!!!!!!!!!!!!!!!!!!!
+    // Start log!!!!!!!!!!!!!!!!!!!!!
     // Now we can logging.
     slog(LOG_INFO, "");
     slog(LOG_INFO, "");
