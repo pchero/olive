@@ -1,10 +1,25 @@
 
+campaign test
+get campaign
+curl -k -u admin:1234 -X GET https://127.0.0.1:8081/api/v1/campaigns
+
+create campaign
+curl -k -u admin:1234 -X POST https://127.0.0.1:8081/api/v1/campaigns -d '{"status":"stop", "detail":"test_campaign", "name":"sample campaign"}'
+
+update several campaigns
+curl -k -u admin:1234 -X PUT https://127.0.0.1:8081/api/v1/campaigns -d '[{"uuid":"campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7", "tm_delete":"123456789"}, {"uuid":"camp-152ad05d-b2ca-4be0-bd56-f8b4471edd00", "dlma_uuid":"123123"}]'
+
+specified campaign test
+get specified campaign
+curl -k -u admin:1234 -X GET https://127.0.0.1:8081/api/v1/campaigns/campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7
+
+
 
 create user
 curl -k -u admin:1234 -X POST -d '{"id" : "test_01", "password" : "1234", "name" : "test_user_01", "desc_admin" : "test_user desc for admin", "desc_user" : "test_usesr desc for user", "create_user" : "admin", "info_update_user" : "admin"}' https://127.0.0.1:8081/agents
 
 update campaign
-curl -k -u admin:1234 -X PUT -d '{"status" : "start", "uuid":"campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7"}' https://127.0.0.1:8081/campaigns/campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7
+curl -k -u admin:1234 -X PUT -d '{"status" : "start", "uuid":"campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7"}' https://127.0.0.1:8081/api/v1/campaigns/campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7
 
 update agent info
 curl -k -u admin:1234 -X PUT -d '{"status" : "ready"}' https://127.0.0.1:8081/agents/admin

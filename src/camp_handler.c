@@ -906,6 +906,8 @@ json_t* campaign_create(const json_t* j_camp, const char* agent_id)
 
     // set create_agent_id
     json_object_set_new(j_tmp, "create_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_status_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_property_agent_id", json_string(agent_id));
 
     // gen camp uuid
     camp_uuid = gen_uuid_campaign();
@@ -943,7 +945,7 @@ json_t* campaign_create(const json_t* j_camp, const char* agent_id)
  * Get all campaign API handler.
  * @return
  */
-json_t* campaign_get_all(void)
+json_t* campaigns_get_all(void)
 {
     json_t* j_res;
     json_t* j_tmp;
@@ -978,7 +980,7 @@ json_t* campaign_get(const char* uuid)
     j_tmp = get_campaign(uuid);
     if(j_tmp == NULL)
     {
-        slog(LOG_ERR, "Could not find campaign info.");
+        slog(LOG_ERR, "Could not find campaign info. uuid[%s]", uuid);
         j_res = htp_create_olive_result(OLIVE_CAMPAIGN_NOT_FOUND, json_null());
         return j_res;
     }
@@ -1001,6 +1003,17 @@ json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char*
     json_t* j_tmp;
 
     j_tmp = json_deep_copy(j_recv);
+
+    // remove info
+    json_object_del(j_tmp, "create_agent_id");
+    json_object_del(j_tmp, "delete_agent_id");
+    json_object_del(j_tmp, "update_property_agent_id");
+    json_object_del(j_tmp, "update_status_agent_id");
+    json_object_del(j_tmp, "tm_create");
+    json_object_del(j_tmp, "tm_update_property");
+    json_object_del(j_tmp, "tm_delete");
+    json_object_del(j_tmp, "tm_update_status");
+    json_object_del(j_tmp, "uuid");
 
     // set info
     json_object_set_new(j_tmp, "update_property_agent_id", json_string(id));
@@ -1026,6 +1039,62 @@ json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char*
     // create result.
     j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
     json_decref(j_tmp);
+
+    return j_res;
+}
+
+/**
+ * Update campaigns info API handler.
+ * @param j_recv
+ * @return
+ */
+json_t* campaigns_update(const json_t* j_recv, const char* id)
+{
+    int ret;
+    json_t* j_res;
+    json_t* j_res_tmp;
+    json_t* j_tmp;
+    json_t* j_data;
+    json_t* j_camp;
+    int idx;
+    char* tmp;
+
+    j_data = json_deep_copy(j_recv);
+
+    ret = json_is_array(j_data);
+    if(ret == false)
+    {
+        tmp = json_dumps(j_data, JSON_ENCODE_ANY);
+        slog(LOG_ERR, "Recved data was wrong. recv[%s]", tmp);
+        free(tmp);
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
+    }
+
+    // update campaign
+    json_array_foreach(j_data, idx, j_camp)
+    {
+        j_tmp = campaign_update(json_string_value(json_object_get(j_camp, "uuid")), j_camp, id);
+        json_decref(j_tmp);
+    }
+
+    // get updated campaign
+    j_res_tmp = json_array();
+    json_array_foreach(j_data, idx, j_camp)
+    {
+        j_tmp = get_campaign(json_string_value(json_object_get(j_camp, "uuid")));
+        if(j_tmp == NULL)
+        {
+            slog(LOG_ERR, "Could not get campaign. uuid[%s]", json_string_value(json_object_get(j_tmp, "uuid")));
+            continue;
+        }
+        json_array_append(j_res_tmp, j_tmp);
+        json_decref(j_tmp);
+    }
+
+    j_res = htp_create_olive_result(OLIVE_OK, j_res_tmp);
+    json_decref(j_res_tmp);
+    json_decref(j_data);
 
     return j_res;
 }
@@ -1936,6 +2005,9 @@ static bool create_campaign(const json_t* j_camp)
     // utc create timestamp
     cur_time = get_utc_timestamp();
     json_object_set_new(j_tmp, "tm_create", json_string(cur_time));
+    json_object_set_new(j_tmp, "tm_update_status", json_string(cur_time));
+    json_object_set_new(j_tmp, "tm_update_property", json_string(cur_time));
+
     free(cur_time);
 
     ret = db_insert("campaign", j_tmp);

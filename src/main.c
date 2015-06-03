@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <unistd.h>
 
 #include <event2/event.h>
 #include <evhtp.h>
@@ -76,12 +77,13 @@ int main(int argc, char** argv)
         exit(false);
     }
 
-    // Start log!!!!!!!!!!!!!!!!!!!!!!
+    // Start log!!!!!!!!!!!!!!!!!!!!!
     // Now we can logging.
     slog(LOG_INFO, "");
     slog(LOG_INFO, "");
     slog(LOG_INFO, "");
     slog(LOG_INFO, "Process start. Process[%s], PREFIX[%s]", argv[0], PREFIX);
+    sleep(1);   // delay for initiate zmq internally.
 
     ret = init_libraries();
     if(ret == false)
@@ -100,51 +102,55 @@ int main(int argc, char** argv)
 
     // start loop.
     event_base_loop(g_app->ev_base, 0);
-
     terminate();
 
-//    memdb_term();
-
-//    // Release http/https events
-//    evhtp_unbind_socket(evhtp);
-//    evhtp_free(evhtp);
-//    evhtp_unbind_socket(evhtp_ssl);
-//    evhtp_free(evhtp_ssl);
-//
-//    // Release base event, else.
-//    event_base_free(evbase);
-//    slog_exit();
-//    db_exit();
-//
-//    printf("End\n");
-
-    return 0;
+    return true;
 }
 
 static void terminate(void)
 {
+    // exit log
+    slog_exit();
+
+    // release evhtp
+    if(g_app->evhtp_ssl != NULL)
+    {
+        evhtp_unbind_socket(g_app->evhtp_ssl);
+        evhtp_free(g_app->evhtp_ssl);
+    }
 
     // release libevent.
     while(1)
     {
+        g_app->ev_cnt--;
         if(g_app->ev_cnt < 0)
         {
             break;
         }
-
         event_free(g_app->ev[g_app->ev_cnt]);
-        g_app->ev_cnt--;
     }
     event_base_free(g_app->ev_base);
 
     // release db
     memdb_term();
+    db_exit();
 
     // release zmq
-    zmq_ctx_destroy(g_app->zctx);
+    zmq_close(g_app->zcmd);
+    zmq_close(g_app->zevt);
+    if(g_app->zctx != NULL)
+    {
+        zmq_ctx_destroy(g_app->zctx);
+    }
 
+    // release config
+    if(g_app->j_conf != NULL)
+    {
+        json_decref(g_app->j_conf);
+    }
+
+    // free app
     free(g_app);
-
 
     return;
 }
@@ -311,7 +317,6 @@ static int init_log(void)
     else
     {
         ret = asprintf(&addr, "%s", json_string_value(j_tmp));
-        json_decref(j_tmp);
     }
 
     ret = init_slog(g_app->zctx, addr);
@@ -333,7 +338,6 @@ static int init_log(void)
     {
         slog_set_loglevel(json_integer_value(j_tmp));
     }
-    json_decref(j_tmp);
 
     return true;
 }
@@ -386,30 +390,25 @@ static int init_database(void)
  */
 static int init_ast_int(void)
 {
-    json_t* j_tmp;
-    const char* tmp;
     int     ret;
     int     evt_fd;
     size_t  fd_len;
-    struct event* ev_ast_evt;
+    struct event* ev;
 
     // command sock
     g_app->zcmd = zmq_socket(g_app->zctx, ZMQ_REQ);
-    if(g_app->zctx == NULL)
+    if(g_app->zcmd == NULL)
     {
         slog(LOG_ERR, "Could not initate zmq_command socket. err[%d:%s]", errno, strerror(errno));
         return false;
     }
 
-    j_tmp = json_object_get(g_app->j_conf, "addr_cmd");
-    tmp = json_string_value(j_tmp);
-    slog(LOG_INFO, "Connect zmq command socket. addr[%s]", tmp);
-
-    ret = zmq_connect(g_app->zcmd, tmp);
-    json_decref(j_tmp);
+    slog(LOG_INFO, "Connect zmq command socket. addr[%s]", json_string_value(json_object_get(g_app->j_conf, "addr_cmd")));
+    ret = zmq_connect(g_app->zcmd, json_string_value(json_object_get(g_app->j_conf, "addr_cmd")));
     if(ret != 0)
     {
-        slog(LOG_ERR, "Could not connect zmq_command socket. addr[%s], err[%d:%s]", errno, tmp, strerror(errno));
+        slog(LOG_ERR, "Could not connect zmq_command socket. addr[%s], err[%d:%s]",
+                errno, json_string_value(json_object_get(g_app->j_conf, "addr_cmd")), strerror(errno));
         return false;
     }
 
@@ -421,12 +420,8 @@ static int init_ast_int(void)
         return false;
     }
 
-    j_tmp = json_object_get(g_app->j_conf, "addr_evt");
-    tmp = json_string_value(j_tmp);
-    slog(LOG_INFO, "Connect zmq event socket. addr[%s]", tmp);
-
-    ret = zmq_connect(g_app->zevt, tmp);
-    json_decref(j_tmp);
+    slog(LOG_INFO, "Connect zmq event socket. addr[%s]", json_string_value(json_object_get(g_app->j_conf, "addr_evt")));
+    ret = zmq_connect(g_app->zevt, json_string_value(json_object_get(g_app->j_conf, "addr_evt")));
     if(ret != 0)
     {
         slog(LOG_ERR, "Could not connect zmq_event socket. err[%d:%s]", errno, strerror(errno));
@@ -443,13 +438,15 @@ static int init_ast_int(void)
     // register event callback
     fd_len = sizeof(evt_fd);
     zmq_getsockopt((void*)g_app->zevt, ZMQ_FD, (void*)&evt_fd, &fd_len);
-    ev_ast_evt = event_new(g_app->ev_base, evt_fd, EV_READ | EV_PERSIST, cb_ast_recv_evt, NULL);
-    if(ev_ast_evt == NULL)
+    ev = event_new(g_app->ev_base, evt_fd, EV_READ | EV_PERSIST, cb_ast_recv_evt, NULL);
+    if(ev == NULL)
     {
         slog(LOG_ERR, "Could not create evt read event. err[%d:%s]", errno, strerror(errno));
         return false;
     }
-    event_add(ev_ast_evt, NULL);
+    event_add(ev, NULL);
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     return true;
 }
@@ -557,62 +554,76 @@ static int init_callback(void)
     // campaign end check.
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_check_end, NULL);
     event_add(ev, &tm_slow);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // campaign start
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_start, NULL);
     event_add(ev, &tm_fast);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // campaign result write.
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_result, NULL);
     event_add(ev, &tm_fast);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // dial end handle
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_dial_end, NULL);
     event_add(ev, &tm_fast);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // transfer dial end handle
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_tr_dial_end, NULL);
     event_add(ev, &tm_fast);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // call distribute
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_distribute, NULL);
     event_add(ev, &tm_fast);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // call transfer
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_transfer, NULL);
     event_add(ev, &tm_fast);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // channel hangup handler
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_chan_hangup, NULL);
     event_add(ev, &tm_slow);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // campaign_stop
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_stop, NULL);
     event_add(ev, &tm_slow);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // campaign_forcestop
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_campaign_forcestop, NULL);
     event_add(ev, &tm_slow);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // destroy useless data
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_destroy_useless_data, NULL);
     event_add(ev, &tm_slow);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     // cmd handler
     ev = event_new(g_app->ev_base, -1, EV_TIMEOUT | EV_PERSIST, cb_cmd_handler, NULL);
     event_add(ev, &tm_slow);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
+
+    slog(LOG_DEBUG, "Complete registered callback. ev_cnt[%d]", g_app->ev_cnt);
 
     return true;
 }
@@ -625,26 +636,30 @@ static bool init_signals(void)
     /* Setup some default signal handlers */
     ev = evsignal_new(g_app->ev_base, SIGTERM, sigterm_cb, NULL);
     evsignal_add(ev, NULL);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     ev = evsignal_new(g_app->ev_base, SIGINT, sigterm_cb, NULL);
     evsignal_add(ev, NULL);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     ev = evsignal_new(g_app->ev_base, SIGUSR1, sigusr_cb, NULL);
     evsignal_add(ev, NULL);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     ev = evsignal_new(g_app->ev_base, SIGUSR2, sigusr_cb, NULL);
     evsignal_add(ev, NULL);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     ev = evsignal_new(g_app->ev_base, SIGIO, siginfo_cb, NULL);
     evsignal_add(ev, NULL);
-    g_app->ev[g_app->ev_cnt++] = ev;
+    g_app->ev[g_app->ev_cnt] = ev;
+    g_app->ev_cnt++;
 
     slog(LOG_INFO, "Initiated signal register");
-
 
     return true;
 

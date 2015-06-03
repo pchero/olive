@@ -24,6 +24,8 @@
 #include "dl_handler.h"
 #include "peer_handler.h"
 
+#define DEF_VER_LATEST  "v1"
+#define DEF_API_URI     "/api/"DEF_VER_LATEST
 
 // etc
 static evhtp_res    add_common_headers(evhtp_request_t *r, __attribute__((unused)) evhtp_headers_t *h, __attribute__((unused)) void *arg);
@@ -77,9 +79,20 @@ static void htpcb_peerdbs_specific(evhtp_request_t *req, __attribute__((unused))
  */
 int init_evhtp(void)
 {
-    evhtp_t* evhtp;
     evhtp_t* evhtp_ssl;
     int ret;
+    FILE* fp;
+
+    // check file existance.
+    fp = fopen(json_string_value(json_object_get(g_app->j_conf, "pem_filename")), "r");
+    if(fp == NULL)
+    {
+        slog(LOG_ERR, "Could not open ssl pem file. filename[%s]",
+                json_string_value(json_object_get(g_app->j_conf, "pem_filename"))
+                );
+        return false;
+    }
+    fclose(fp);
 
     // Initiate http/https interface
     evhtp_ssl_cfg_t ssl_cfg = {
@@ -102,11 +115,10 @@ int init_evhtp(void)
         .scache_get         = NULL,
         .scache_del         = NULL,
     };
-    evhtp = evhtp_new(g_app->ev_base, NULL);
     evhtp_ssl = evhtp_new(g_app->ev_base, NULL);
 
     // initiate ssl
-    evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
+    ret = evhtp_ssl_init(evhtp_ssl, &ssl_cfg);
     if(evhtp_ssl == NULL)
     {
         slog(LOG_ERR, "Could not initiate ssl configuration.");
@@ -114,18 +126,6 @@ int init_evhtp(void)
     }
 
     // bind
-    ret = evhtp_bind_socket(
-            evhtp,
-            json_string_value(json_object_get(g_app->j_conf, "addr_server")),
-            atoi(json_string_value(json_object_get(g_app->j_conf, "http_port"))),
-            1024
-            );
-    if(ret < 0)
-    {
-        slog(LOG_ERR, "Could not bind http socket. err[%s]", strerror(errno));
-        return false;
-    }
-
     ret = evhtp_bind_socket(
             evhtp_ssl,
             json_string_value(json_object_get(g_app->j_conf, "addr_server")),
@@ -144,34 +144,34 @@ int init_evhtp(void)
 
     // register interfaces
     // campaigns
-    evhtp_set_cb(evhtp_ssl,         "/campaigns",   htpcb_campaigns, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/campaigns/*", htpcb_campaigns_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/campaigns",   htpcb_campaigns, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/campaigns/*", htpcb_campaigns_specific, NULL);
 
     // agents
-    evhtp_set_cb(evhtp_ssl,         "/agents",          htpcb_agents, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agents/*",        htpcb_agents_specific, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agents/*/status", htpcb_agents_specific_status, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/agents",          htpcb_agents, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*",        htpcb_agents_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*/status", htpcb_agents_specific_status, NULL);
 
     // plans
-    evhtp_set_cb(evhtp_ssl,         "/plans",   htpcb_plans, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/plans/*", htpcb_plans_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/plans",   htpcb_plans, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/plans/*", htpcb_plans_specific, NULL);
 
     // dial-lists
-    evhtp_set_cb(evhtp_ssl,         "/dial-lists",      htpcb_diallists, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/dial-lists/*",    htpcb_diallists_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/dial-lists",      htpcb_diallists, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/dial-lists/*",    htpcb_diallists_specific, NULL);
 
     // dl info
-    evhtp_set_glob_cb(evhtp_ssl,    "/dls/*",    htpcb_dls, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/dls/*/*",  htpcb_dls_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/dls/*",    htpcb_dls, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/dls/*/*",  htpcb_dls_specific, NULL);
 
     // peers
-    evhtp_set_cb(evhtp_ssl,         "/peerdbs",     htpcb_peerdbs, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/peerdbs/*",   htpcb_peerdbs_specific, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/peerdbs",     htpcb_peerdbs, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/peerdbs/*",   htpcb_peerdbs_specific, NULL);
 
     // agent groups
-    evhtp_set_cb(evhtp_ssl,         "/agentgroups",     htpcb_agentgroups, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agentgroups/*",   htpcb_agentgroups_specific, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    "/agentgroups/*/*", htpcb_agentgroups_uuid_member, NULL);
+    evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/agentgroups",     htpcb_agentgroups, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agentgroups/*",   htpcb_agentgroups_specific, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agentgroups/*/*", htpcb_agentgroups_uuid_member, NULL);
 
 
     // status
@@ -180,6 +180,9 @@ int init_evhtp(void)
     slog(LOG_INFO, "Registered interfaces");
 
     slog(LOG_INFO, "Finished all initiation.");
+
+    // set global
+    g_app->evhtp_ssl = evhtp_ssl;
 
     return true;
 }
@@ -330,7 +333,7 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
         case htp_method_GET:
         {
             // get all campaign list
-            j_res = campaign_get_all();
+            j_res = campaigns_get_all();
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -355,10 +358,16 @@ static void htpcb_campaigns(evhtp_request_t *req, __attribute__((unused)) void *
         // PUT : update several campaign info
         case htp_method_PUT:
         {
-            // Not support yet.
-            // TODO: someday..
-            htp_ret = EVHTP_RES_METHNALLOWED;
-            j_res = json_null();
+            j_recv = get_receivedata(req);
+            if(j_recv == NULL)
+            {
+                htp_ret = EVHTP_RES_BADREQ;
+                j_res = json_null();
+                break;
+            }
+            j_res = campaigns_update(j_recv, id);
+            json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
         }
         break;
 
@@ -1891,18 +1900,19 @@ static char* get_uuid(const char* buf)
     char* sep;
     char* uuid;
     char* remain;
-    int i;
     unused__ int ret;
 
     tmp = strdup(buf);
     org = tmp;
     sep = "/";
 
-    for(i = 0; i < 3; i++)
-    {
-        remain = strsep(&tmp, sep);
-    }
-
+    // split services
+    remain = strsep(&tmp, sep); // start
+    remain = strsep(&tmp, sep); // "api"
+    remain = strsep(&tmp, sep); // "v1"
+    slog(LOG_DEBUG, "Version api. api[%s]", remain);
+    remain = strsep(&tmp, sep); // service "campaigns"
+    remain = strsep(&tmp, sep); // uuid "campaign-8cd1d05b-ad45-434f-9fde-4de801dee1c7"
     if(remain == NULL)
     {
         return NULL;
@@ -1934,7 +1944,7 @@ static char* get_uuid_second(const char* buf)
     org = tmp;
     sep = "/";
 
-    for(i = 0; i < 4; i++)
+    for(i = 0; i < 6; i++)
     {
         remain = strsep(&tmp, sep);
     }
