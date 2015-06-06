@@ -10,7 +10,7 @@ import sys
 import json
 
 class olive_curl:    
-    def https_send(url, auth, method, data):
+    def https_send(self, url, auth, method, data):
         '''
         @param url: Access url.
         @param auth: Authorization info.
@@ -48,7 +48,7 @@ class olive_curl:
     
         # set method    
         if method == "POST":
-            conn.setopt(pycurl.HTTPPOST, 1)
+            conn.setopt(pycurl.POST, 1)
         elif method == "GET":
             conn.setopt(pycurl.HTTPGET, 1)
         elif method == "PUT":
@@ -64,69 +64,169 @@ class olive_curl:
         # return    
         return conn.getinfo(pycurl.HTTP_CODE), response.getvalue()
 
-class campaigns:
+class campaigns(olive_curl):
     def __init__(self, url, auth):
         self.url = url
         self.auth = auth
-        
-    def create(self, data):
-        url = "https://localhost:8081/api/v1/campaigns"
-        auth = "admin:1234"
-        
-        ret, res = https_send(url, auth, "POST", data)
-        if ret != 200:
-            raise Exception("Could not pass campaign create test")
-        
-        j_res = json.dump(res)
-        if j_res is None:
-            raise Exception("Could not pass campaign create test")
-        
-        if j_res["detail"] != "test api v1 campaign create.":
-            raise Exception("Could not pass campaign create test")
-    
-        if j_res["name"] != "test api v1 campaign create.":
-            raise Exception("test api v1 campaign")
-        
-        uuid = j_res["uuid"]
-        
-        # test delete campaign
-        url = "https://localhost:8081/api/v1/campaigns/%s" % uuid
-        ret, res = https_send(url, auth, "DELETE", None)
-        if ret != 200:
-            raise Exception("Could not pass campaign delete test")
 
-if __name__ == "__main__":
-    auth = "admin:1234"
+    def get_all(self):
+        url = self.url + "/api/v1/campaigns"
+        ret, res = self.https_send(url, self.auth, "GET", None)
+        
+        return ret, json.loads(res)
     
-    # test get campaign list
-    url = "https://localhost:8081/api/v1/campaigns"
-    ret, res = https_send(rul, auth, "GET", None)
+    def get(self, uuid):
+        url = self.url + "/api/v1/campaigns/" + uuid
+        
+        ret, res = self.https_send(url, self.auth, "GET", None)
+    
+        return ret, json.loads(res)
+
+    def create(self, data):
+        url = self.url + "/api/v1/campaigns"
+        
+        ret, res = self.https_send(url, self.auth, "POST", data)
+        
+        return ret, json.loads(res)
+        
+    def delete(self, uuid):
+        url = self.url + "/api/v1/campaigns/" + uuid
+        
+        ret, res = self.https_send(url, self.auth, "DELETE", None)
+    
+        return ret, res
+
+    def update(self, uuid, data):
+        url = self.url + "/api/v1/campaigns/" + uuid
+        
+        ret, res = self.https_send(url, self.auth, "PUT", data)
+    
+        return ret, json.loads(res)
+
+    def updates(self, data):
+        url = self.url + "/api/v1/campaigns"
+        
+        ret, res = self.https_send(url, self.auth, "PUT", data)
+    
+        return ret, json.loads(res)
+            
+
+def test_scenario_01():
+    '''
+    create -> delete -> get speficify -> get all
+    '''
+    camp = campaigns("https://localhost:8081", "admin:1234")
+    
+    # Create
+    ret, res = camp.create('{"detail": "test api v1 campaign create.", "name":"test api v1 campaign"}')
     if ret != 200:
         raise Exception("Could not pass campaigns test")
+    if res["result"] != 1:
+        raise Exception("Could not pass campaign create")
+    if res["message"]["detail"] != "test api v1 campaign create.":
+        raise Exception("Could not pass campaign create")
+    if res["message"]["name"] != "test api v1 campaign":
+        raise Exception("Could not pass campaign create")
     
-    # test create new campaign
-    url = "https://localhost:8081/api/v1/campaigns"
-    data = '{"detail": "test api v1 campaign create.", "name":"test api v1 campaign"}'
-    ret, res = https_send(url, auth, "POST", data)
+    # delete
+    uuid = res["message"]["uuid"]
+    ret, res = camp.delete(uuid)
     if ret != 200:
-        raise Exception("Could not pass campaign create test")
+        raise Exception("Could not pass the test.")
     
-    j_res = json.dump(res)
-    if j_res is None:
-        raise Exception("Could not pass campaign create test")
-    
-    if j_res["detail"] != "test api v1 campaign create.":
-        raise Exception("Could not pass campaign create test")
-
-    if j_res["name"] != "test api v1 campaign create.":
-        raise Exception("test api v1 campaign")
-    
-    uuid = j_res["uuid"]
-    
-    # test delete campaign
-    url = "https://localhost:8081/api/v1/campaigns/%s" % uuid
-    ret, res = https_send(url, auth, "DELETE", None)
+    # get
+    ret, res = camp.get(uuid)
     if ret != 200:
-        raise Exception("Could not pass campaign delete test")
+        raise Exception("Could not pass the test.")
+    if res["message"] is not None:
+        raise Exception("Could not pass the test.")
+    
+    # get all
+    ret, res = camp.get_all()
+    if ret != 200:
+        raise Exception("Could not pass the test.")
+    for i in res["message"]:
+        if i["uuid"] == uuid:
+            raise Exception("Could not pass the test.")
+
+
+def test_scenario_02():
+    '''
+    create -> delete -> get speficify -> get all
+    '''
+    camp = campaigns("https://localhost:8081", "admin:1234")
+    
+    # Create
+    ret, res = camp.create('{"detail": "test_camp_01_detail", "name":"test_camp_01"}')
+    if ret != 200:
+        raise Exception("Could not pass campaigns test")
+    if res["result"] != 1:
+        raise Exception("Could not pass campaign create")
+    if res["message"]["detail"] != "test_camp_01_detail":
+        raise Exception("Could not pass campaign create")
+    if res["message"]["name"] != "test_camp_01":
+        raise Exception("Could not pass campaign create")
+    uuid1 = res["message"]["uuid"]
+
+    # Create
+    ret, res = camp.create('{"detail": "test_camp_02_detail", "name":"test_camp_02"}')
+    if ret != 200:
+        raise Exception("Could not pass campaigns test")
+    if res["result"] != 1:
+        raise Exception("Could not pass campaign create")
+    if res["message"]["detail"] != "test_camp_02_detail":
+        raise Exception("Could not pass campaign create")
+    if res["message"]["name"] != "test_camp_02":
+        raise Exception("Could not pass campaign create")
+    uuid2 = res["message"]["uuid"]
+ 
+    ret, res = camp.updates('[{"uuid":"%s", "detail":"test_camp_01_detail_change"}, {"uuid":"%s", "detail":"test_camp_02_detail_change"}]' 
+                 % (uuid1, uuid2))
+    if ret != 200:
+        raise Exception("Could not pass the test")
+    
+    for i in res["message"]:
+        if i["uuid"] == uuid1:
+            if i["detail"] != "test_camp_01_detail_change":
+                raise Exception("Could not pass the test.")
+
+        if i["uuid"] == uuid2:
+            if i["detail"] != "test_camp_02_detail_change":
+                raise Exception("Could not pass the test.")
+
+    ret, res = camp.delete(uuid1)
+    if ret != 200:
+        raise Exception("Could not pass the test.")
+    
+    ret, res = camp.delete(uuid2)
+    if ret != 200:
+        raise Exception("Could not pass the test.")
+    
+    
+    # get
+    ret, res = camp.get(uuid1)
+    if ret != 200:
+        raise Exception("Could not pass the test.")
+    if res["message"] is not None:
+        raise Exception("Could not pass the test.")
+
+    ret, res = camp.get(uuid2)
+    if ret != 200:
+        raise Exception("Could not pass the test.")
+    if res["message"] is not None:
+        raise Exception("Could not pass the test.")
 
     
+    # get all
+    ret, res = camp.get_all()
+    if ret != 200:
+        raise Exception("Could not pass the test.")
+    for i in res["message"]:
+        if i["uuid"] == uuid1:
+            raise Exception("Could not pass the test.")
+        if i["uuid"] == uuid2:
+            raise Exception("Could not pass the test.")
+
+if __name__ == "__main__":
+    test_scenario_01()
+    test_scenario_02()
