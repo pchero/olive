@@ -150,7 +150,7 @@ int init_evhtp(void)
     // agents
     evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/agents",          htpcb_agents, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*",        htpcb_agents_specific, NULL);
-    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*/status", htpcb_agents_specific_status, NULL);
+//    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*/status", htpcb_agents_specific_status, NULL);
 
     // plans
     evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/plans",   htpcb_plans, NULL);
@@ -524,6 +524,14 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
 
     switch(method)
     {
+        // GET :  agent list
+        case htp_method_GET:
+        {
+            j_res = agents_get_all();
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
         // POST : new agent.
         case htp_method_POST:
         {
@@ -536,14 +544,6 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
             }
             j_res = agent_create(j_recv, id);
             json_decref(j_recv);
-            htp_ret = EVHTP_RES_OK;
-        }
-        break;
-
-        // GET :  agent list
-        case htp_method_GET:
-        {
-            j_res = agent_get_all();
             htp_ret = EVHTP_RES_OK;
         }
         break;
