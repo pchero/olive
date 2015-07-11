@@ -19,7 +19,7 @@ json_t* get_agent_longest_update(json_t* j_camp, const char* status);
 bool    update_agent_status(const json_t* j_agent);
 
 // agent API handler
-json_t* agent_get_all(void);
+json_t* agents_get_all(void);
 json_t* agent_get(const char* id);
 json_t* agent_create(const json_t* j_agent, const char* id);
 json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* update_id);

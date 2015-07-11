@@ -524,6 +524,14 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
 
     switch(method)
     {
+        // GET :  agent list
+        case htp_method_GET:
+        {
+            j_res = agents_get_all();
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
         // POST : new agent.
         case htp_method_POST:
         {
@@ -536,14 +544,6 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
             }
             j_res = agent_create(j_recv, id);
             json_decref(j_recv);
-            htp_ret = EVHTP_RES_OK;
-        }
-        break;
-
-        // GET :  agent list
-        case htp_method_GET:
-        {
-            j_res = agent_get_all();
             htp_ret = EVHTP_RES_OK;
         }
         break;
