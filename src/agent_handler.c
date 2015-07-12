@@ -244,6 +244,49 @@ json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* up
 }
 
 /**
+ *
+ * @param j_agent
+ * @return
+ */
+json_t* agent_update_status(const char* id, const char* status)
+{
+    json_t* j_tmp;
+    json_t* j_res;
+    int ret;
+
+    j_tmp = json_pack("{s:s, s:s}",
+            "id",       id,
+            "status",   status
+            );
+    if(j_tmp == NULL)
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
+    }
+
+    ret = update_agent_status(j_tmp);
+    json_decref(j_tmp);
+    if(ret == false)
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
+    }
+
+    // get updated info.
+    j_tmp = get_agent(id);
+    if(j_tmp == NULL)
+    {
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
+    }
+
+    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
+    json_decref(j_tmp);
+
+    return j_res;
+}
+
+/**
  * Delete agent info API handler.
  * Not really delete, just set delete flag.
  * @return
