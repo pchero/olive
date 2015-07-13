@@ -21,12 +21,14 @@
 #include "olive_result.h"
 #include "htp_handler.h"
 
-
+// agent
 static bool     create_agent(const json_t* j_agent);
 static json_t*  get_agents_all(void);
 static json_t*  get_agent(const char* id);
 static bool     update_agent(const json_t* j_agent);
 static bool     delete_agent(const json_t* j_agent);
+static bool     agent_update_status(const char* id, const char* status);
+
 
 // agent group
 static bool     create_agentgroup(const json_t* j_group);
@@ -93,7 +95,7 @@ bool load_table_agent(void)
  * But not detail info.
  * @return
  */
-json_t* agent_get_all(void)
+json_t* agents_get_all(void)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -193,18 +195,35 @@ json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* up
     json_t* j_tmp;
     json_t* j_res;
     int ret;
+    size_t cnt;
 
     j_tmp = json_deep_copy(j_agent);
 
     json_object_set_new(j_tmp, "update_agent_id", json_string(update_id));
     json_object_set_new(j_tmp, "id", json_string(agent_id));
 
-    ret = update_agent(j_tmp);
-    json_decref(j_tmp);
+    // update status
+    ret = agent_update_status(json_string_value(json_object_get(j_tmp, "id")), json_string_value(json_object_get(j_tmp, "status")));
     if(ret == false)
     {
+        json_decref(j_tmp);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
+    }
+    json_object_del(j_tmp, "status");
+
+    // update others
+    // check there's something more except "update_agent_id", "id"
+    cnt = json_object_size(j_tmp);
+    if(cnt > 2)
+    {
+        ret = update_agent(j_tmp);
+        json_decref(j_tmp);
+        if(ret == false)
+        {
+            j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+            return j_res;
+        }
     }
 
     // get updated info.
@@ -219,6 +238,36 @@ json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* up
     json_decref(j_tmp);
 
     return j_res;
+}
+
+/**
+ *
+ * @param j_agent
+ * @return
+ */
+static bool agent_update_status(const char* id, const char* status)
+{
+    json_t* j_tmp;
+    int ret;
+
+    j_tmp = json_pack("{s:s, s:s}",
+            "id",       id,
+            "status",   status
+            );
+    if(j_tmp == NULL)
+    {
+        // nothing to update
+        return true;
+    }
+
+    ret = update_agent_status(j_tmp);
+    json_decref(j_tmp);
+    if(ret == false)
+    {
+        slog(LOG_ERR, "Could not update agent status.");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -379,7 +428,6 @@ static bool delete_agent(const json_t* j_agent)
         slog(LOG_ERR, "Could not update agent info.");
         return false;
     }
-
 
     return true;
 }
