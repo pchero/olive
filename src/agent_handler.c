@@ -27,6 +27,8 @@ static json_t*  get_agents_all(void);
 static json_t*  get_agent(const char* id);
 static bool     update_agent(const json_t* j_agent);
 static bool     delete_agent(const json_t* j_agent);
+static bool     agent_update_status(const char* id, const char* status);
+
 
 // agent group
 static bool     create_agentgroup(const json_t* j_group);
@@ -192,7 +194,6 @@ json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* up
 {
     json_t* j_tmp;
     json_t* j_res;
-    const char* tmp;
     int ret;
     size_t cnt;
 
@@ -202,18 +203,14 @@ json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* up
     json_object_set_new(j_tmp, "id", json_string(agent_id));
 
     // update status
-    tmp = json_string_value(json_object_get(j_tmp, "status"));
-    if(tmp != NULL)
+    ret = agent_update_status(json_string_value(json_object_get(j_tmp, "id")), json_string_value(json_object_get(j_tmp, "status")));
+    if(ret == false)
     {
-        ret = update_agent_status(j_tmp);
-        if(ret == false)
-        {
-            json_decref(j_tmp);
-            j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
-            return j_res;
-        }
-        json_object_del(j_tmp, "status");
+        json_decref(j_tmp);
+        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
+        return j_res;
     }
+    json_object_del(j_tmp, "status");
 
     // update others
     // check there's something more except "update_agent_id", "id"
@@ -248,10 +245,9 @@ json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* up
  * @param j_agent
  * @return
  */
-json_t* agent_update_status(const char* id, const char* status)
+static bool agent_update_status(const char* id, const char* status)
 {
     json_t* j_tmp;
-    json_t* j_res;
     int ret;
 
     j_tmp = json_pack("{s:s, s:s}",
@@ -260,30 +256,18 @@ json_t* agent_update_status(const char* id, const char* status)
             );
     if(j_tmp == NULL)
     {
-        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
-        return j_res;
+        // nothing to update
+        return true;
     }
 
     ret = update_agent_status(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
-        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
-        return j_res;
+        slog(LOG_ERR, "Could not update agent status.");
+        return false;
     }
-
-    // get updated info.
-    j_tmp = get_agent(id);
-    if(j_tmp == NULL)
-    {
-        j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
-        return j_res;
-    }
-
-    j_res = htp_create_olive_result(OLIVE_OK, j_tmp);
-    json_decref(j_tmp);
-
-    return j_res;
+    return true;
 }
 
 /**
@@ -444,7 +428,6 @@ static bool delete_agent(const json_t* j_agent)
         slog(LOG_ERR, "Could not update agent info.");
         return false;
     }
-
 
     return true;
 }

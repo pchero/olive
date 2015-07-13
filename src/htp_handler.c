@@ -671,7 +671,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
     return;
 }
 
-void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg)
+unused__ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     unused__ int ret;
     htp_method req_method;
