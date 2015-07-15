@@ -219,12 +219,12 @@ static bool delete_peerdb(const json_t* j_peer)
     cur_time = get_utc_timestamp();
     ret = asprintf(&sql, "update peer set"
             " tm_delete = \"%s\","
-            " delete_agent_id = \"%s\""
+            " delete_agent_uuid = \"%s\""
             " where"
             " name = \"%s\";"
             ,
             cur_time,
-            json_string_value(json_object_get(j_peer, "delete_agent_id")),
+            json_string_value(json_object_get(j_peer, "delete_agent_uuid")),
             json_string_value(json_object_get(j_peer, "name"))
             );
     free(cur_time);
@@ -269,10 +269,10 @@ json_t* peerdb_get_all(void)
  * Update peerdb API handler
  * @param peer_name
  * @param j_recv
- * @param agent_id
+ * @param agent_uuid
  * @return
  */
-json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* agent_id)
+json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* agent_uuid)
 {
     unused__ int ret;
     json_t* j_res;
@@ -281,7 +281,7 @@ json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* a
     j_tmp = json_deep_copy(j_recv);
 
     // set info
-    json_object_set_new(j_tmp, "update_property_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_property_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "name", json_string(peer_name));
 
     // update
@@ -289,8 +289,8 @@ json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* a
     json_decref(j_tmp);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not update peerdb. peer_name[%s], agent_id[%s]",
-                peer_name, agent_id);
+        slog(LOG_ERR, "Could not update peerdb. peer_name[%s], agent_uuid[%s]",
+                peer_name, agent_uuid);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
@@ -314,10 +314,10 @@ json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* a
 /**
  * Delete peerdb API handler.
  * @param peer_name
- * @param agent_id
+ * @param agent_uuid
  * @return
  */
-json_t* peerdb_delete(const char* peer_name, const char* agent_id)
+json_t* peerdb_delete(const char* peer_name, const char* agent_uuid)
 {
     int ret;
     json_t* j_res;
@@ -325,14 +325,14 @@ json_t* peerdb_delete(const char* peer_name, const char* agent_id)
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "delete_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "name", json_string(peer_name));
 
     ret = delete_peerdb(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not delete peerdb info. peer_name[%s], agent_id[%s]", peer_name, agent_id);
+        slog(LOG_ERR, "Could not delete peerdb info. peer_name[%s], agent_uuid[%s]", peer_name, agent_uuid);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
@@ -345,10 +345,10 @@ json_t* peerdb_delete(const char* peer_name, const char* agent_id)
 /**
  * Create peerdb API handler.
  * @param j_camp
- * @param agent_id
+ * @param agent_uuid
  * @return
  */
-json_t* peerdb_create(const json_t* j_peer, const char* agent_id)
+json_t* peerdb_create(const json_t* j_peer, const char* agent_uuid)
 {
     int ret;
     json_t* j_tmp;
@@ -356,8 +356,8 @@ json_t* peerdb_create(const json_t* j_peer, const char* agent_id)
 
     j_tmp = json_deep_copy(j_peer);
 
-    // set create_agent_id
-    json_object_set_new(j_tmp, "create_agent_id", json_string(agent_id));
+    // set create_agent_uuid
+    json_object_set_new(j_tmp, "create_agent_uuid", json_string(agent_uuid));
 
     // create peerdb.
     ret = create_peerdb(j_tmp);

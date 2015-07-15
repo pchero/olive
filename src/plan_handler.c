@@ -64,12 +64,12 @@ static bool delete_plan(const json_t* j_plan)
     cur_time = get_utc_timestamp();
     ret = asprintf(&sql, "update plan set"
             " tm_delete = \"%s\","
-            " delete_agent_id = \"%s\""
+            " delete_agent_uuid = \"%s\""
             " where"
             " uuid = \"%s\";"
             ,
             cur_time,
-            json_string_value(json_object_get(j_plan, "delete_agent_id")),
+            json_string_value(json_object_get(j_plan, "delete_agent_uuid")),
             json_string_value(json_object_get(j_plan, "uuid"))
             );
     free(cur_time);
@@ -200,7 +200,7 @@ static bool update_plan_info(const json_t* j_plan)
  * @param id
  * @return
  */
-json_t* plan_create(json_t* j_plan, const char* id)
+json_t* plan_create(json_t* j_plan, const char* agent_uuid)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -209,8 +209,8 @@ json_t* plan_create(json_t* j_plan, const char* id)
 
     j_tmp = json_deep_copy(j_plan);
 
-    json_object_set_new(j_tmp, "create_agent_id", json_string(id));
-    json_object_set_new(j_tmp, "update_property_agent_id", json_string(id));
+    json_object_set_new(j_tmp, "create_agent_uuid", json_string(agent_uuid));
+    json_object_set_new(j_tmp, "update_property_agent_uuid", json_string(agent_uuid));
 
     // gen plan_uuid
     plan_uuid = gen_uuid_plan();
@@ -296,10 +296,10 @@ json_t* plan_get_info(const char* uuid)
  * Update plan info API handler.
  * @param plan_uuid
  * @param j_recv
- * @param agent_id
+ * @param agent_uuid
  * @return
  */
-json_t* plan_update_info(const char* plan_uuid, const json_t* j_recv, const char* agent_id)
+json_t* plan_update_info(const char* plan_uuid, const json_t* j_recv, const char* agent_uuid)
 {
     unused__ int ret;
     json_t* j_res;
@@ -308,7 +308,7 @@ json_t* plan_update_info(const char* plan_uuid, const json_t* j_recv, const char
     j_tmp = json_deep_copy(j_recv);
 
     // set info
-    json_object_set_new(j_tmp, "update_property_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_property_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "uuid", json_string(plan_uuid));
 
     // update
@@ -338,10 +338,10 @@ json_t* plan_update_info(const char* plan_uuid, const json_t* j_recv, const char
 /**
  * Delete plan info API handler.
  * @param plan_uuid
- * @param agent_id
+ * @param agent_uuid
  * @return
  */
-json_t* plan_delete(const char* plan_uuid, const char* agent_id)
+json_t* plan_delete(const char* plan_uuid, const char* agent_uuid)
 {
     int ret;
     json_t* j_res;
@@ -349,7 +349,7 @@ json_t* plan_delete(const char* plan_uuid, const char* agent_id)
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "delete_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "uuid", json_string(plan_uuid));
 
     ret = delete_plan(j_tmp);

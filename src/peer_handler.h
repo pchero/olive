@@ -16,9 +16,9 @@ json_t* get_peer_all(void);
 // API handlers
 json_t* peerdb_get_all(void);
 json_t* peerdb_get(const char* name);
-json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* agent_id);
-json_t* peerdb_delete(const char* peer_name, const char* agent_id);
-json_t* peerdb_create(const json_t* j_peer, const char* agent_id);
+json_t* peerdb_update(const char* peer_name, const json_t* j_recv, const char* agent_uuid);
+json_t* peerdb_delete(const char* peer_name, const char* agent_uuid);
+json_t* peerdb_create(const json_t* j_peer, const char* agent_uuid);
 
 
 
