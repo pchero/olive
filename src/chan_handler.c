@@ -205,8 +205,8 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     {
         // extract info.
         j_dialing   = get_dialing_info_by_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
-        j_camp      = json_loads(json_string_value(json_object_get(j_dialing, "info_camp")), 0, &j_err);
-        j_plan      = json_loads(json_string_value(json_object_get(j_dialing, "info_plan")), 0, &j_err);
+        j_camp      = json_loads(json_string_value(json_object_get(j_dialing, "info_camp")), JSON_DECODE_ANY, &j_err);
+        j_plan      = json_loads(json_string_value(json_object_get(j_dialing, "info_plan")), JSON_DECODE_ANY, &j_err);
         if(j_dialing == NULL || j_camp == NULL || j_plan == NULL)
         {
             slog(LOG_ERR, "Could not get info. j_dialing[%p], j_camp[%p], j_plan[%p]",

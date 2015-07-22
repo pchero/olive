@@ -265,10 +265,11 @@ static json_t* get_receivedata(evhtp_request_t *r)
 {
     size_t len;
     json_t* j_res;
-    char* buf;
+    const char* buf;
     json_error_t j_err;
 
     len = evbuffer_get_length(r->buffer_in);
+    slog(LOG_DEBUG, "Received data len. len[%d]", len);
     if(len == 0)
     {
         // Not correct input.
@@ -276,8 +277,7 @@ static json_t* get_receivedata(evhtp_request_t *r)
     }
 
     buf = (char*)evbuffer_pullup(r->buffer_in, len);
-
-    j_res = json_loads(buf, strlen(buf), &j_err);
+    j_res = json_loadb((const char *)buf, len, 0, 0);
     if(j_res == NULL)
     {
         slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",

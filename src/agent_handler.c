@@ -598,6 +598,8 @@ json_t* get_agent_by_id_pass(const char* id, const char* pass)
     char* sql;
     db_ctx_t* db_res;
 
+    slog(LOG_DEBUG, "Checking agent account. id[%s], pass[%s]", id, pass);
+
     // get agent
     ret = asprintf(&sql, "select * from agent where id = \"%s\" and password = \"%s\" and tm_delete is null;",
             id, pass
