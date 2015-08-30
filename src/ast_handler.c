@@ -132,7 +132,7 @@ void cb_ast_recv_evt(unused__ evutil_socket_t fd, unused__ short what, unused__ 
         zmq_msg_close(&msg);
         slog(LOG_EVENT, "Recv. msg[%s]", recv_buf);
 
-        j_recv = json_loads(recv_buf, JSON_DECODE_ANY, &j_err);
+        j_recv = json_loads(recv_buf, 0, &j_err);
         free(recv_buf);
         if(j_recv == NULL)
         {
@@ -2281,20 +2281,12 @@ int cmd_sippeers(void)
         slog(LOG_ERR, "Could not send Action:SIPpeers");
         return false;
     }
-    slog(LOG_DEBUG, "Recv data. recv[%s]", res);
 
     j_res = json_loadb(res, strlen(res), 0, 0);
     free(res);
 
     // response check
     j_tmp = json_array_get(j_res, 0);
-    if((j_tmp == NULL) || (json_object_get(j_tmp, "Response") == NULL))
-    {
-        slog(LOG_ERR, "Could not get correct message.");
-        json_decref(j_res);
-        return false;
-    }
-
     ret = strcmp(json_string_value(json_object_get(j_tmp, "Response")), "Success");
     if(ret != 0)
     {
@@ -2697,9 +2689,8 @@ int cmd_originate(json_t* j_dial)
         slog(LOG_ERR, "Could not send Action:Originate. c[%s]", cmd);
         return false;
     }
-    slog(LOG_EVENT, "Recv. msg[%s]", res);
 
-    j_res = json_loads(res, JSON_DECODE_ANY, &j_err);
+    j_res = json_loads(res, 0, &j_err);
     free(res);
     if(j_res == NULL)
     {
@@ -2780,7 +2771,7 @@ json_t* cmd_getvar(
         return NULL;
     }
 
-    j_res = json_loads(res, JSON_DECODE_ANY, &j_err);
+    j_res = json_loads(res, 0, &j_err);
     free(res);
     if(j_res == NULL)
     {
@@ -2854,7 +2845,7 @@ int cmd_hangup(
         return false;
     }
 
-    j_res_org = json_loads(res, JSON_DECODE_ANY, &j_err);
+    j_res_org = json_loads(res, 0, &j_err);
     free(res);
     if(j_res_org == NULL)
     {
@@ -2933,7 +2924,7 @@ int cmd_blindtransfer(
         return false;
     }
 
-    j_res_org = json_loads(res, JSON_DECODE_ANY, &j_err);
+    j_res_org = json_loads(res, 0, &j_err);
     free(res);
     if(j_res_org == NULL)
     {
@@ -3025,7 +3016,7 @@ int cmd_redirect(
         return false;
     }
 
-    j_res_org = json_loads(res, JSON_DECODE_ANY, &j_err);
+    j_res_org = json_loads(res, 0, &j_err);
     free(res);
     if(j_res_org == NULL)
     {
@@ -3179,7 +3170,7 @@ int cmd_bridge(json_t* j_bridge)
         return false;
     }
 
-    j_res_org = json_loads(res, JSON_DECODE_ANY, &j_err);
+    j_res_org = json_loads(res, 0, &j_err);
     j_res = json_array_get(j_res_org, 0);
 
     tmp = json_string_value(json_object_get(j_res, "Response"));

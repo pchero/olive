@@ -205,8 +205,8 @@ void cb_chan_distribute(unused__ evutil_socket_t fd, unused__ short what, unused
     {
         // extract info.
         j_dialing   = get_dialing_info_by_chan_unique_id(json_string_value(json_object_get(j_chan, "unique_id")));
-        j_camp      = json_loads(json_string_value(json_object_get(j_dialing, "info_camp")), JSON_DECODE_ANY, &j_err);
-        j_plan      = json_loads(json_string_value(json_object_get(j_dialing, "info_plan")), JSON_DECODE_ANY, &j_err);
+        j_camp      = json_loads(json_string_value(json_object_get(j_dialing, "info_camp")), 0, &j_err);
+        j_plan      = json_loads(json_string_value(json_object_get(j_dialing, "info_plan")), 0, &j_err);
         if(j_dialing == NULL || j_camp == NULL || j_plan == NULL)
         {
             slog(LOG_ERR, "Could not get info. j_dialing[%p], j_camp[%p], j_plan[%p]",
@@ -577,7 +577,7 @@ static void chan_dist_predictive(json_t* j_camp, json_t* j_plan, json_t* j_chan,
 
             // transfer info
             "tr_trycnt",            json_integer_value(json_object_get(j_dialing, "tr_trycnt")) + 1,
-            "tr_agent_uuid",        json_string_value(json_object_get(j_agent, "uuid")),
+            "tr_agent_id",          json_string_value(json_object_get(j_agent, "id")),
             "tr_chan_unique_id",    json_string_value(json_object_get(j_dial, "ChannelId")),
             "tm_tr_dial",           cur_time,
 
@@ -638,7 +638,7 @@ static void chan_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, j
 
     // get ready agent
     ret = asprintf(&sql, "select * from agent where"
-            " id = (select agent_uuid from agent_group where group_uuid = \"%s\")"
+            " id = (select agent_id from agent_group where group_uuid = \"%s\")"
             " and status = \"%s\""
             " order by tm_status_update"
             " limit 1",
@@ -741,7 +741,7 @@ static void chan_dist_redirect(json_t* j_camp, json_t* j_plan, json_t* j_chan, j
     // update dialing info
     ret = asprintf(&sql, "update dialing set "
             "tm_redirect = %s, "
-            "tr_agent_uuid = \"%s\", "
+            "tr_agent_id = \"%s\", "
             "tr_trycnt = %s,"
             "status = \"%s\" "
             "where chan_unique_id = \"%s\""

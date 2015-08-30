@@ -44,7 +44,7 @@ void cb_campaign_result(unused__ int fd, unused__ short event, unused__ void *ar
 bool load_table_trunk_group(void);
 
 // campaign API handler
-json_t* campaign_create(const json_t* j_camp, const char* agent_uuid);
+json_t* campaign_create(const json_t* j_camp, const char* agent_id);
 json_t* campaigns_get_all(void);
 json_t* campaigns_update(const json_t* j_recv, const char* id);
 json_t* campaign_get(const char* uuid);

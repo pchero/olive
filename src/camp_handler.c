@@ -606,7 +606,7 @@ static void dial_redirect(json_t* j_camp, json_t* j_plan, json_t* j_dlma)
 
     // get available agent(just figure out how many calls are can go at this moment)
     ret = asprintf(&sql, "select * from agent where "
-            "id = (select agent_uuid from agent_group where group_uuid=\"%s\") "
+            "id = (select agent_id from agent_group where group_uuid=\"%s\") "
             "and status=\"%s\" "
             "limit 1;",
 
@@ -895,7 +895,7 @@ bool load_table_trunk_group(void)
  * @param j_camp
  * @return
  */
-json_t* campaign_create(const json_t* j_camp, const char* agent_uuid)
+json_t* campaign_create(const json_t* j_camp, const char* agent_id)
 {
     int ret;
     char* camp_uuid;
@@ -904,10 +904,10 @@ json_t* campaign_create(const json_t* j_camp, const char* agent_uuid)
 
     j_tmp = json_deep_copy(j_camp);
 
-    // set create_agent_uuid
-    json_object_set_new(j_tmp, "create_agent_uuid", json_string(agent_uuid));
-    json_object_set_new(j_tmp, "update_status_agent_uuid", json_string(agent_uuid));
-    json_object_set_new(j_tmp, "update_property_agent_uuid", json_string(agent_uuid));
+    // set create_agent_id
+    json_object_set_new(j_tmp, "create_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_status_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_property_agent_id", json_string(agent_id));
 
     // gen camp uuid
     camp_uuid = gen_uuid_campaign();
@@ -996,7 +996,7 @@ json_t* campaign_get(const char* uuid)
  * @param j_recv
  * @return
  */
-json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char* agent_uuid)
+json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char* id)
 {
     unused__ int ret;
     json_t* j_res;
@@ -1005,10 +1005,10 @@ json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char*
     j_tmp = json_deep_copy(j_recv);
 
     // remove info
-    json_object_del(j_tmp, "create_agent_uuid");
-    json_object_del(j_tmp, "delete_agent_uuid");
-    json_object_del(j_tmp, "update_property_agent_uuid");
-    json_object_del(j_tmp, "update_status_agent_uuid");
+    json_object_del(j_tmp, "create_agent_id");
+    json_object_del(j_tmp, "delete_agent_id");
+    json_object_del(j_tmp, "update_property_agent_id");
+    json_object_del(j_tmp, "update_status_agent_id");
     json_object_del(j_tmp, "tm_create");
     json_object_del(j_tmp, "tm_update_property");
     json_object_del(j_tmp, "tm_delete");
@@ -1016,7 +1016,7 @@ json_t* campaign_update(const char* camp_uuid, const json_t* j_recv, const char*
     json_object_del(j_tmp, "uuid");
 
     // set info
-    json_object_set_new(j_tmp, "update_property_agent_uuid", json_string(agent_uuid));
+    json_object_set_new(j_tmp, "update_property_agent_id", json_string(id));
     json_object_set_new(j_tmp, "uuid", json_string(camp_uuid));
 
     // update
@@ -1104,7 +1104,7 @@ json_t* campaigns_update(const json_t* j_recv, const char* id)
  * @param j_recv
  * @return
  */
-json_t* campaign_delete(const char* camp_uuid, const char* agent_uuid)
+json_t* campaign_delete(const char* camp_uuid, const char* agent_id)
 {
     int ret;
     json_t* j_res;
@@ -1112,14 +1112,14 @@ json_t* campaign_delete(const char* camp_uuid, const char* agent_uuid)
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_uuid", json_string(agent_uuid));
+    json_object_set_new(j_tmp, "delete_agent_id", json_string(agent_id));
     json_object_set_new(j_tmp, "uuid", json_string(camp_uuid));
 
     ret = delete_campaign(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not delete campaign info. camp_uuid[%s], agent_uuid[%s]", camp_uuid, agent_uuid);
+        slog(LOG_ERR, "Could not delete campaign info. camp_uuid[%s], agent_id[%s]", camp_uuid, agent_id);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
@@ -1334,7 +1334,7 @@ static int check_dial_avaiable(const json_t* j_camp, const json_t* j_plan, const
     unused__ int ret;
 
     // get count of currently available agents.
-    ret = asprintf(&sql, "select count(*) from agent where status = \"%s\" and id = (select agent_uuid from agent_group where group_uuid = \"%s\");",
+    ret = asprintf(&sql, "select count(*) from agent where status = \"%s\" and id = (select agent_id from agent_group where group_uuid = \"%s\");",
             "ready",
             json_string_value(json_object_get(j_camp, "agent_group"))
             );
@@ -2036,12 +2036,12 @@ static bool delete_campaign(const json_t* j_camp)
     cur_time = get_utc_timestamp();
     ret = asprintf(&sql, "update campaign set"
             " tm_delete = \"%s\","
-            " delete_agent_uuid = \"%s\""
+            " delete_agent_id = \"%s\""
             " where"
             " uuid = \"%s\";"
             ,
             cur_time,
-            json_string_value(json_object_get(j_camp, "delete_agent_uuid")),
+            json_string_value(json_object_get(j_camp, "delete_agent_id")),
             json_string_value(json_object_get(j_camp, "uuid"))
             );
     free(cur_time);

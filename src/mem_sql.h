@@ -275,7 +275,7 @@ char* SQL_CREATE_DIALING = "create table dialing(\n"
 
         "-- transfer info.\n"
         "tr_trycnt          int default 0,  -- transfer try count.\n"
-        "tr_agent_uuid      text,           -- transferred agent id.\n"
+        "tr_agent_id        text,           -- transferred agent id.\n"
         "tr_chan_unique_id  text,           -- trying transfer chan unique id.\n"
 
         "-- result.\n"
