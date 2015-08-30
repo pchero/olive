@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # test_api_campaign.py
 #  Created on: Jun 5, 2015
 #      Author: pchero
@@ -44,6 +46,7 @@ class olive_curl:
         
         # set request buffer
         if data is not None:
+            print "Send data[%s]" % (data)
             conn.setopt(pycurl.POSTFIELDS, data)
     
         # set method    
@@ -118,7 +121,7 @@ def test_scenario_01():
     camp = campaigns("https://localhost:8081", "admin:1234")
     
     # Create
-    ret, res = camp.create('{"detail": "test api v1 campaign create.", "name":"test api v1 campaign"}')
+    ret, res = camp.create('''{"detail": "test api v1 campaign create.", "name":"test api v1 campaign"}''')
     if ret != 200:
         raise Exception("Could not pass campaigns test")
     if res["result"] != 1:
@@ -157,7 +160,7 @@ def test_scenario_02():
     camp = campaigns("https://localhost:8081", "admin:1234")
     
     # Create
-    ret, res = camp.create('{"detail": "test_camp_01_detail", "name":"test_camp_01"}')
+    ret, res = camp.create('''{"detail": "test_camp_01_detail", "name":"test_camp_01"}''')
     if ret != 200:
         raise Exception("Could not pass campaigns test")
     if res["result"] != 1:
@@ -180,7 +183,7 @@ def test_scenario_02():
         raise Exception("Could not pass campaign create")
     uuid2 = res["message"]["uuid"]
  
-    ret, res = camp.updates('[{"uuid":"%s", "detail":"test_camp_01_detail_change"}, {"uuid":"%s", "detail":"test_camp_02_detail_change"}]' 
+    ret, res = camp.updates("[{\"uuid\":\"%s\", \"detail\":\"test_camp_01_detail_change\"}, {\"uuid\":\"%s\", \"detail\":\"test_camp_02_detail_change\"}]" 
                  % (uuid1, uuid2))
     if ret != 200:
         raise Exception("Could not pass the test")
