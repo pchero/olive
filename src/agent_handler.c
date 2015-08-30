@@ -21,14 +21,12 @@
 #include "olive_result.h"
 #include "htp_handler.h"
 
-// agent
+
 static bool     create_agent(const json_t* j_agent);
 static json_t*  get_agents_all(void);
 static json_t*  get_agent(const char* id);
 static bool     update_agent(const json_t* j_agent);
 static bool     delete_agent(const json_t* j_agent);
-static bool     agent_update_status(const char* id, const char* status);
-
 
 // agent group
 static bool     create_agentgroup(const json_t* j_group);
@@ -95,7 +93,7 @@ bool load_table_agent(void)
  * But not detail info.
  * @return
  */
-json_t* agents_get_all(void)
+json_t* agent_get_all(void)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -119,7 +117,7 @@ json_t* agents_get_all(void)
  * @param j_agent
  * @return
  */
-json_t* agent_create(const json_t* j_agent, const char* creator_uuid)
+json_t* agent_create(const json_t* j_agent, const char* id)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -136,7 +134,7 @@ json_t* agent_create(const json_t* j_agent, const char* creator_uuid)
     }
 
     // set info.
-    json_object_set_new(j_tmp, "create_agent_uuid", json_string(creator_uuid));
+    json_object_set_new(j_tmp, "create_agent_id", json_string(id));
 
     // create agent.
     ret = create_agent(j_tmp);
@@ -166,16 +164,16 @@ json_t* agent_create(const json_t* j_agent, const char* creator_uuid)
  * Get agent info API handler
  * @return
  */
-json_t* agent_get(const char* uuid)
+json_t* agent_get(const char* id)
 {
 
     json_t* j_tmp;
     json_t* j_res;
 
-    j_tmp = get_agent(uuid);
+    j_tmp = get_agent(id);
     if(j_tmp == NULL)
     {
-        slog(LOG_ERR, "Could not get agent info. uuid[%s]", uuid);
+        slog(LOG_ERR, "Could not get agent info. agent_id[%s]", id);
         j_res = htp_create_olive_result(OLIVE_AGENT_NOT_FOUND, json_null());
         return j_res;
     }
@@ -190,44 +188,27 @@ json_t* agent_get(const char* uuid)
  * Update agent info API handler
  * @return
  */
-json_t* agent_update(const char* agent_uuid, const json_t* j_agent, const char* update_agent_uuid)
+json_t* agent_update(const char* agent_id, const json_t* j_agent, const char* update_id)
 {
     json_t* j_tmp;
     json_t* j_res;
     int ret;
-    size_t cnt;
 
     j_tmp = json_deep_copy(j_agent);
 
-    json_object_set_new(j_tmp, "update_agent_uuid", json_string(update_agent_uuid));
-    json_object_set_new(j_tmp, "id", json_string(agent_uuid));
+    json_object_set_new(j_tmp, "update_agent_id", json_string(update_id));
+    json_object_set_new(j_tmp, "id", json_string(agent_id));
 
-    // update status
-    ret = agent_update_status(json_string_value(json_object_get(j_tmp, "id")), json_string_value(json_object_get(j_tmp, "status")));
+    ret = update_agent(j_tmp);
+    json_decref(j_tmp);
     if(ret == false)
     {
-        json_decref(j_tmp);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
-    json_object_del(j_tmp, "status");
-
-    // update others
-    // check there's something more except "update_agent_uuid", "uuid"
-    cnt = json_object_size(j_tmp);
-    if(cnt > 2)
-    {
-        ret = update_agent(j_tmp);
-        json_decref(j_tmp);
-        if(ret == false)
-        {
-            j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
-            return j_res;
-        }
-    }
 
     // get updated info.
-    j_tmp = get_agent(agent_uuid);
+    j_tmp = get_agent(agent_id);
     if(j_tmp == NULL)
     {
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
@@ -241,41 +222,11 @@ json_t* agent_update(const char* agent_uuid, const json_t* j_agent, const char* 
 }
 
 /**
- *
- * @param j_agent
- * @return
- */
-static bool agent_update_status(const char* id, const char* status)
-{
-    json_t* j_tmp;
-    int ret;
-
-    j_tmp = json_pack("{s:s, s:s}",
-            "id",       id,
-            "status",   status
-            );
-    if(j_tmp == NULL)
-    {
-        // nothing to update
-        return true;
-    }
-
-    ret = update_agent_status(j_tmp);
-    json_decref(j_tmp);
-    if(ret == false)
-    {
-        slog(LOG_ERR, "Could not update agent status.");
-        return false;
-    }
-    return true;
-}
-
-/**
  * Delete agent info API handler.
  * Not really delete, just set delete flag.
  * @return
  */
-json_t* agent_delete(const char* agent_uuid, const char* update_uuid)
+json_t* agent_delete(const char* agent_id, const char* update_id)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -283,14 +234,14 @@ json_t* agent_delete(const char* agent_uuid, const char* update_uuid)
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_uuid", json_string(update_uuid));
-    json_object_set_new(j_tmp, "uuid", json_string(agent_uuid));
+    json_object_set_new(j_tmp, "delete_agent_id", json_string(update_id));
+    json_object_set_new(j_tmp, "id", json_string(agent_id));
 
     ret = delete_agent(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not delete agent. agent_uuid[%s], update_agent_uuid[%s]", agent_uuid, update_uuid);
+        slog(LOG_ERR, "Could not delete agent. agent_id[%s], update_agent_id[%s]", agent_id, update_id);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
@@ -429,6 +380,7 @@ static bool delete_agent(const json_t* j_agent)
         return false;
     }
 
+
     return true;
 }
 
@@ -482,7 +434,7 @@ json_t* get_agent_longest_update(json_t* j_camp, const char* status)
 
     // get agent
     ret = asprintf(&sql, "select * from agent where "
-            "id = (select agent_uuid from agent_group where group_uuid = \"%s\") "
+            "id = (select agent_id from agent_group where group_uuid = \"%s\") "
             "and status = \"%s\" "
             "order by tm_status_update "
             "limit 1",
@@ -597,8 +549,6 @@ json_t* get_agent_by_id_pass(const char* id, const char* pass)
     unused__ int ret;
     char* sql;
     db_ctx_t* db_res;
-
-    slog(LOG_DEBUG, "Checking agent account. id[%s], pass[%s]", id, pass);
 
     // get agent
     ret = asprintf(&sql, "select * from agent where id = \"%s\" and password = \"%s\" and tm_delete is null;",
@@ -891,7 +841,7 @@ json_t* agentgroup_get(const char* uuid)
     return j_res;
 }
 
-json_t* agentgroup_update(const char* uuid, const json_t* j_group, const char* agent_uuid)
+json_t* agentgroup_update(const char* uuid, const json_t* j_group, const char* agent_id)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -899,7 +849,7 @@ json_t* agentgroup_update(const char* uuid, const json_t* j_group, const char* a
 
     j_tmp = json_deep_copy(j_group);
 
-    json_object_set_new(j_tmp, "update_agent_uuid", json_string(agent_uuid));
+    json_object_set_new(j_tmp, "update_agent_id", json_string(agent_id));
     json_object_set_new(j_tmp, "uuid", json_string(uuid));
 
     ret = update_agentgroup(j_tmp);
@@ -924,7 +874,7 @@ json_t* agentgroup_update(const char* uuid, const json_t* j_group, const char* a
     return j_res;
 }
 
-json_t* agentgroup_delete(const char* uuid, const char* agent_uuid)
+json_t* agentgroup_delete(const char* uuid, const char* agent_id)
 {
     json_t* j_tmp;
     json_t* j_res;
@@ -932,14 +882,14 @@ json_t* agentgroup_delete(const char* uuid, const char* agent_uuid)
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_uuid", json_string(agent_uuid));
+    json_object_set_new(j_tmp, "delete_agent_id", json_string(agent_id));
     json_object_set_new(j_tmp, "uuid", json_string(uuid));
 
     ret = delete_agentgroup(j_tmp);
     json_decref(j_tmp);
     if(ret == false)
     {
-        slog(LOG_ERR, "Could not delete agentgroup. uuid[%s], agent_uuid[%s]", uuid, agent_uuid);
+        slog(LOG_ERR, "Could not delete agentgroup. uuid[%s], agent_id[%s]", uuid, agent_id);
         j_res = htp_create_olive_result(OLIVE_INTERNAL_ERROR, json_null());
         return j_res;
     }
@@ -949,7 +899,7 @@ json_t* agentgroup_delete(const char* uuid, const char* agent_uuid)
     return j_res;
 }
 
-json_t* agentgroup_create(const json_t* j_agentgroup, const char* creator_uuid)
+json_t* agentgroup_create(const json_t* j_agentgroup, const char* agent_id)
 {
     int ret;
     char* agentgroup_uuid;
@@ -958,8 +908,8 @@ json_t* agentgroup_create(const json_t* j_agentgroup, const char* creator_uuid)
 
     j_tmp = json_deep_copy(j_agentgroup);
 
-    // set create_agent_uuid
-    json_object_set_new(j_tmp, "create_agent_uuid", json_string(creator_uuid));
+    // set create_agent_id
+    json_object_set_new(j_tmp, "create_agent_id", json_string(agent_id));
 
     // gen agentgroup uuid
     agentgroup_uuid = gen_uuid_agentgroup();

@@ -36,7 +36,7 @@ static bool         add_olive_result(evhtp_request_t *r, const json_t* j_res);
 static char*        get_uuid(const char* buf);
 static char*        get_uuid_second(const char* buf);
 static json_t*      get_receivedata(evhtp_request_t *r);
-static bool         get_htp_id_pass(evhtp_request_t* req, char** agent_uuid, char** agent_pass);
+static bool         get_htp_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass);
 
 // checks
 static int ssl_verify_callback(int ok, X509_STORE_CTX * x509_store);
@@ -150,7 +150,7 @@ int init_evhtp(void)
     // agents
     evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/agents",          htpcb_agents, NULL);
     evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*",        htpcb_agents_specific, NULL);
-//    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*/status", htpcb_agents_specific_status, NULL);
+    evhtp_set_glob_cb(evhtp_ssl,    DEF_API_URI"/agents/*/status", htpcb_agents_specific_status, NULL);
 
     // plans
     evhtp_set_cb(evhtp_ssl,         DEF_API_URI"/plans",   htpcb_plans, NULL);
@@ -265,11 +265,10 @@ static json_t* get_receivedata(evhtp_request_t *r)
 {
     size_t len;
     json_t* j_res;
-    const char* buf;
+    char* buf;
     json_error_t j_err;
 
     len = evbuffer_get_length(r->buffer_in);
-    slog(LOG_DEBUG, "Received data len. len[%d]", len);
     if(len == 0)
     {
         // Not correct input.
@@ -277,7 +276,8 @@ static json_t* get_receivedata(evhtp_request_t *r)
     }
 
     buf = (char*)evbuffer_pullup(r->buffer_in, len);
-    j_res = json_loadb((const char *)buf, len, 0, 0);
+
+    j_res = json_loads(buf, strlen(buf), &j_err);
     if(j_res == NULL)
     {
         slog(LOG_ERR, "Could not load json. column[%d], line[%d], position[%d], source[%s], text[%s]",
@@ -524,14 +524,6 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
 
     switch(method)
     {
-        // GET :  agent list
-        case htp_method_GET:
-        {
-            j_res = agents_get_all();
-            htp_ret = EVHTP_RES_OK;
-        }
-        break;
-
         // POST : new agent.
         case htp_method_POST:
         {
@@ -544,6 +536,14 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
             }
             j_res = agent_create(j_recv, id);
             json_decref(j_recv);
+            htp_ret = EVHTP_RES_OK;
+        }
+        break;
+
+        // GET :  agent list
+        case htp_method_GET:
+        {
+            j_res = agent_get_all();
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -577,7 +577,7 @@ void htpcb_agents(evhtp_request_t *req, __attribute__((unused)) void *arg)
 }
 
 /**
- * http://host_url/agents/agent_uuid
+ * http://host_url/agents/agent_id
  * @param req
  * @param arg
  */
@@ -590,7 +590,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
     int htp_ret;
     char* id;
     char* pass;
-    char* agent_uuid;
+    char* agent_id;
 
     slog(LOG_DEBUG, "Called htpcb_agents_specific.");
 
@@ -605,10 +605,10 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
         return;
     }
 
-    agent_uuid = get_uuid(req->uri->path->full);
-    if(agent_uuid == NULL)
+    agent_id = get_uuid(req->uri->path->full);
+    if(agent_id == NULL)
     {
-        slog(LOG_ERR, "Could not extract agent_uuid info.");
+        slog(LOG_ERR, "Could not extract agent_id info.");
         evhtp_send_reply(req, EVHTP_RES_BADREQ);
         return;
     }
@@ -621,7 +621,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
         // GET : Return specified agent info.
         case htp_method_GET:
         {
-            j_res = agent_get(agent_uuid);
+            j_res = agent_get(agent_id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -636,7 +636,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
                 j_res = json_null();
                 break;
             }
-            j_res = agent_update(agent_uuid, j_recv, id);
+            j_res = agent_update(agent_id, j_recv, id);
             json_decref(j_recv);
             htp_ret = EVHTP_RES_OK;
         }
@@ -645,7 +645,7 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
         // DELETE : Delete specified agent.
         case htp_method_DELETE:
         {
-            j_res = agent_delete(agent_uuid, id);
+            j_res = agent_delete(agent_id, id);
             htp_ret = EVHTP_RES_OK;
         }
         break;
@@ -666,12 +666,12 @@ static void htpcb_agents_specific(evhtp_request_t *req, __attribute__((unused)) 
     evhtp_send_reply(req, htp_ret);
     free(id);
     free(pass);
-    free(agent_uuid);
+    free(agent_id);
 
     return;
 }
 
-unused__ void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg)
+void htpcb_agents_specific_status(evhtp_request_t *req, __attribute__((unused)) void *arg)
 {
     unused__ int ret;
     htp_method req_method;
@@ -1827,11 +1827,11 @@ static bool check_authorization(evhtp_request_t* req, const char* id, const char
 /**
  *
  * @param req
- * @param agent_uuid      (out) agent id
+ * @param agent_id      (out) agent id
  * @param agent_pass    (out) agent pass
  * @return
  */
-static bool get_htp_id_pass(evhtp_request_t* req, char** agent_uuid, char** agent_pass)
+static bool get_htp_id_pass(evhtp_request_t* req, char** agent_id, char** agent_pass)
 {
     evhtp_connection_t* conn;
     char *auth_hdr, *auth_b64;
@@ -1842,7 +1842,7 @@ static bool get_htp_id_pass(evhtp_request_t* req, char** agent_uuid, char** agen
 
     conn = evhtp_request_get_connection(req);
 
-    *agent_uuid   = NULL;
+    *agent_id   = NULL;
     *agent_pass = NULL;
 
     // get Authorization
@@ -1879,7 +1879,7 @@ static bool get_htp_id_pass(evhtp_request_t* req, char** agent_uuid, char** agen
     free(outstr);
     slog(LOG_DEBUG, "User info. user[%s], pass[%s]", username, password);
 
-    ret = asprintf(agent_uuid, "%s", username);
+    ret = asprintf(agent_id, "%s", username);
     ret = asprintf(agent_pass, "%s", password);
 
     return true;

@@ -42,15 +42,15 @@ json_t* sip_get_peer_by_agent_and_status(json_t* j_agent, const char* status)
     }
 
     // get agent owned peer info
-    ret = asprintf(&sql, "select * from peer where agent_uuid = \"%s\"",
-            json_string_value(json_object_get(j_agent, "uuid"))
+    ret = asprintf(&sql, "select * from peer where agent_id = \"%s\"",
+            json_string_value(json_object_get(j_agent, "id"))
             );
     db_res = db_query(sql);
     free(sql);
     if(db_res == NULL)
     {
         slog(LOG_ERR, "Could not get agent own peer info. id[%s], name[%s]",
-                json_string_value(json_object_get(j_agent, "uuid")),
+                json_string_value(json_object_get(j_agent, "id")),
                 json_string_value(json_object_get(j_agent, "name"))
                 );
         return NULL;

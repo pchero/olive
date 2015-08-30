@@ -1,7 +1,7 @@
 #Makefile
 # Created on: Aug 12, 2014
 #     Author: pchero
-# Master makefile for olive project
+# Master makefile for connect backend project
 
 SUBDIR= src 
 
