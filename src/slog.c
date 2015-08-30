@@ -41,6 +41,11 @@ static int s_send (void *socket, char *string)
 {
     int size;
 
+    if(string == NULL)
+    {
+        return 0;
+    }
+
     size = zmq_send(socket, string, strlen(string), 0);
     return size;
 }

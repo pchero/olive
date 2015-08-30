@@ -61,10 +61,10 @@ static bool create_dlma(const json_t* j_dlma)
 /**
  * Create dlma API handler.
  * @param j_dlma
- * @param agent_id
+ * @param agent_uuid
  * @return
  */
-json_t* dlma_create(json_t* j_dlma, const char* agent_id)
+json_t* dlma_create(json_t* j_dlma, const char* agent_uuid)
 {
     int ret;
     char* dlma_uuid;
@@ -73,8 +73,8 @@ json_t* dlma_create(json_t* j_dlma, const char* agent_id)
 
     j_tmp = json_deep_copy(j_dlma);
 
-    // set create_agent_id
-    json_object_set_new(j_tmp, "create_agent_id", json_string(agent_id));
+    // set create_agent_uuid
+    json_object_set_new(j_tmp, "create_agent_uuid", json_string(agent_uuid));
 
     // gen dlma uuid
     dlma_uuid = gen_uuid_dlma();
@@ -208,7 +208,7 @@ static bool update_dlma_info(const json_t* j_dlma)
  * @param agent_id
  * @return
  */
-json_t* dlma_update_info(const char* dlma_uuid, const json_t* j_recv, const char* agent_id)
+json_t* dlma_update_info(const char* dlma_uuid, const json_t* j_recv, const char* agent_uuid)
 {
     unused__ int ret;
     json_t* j_res;
@@ -217,7 +217,7 @@ json_t* dlma_update_info(const char* dlma_uuid, const json_t* j_recv, const char
     j_tmp = json_deep_copy(j_recv);
 
     // set info
-    json_object_set_new(j_tmp, "update_property_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_property_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "uuid", json_string(dlma_uuid));
 
     // update
@@ -318,12 +318,12 @@ static bool delete_dlma(const json_t* j_dlma)
     cur_time = get_utc_timestamp();
     ret = asprintf(&sql, "update dial_list_ma set"
             " tm_delete = \"%s\","
-            " delete_agent_id = \"%s\""
+            " delete_agent_uuid = \"%s\""
             " where"
             " uuid = \"%s\";"
             ,
             cur_time,
-            json_string_value(json_object_get(j_dlma, "delete_agent_id")),
+            json_string_value(json_object_get(j_dlma, "delete_agent_uuid")),
             json_string_value(json_object_get(j_dlma, "uuid"))
             );
     free(cur_time);
@@ -345,7 +345,7 @@ static bool delete_dlma(const json_t* j_dlma)
  * @param agent_id
  * @return
  */
-json_t* dlma_delete(const char* dlma_uuid, const char* agent_id)
+json_t* dlma_delete(const char* dlma_uuid, const char* agent_uuid)
 {
     int ret;
     json_t* j_res;
@@ -353,7 +353,7 @@ json_t* dlma_delete(const char* dlma_uuid, const char* agent_id)
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "delete_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "uuid", json_string(dlma_uuid));
 
     ret = delete_dlma(j_tmp);
@@ -567,7 +567,7 @@ json_t* dl_get_all(const char* dlma_uuid)
  * @param id
  * @return
  */
-json_t* dl_create(const char* dlma_uuid, const json_t* j_dl, const char* agent_id)
+json_t* dl_create(const char* dlma_uuid, const json_t* j_dl, const char* agent_uuid)
 {
     int ret;
     char* dl_uuid;
@@ -577,8 +577,8 @@ json_t* dl_create(const char* dlma_uuid, const json_t* j_dl, const char* agent_i
     // create dl info
     j_tmp = json_deep_copy(j_dl);
 
-    // set create_agent_id
-    json_object_set_new(j_tmp, "create_agent_id", json_string(agent_id));
+    // set create_agent_uuid
+    json_object_set_new(j_tmp, "create_agent_uuid", json_string(agent_uuid));
 
     // gen dl uuid
     dl_uuid = gen_uuid_dl();
@@ -641,7 +641,7 @@ json_t* dl_get_info(const char* dlma_uuid, const char* dl_uuid)
  * @param agent_id
  * @return
  */
-json_t* dl_update_info(const char* dlma_uuid, const char* dl_uuid, const json_t* j_recv, const char* agent_id)
+json_t* dl_update_info(const char* dlma_uuid, const char* dl_uuid, const json_t* j_recv, const char* agent_uuid)
 {
     unused__ int ret;
     json_t* j_res;
@@ -650,7 +650,7 @@ json_t* dl_update_info(const char* dlma_uuid, const char* dl_uuid, const json_t*
     j_tmp = json_deep_copy(j_recv);
 
     // set info
-    json_object_set_new(j_tmp, "update_property_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "update_property_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "uuid", json_string(dl_uuid));
 
     // update
@@ -753,13 +753,13 @@ static bool delete_dl(const char* dlma_uuid, const json_t* j_dl)
     cur_time = get_utc_timestamp();
     ret = asprintf(&sql, "update %s set"
             " tm_delete = \"%s\","
-            " delete_agent_id = \"%s\""
+            " delete_agent_uuid = \"%s\""
             " where"
             " uuid = \"%s\";"
             ,
             table,
             cur_time,
-            json_string_value(json_object_get(j_dl, "delete_agent_id")),
+            json_string_value(json_object_get(j_dl, "delete_agent_uuid")),
             json_string_value(json_object_get(j_dl, "uuid"))
             );
     free(cur_time);
@@ -785,7 +785,7 @@ static bool delete_dl(const char* dlma_uuid, const json_t* j_dl)
  * @param agent_id
  * @return
  */
-json_t* dl_delete(const char* dlma_uuid, const char* dl_uuid, const char* agent_id)
+json_t* dl_delete(const char* dlma_uuid, const char* dl_uuid, const char* agent_uuid)
 {
     int ret;
     json_t* j_res;
@@ -793,7 +793,7 @@ json_t* dl_delete(const char* dlma_uuid, const char* dl_uuid, const char* agent_
 
     j_tmp = json_object();
 
-    json_object_set_new(j_tmp, "delete_agent_id", json_string(agent_id));
+    json_object_set_new(j_tmp, "delete_agent_uuid", json_string(agent_uuid));
     json_object_set_new(j_tmp, "uuid", json_string(dl_uuid));
 
     ret = delete_dl(dlma_uuid, j_tmp);

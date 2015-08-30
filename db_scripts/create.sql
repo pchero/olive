@@ -20,9 +20,9 @@ create table peer(
     tm_update       datetime(6),   -- last update time
     
     -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
 
 --    foreign key(agent_id)                   references agent(id) on delete set null on update cascade,
     
@@ -42,9 +42,9 @@ create table peer_group_ma(
     tm_update       datetime(6),   -- update time.
 
     -- ownership
-    create_agent_id varchar(255),   -- create agent uuid
-    delete_agent_id varchar(255),   -- delete agent uuid
-    update_agent_id varchar(255),   -- last propery update agent uuid
+    create_agent_uuid varchar(255),   -- create agent uuid
+    delete_agent_uuid varchar(255),   -- delete agent uuid
+    update_agent_uuid varchar(255),   -- last propery update agent uuid
 
     primary key(uuid)
 );
@@ -77,9 +77,9 @@ create table trunk_group_ma(
     tm_last_dial    datetime(6),   -- last tried dial time
 
     -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_agent_id  varchar(255),       -- last propery update agent uuid
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_agent_uuid  varchar(255),       -- last propery update agent uuid
 
     primary key(uuid)
 );
@@ -102,10 +102,10 @@ create table agent(
 -- every agents are belongs to here.
 
     -- identity
---    uuid        varchar(255)    not null unique,
+    uuid                varchar(255)    not null unique,
     
     -- information
-    id                  varchar(255)    not null unique,    -- login id.
+    id                  varchar(255)    not null,           -- login id.
     password            varchar(1023)   not null,           -- login passwd.
     name                varchar(255),                       -- agent name.
     status              varchar(255)    default "logout",   -- status(logout, ready, not ready, busy, after call work).    
@@ -114,9 +114,9 @@ create table agent(
     peer_group          varchar(255),                       -- peer_group_ma uuid.
     
     -- ownership
-    create_agent_id     varchar(255),   -- create agent id.
-    delete_agent_id     varchar(255),   -- delete agent id.
-    update_agent_id     varchar(255),   -- last info update agent id.
+    create_agent_uuid     varchar(255),   -- create agent id.
+    delete_agent_uuid     varchar(255),   -- delete agent id.
+    update_agent_uuid     varchar(255),   -- last info update agent id.
     
     -- timestamp
     tm_create           datetime(6),    -- created time.
@@ -131,7 +131,7 @@ create table agent(
     
     foreign key(peer_group) references peer_group_ma(uuid) on delete set null on update cascade,
         
-    primary key(id)
+    primary key(uuid)
 );
 
 drop table if exists agent_group_ma;
@@ -147,9 +147,9 @@ create table agent_group_ma(
     tm_update       datetime(6),   -- last update time
 
     -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
 
     primary key(uuid)
 );
@@ -157,12 +157,12 @@ create table agent_group_ma(
 drop table if exists agent_group;
 create table agent_group(
     group_uuid  varchar(255)  not null,
-    agent_id    varchar(255)  not null,
+    agent_uuid  varchar(255)  not null,
     
     foreign key(group_uuid) references agent_group_ma(uuid) on delete cascade on update cascade,
-    foreign key(agent_id)   references agent(id)            on delete cascade on update cascade,
+    foreign key(agent_uuid) references agent(uuid)          on delete cascade on update cascade,
     
-    primary key(group_uuid, agent_id)
+    primary key(group_uuid, agent_uuid)
 );
 
 drop table if exists plan;
@@ -196,9 +196,9 @@ create table plan(
     max_retry_cnt_8     int default 5,  -- max retry count for dial number 8
 
     -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
     
     -- timestamp. UTC.
     tm_create           datetime(6),    -- create time.
@@ -265,9 +265,9 @@ create table dl_org(
     tm_last_dial    datetime(6),   -- last tried dial time
     
     -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
 
     primary key(uuid)
 );
@@ -292,9 +292,9 @@ create table dial_list_ma(
     tm_update_property  datetime(6),    -- last property update time.(Except status)
     
     -- ownership
-    create_agent_id           varchar(255),       -- create agent uuid
-    delete_agent_id           varchar(255),       -- delete agent uuid
-    update_property_agent_id  varchar(255),       -- last propery update agent uuid
+    create_agent_uuid           varchar(255),       -- create agent uuid
+    delete_agent_uuid           varchar(255),       -- delete agent uuid
+    update_property_agent_uuid  varchar(255),       -- last propery update agent uuid
     
     primary key(seq, uuid)
 );
@@ -315,10 +315,10 @@ create table campaign(
     next_campaign               varchar(255),       -- next campaign uuid
     
     -- ownership
-    create_agent_id             varchar(255),       -- create agent uuid
-    delete_agent_id             varchar(255),       -- delete agent uuid
-    update_property_agent_id    varchar(255),       -- last propery update agent uuid
-    update_status_agent_id      varchar(255),       -- last status update agent uuid
+    create_agent_uuid             varchar(255),       -- create agent uuid
+    delete_agent_uuid             varchar(255),       -- delete agent uuid
+    update_property_agent_uuid    varchar(255),       -- last propery update agent uuid
+    update_status_agent_uuid      varchar(255),       -- last status update agent uuid
     
     -- resources
     agent_group varchar(255),                       -- agent group uuid
@@ -377,7 +377,7 @@ create table campaign_result(
     
     -- transfer info
     tr_trycnt          int,             -- transfer try count.
-    tr_agent_id        varchar(255),    -- transfered agent.
+    tr_agent_uuid        varchar(255),    -- transfered agent.
     tr_chan_unique_id  varchar(255),    -- trying transfer chan unique id.
     
     -- dial result
@@ -395,9 +395,9 @@ create table campaign_result(
 );
 
 -- Add admin agent
-insert into agent(id, password) values ("admin", "1234");
+insert into agent(uuid, id, password) values ("a04b8b7e-c202-48ef-9bfd-678243f1b052", "admin", "1234");
 insert into agent_group_ma(uuid, name) values ("agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465", "master_agent_group");
-insert into agent_group(agent_id, group_uuid) values ("admin", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
+insert into agent_group(agent_uuid, group_uuid) values ("a04b8b7e-c202-48ef-9bfd-678243f1b052", "agentgroup-51aaaafc-ba28-4bea-8e53-eaacdd0cd465");
 
 -- Add test trunk
 insert into peer(name, mode, protocol) values ("trunk-sample_01", "trunk", "sip");
